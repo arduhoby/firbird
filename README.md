@@ -12,7 +12,7 @@ FirBird, kuş fotoğraflarını cihaz üzerinde tanımlamaya odaklanan açık ka
 - Tanımlama geçmişi cihazda tutulur.
 - Uygulama Android 9 (API 28) ve üzerini hedefler.
 - Balkanlar paketi planlanmaktadır; Türkiye paketiyle birlikte kullanılabilecek ve tür kökenini gösterecektir.
-- Planlanan `Yakınımdaki kuşlar` ekranı, seçilen konum ve mevsimde görülmesi beklenen türleri cihazda listeler.
+- `Yakınımdaki kuşlar` ön sürümü, kurulu Türkiye paketindeki düzenli/göçmen türleri çevrimdışı listeler. Yedi coğrafi bölge, tarih, mevcut konum ve nadir kayıt seçimi sunar.
 
 İndirilebilir uygulama, model ve bölge paketi düzeni için [GitHub Releases planına](docs/package_format/GITHUB_RELEASES.md) bakın.
 
@@ -39,6 +39,10 @@ FirBird, lisansı belirsiz veya ticari yeniden dağıtıma izin vermeyen tür/ve
 GBIF Backbone Taxonomy, bilimsel ad eşleştirmesi için CC BY 4.0 lisanslı başlangıç kaynağıdır. Avrupa Birliği ülkelerindeki resmî kuş dağılım verisi, Avrupa Çevre Ajansı'nın Article 12 veri setinden CC BY koşullarıyla değerlendirilmektedir. Telifli kontrol listeleri yalnızca yerel kalite kontrolü için referans alınır; FirBird paketine veya GitHub Releases varlığına kopyalanmaz.
 
 Balkan adayları bilimsel ada göre tekilleştirilir, BioCLIP-2 metin vektörleriyle eşleştirilir ve Marmara fotoğraflarıyla gerçek cihazda test edilir. Ayrıntılar: [Balkan paket kapsamı](docs/data/BALKANS_PACKAGE_SCOPE.md) ve [veri kaynak politikası](docs/data/SOURCE_POLICY.md).
+
+### Yakınımdaki kuşlar: mevcut sınır
+
+İlk mobil sürüm, Türkiye paketindeki düzenli/göçmen türleri seçilen bölge ve tarih bağlamıyla gösterir; nadir kayıtlar varsayılan olarak gizlidir. İlçe/10 km düzeyinde gerçek yakınlık sıralaması, bölgesel dağılım ve mevsimsellik öncülleri hazır olduğunda eklenecektir. Bu nedenle ilk sürümdeki liste, kesin bir saha gözlem listesi değil, kurulu pakete dayalı güvenli başlangıç listesidir.
 
 ## Gizlilik
 

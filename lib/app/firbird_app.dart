@@ -5,6 +5,7 @@ import 'package:firbird/app/identification_screens.dart';
 import 'package:firbird/app/history_and_settings_screens.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/observation_context_screen.dart';
+import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +52,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/explore',
       builder: (BuildContext context, GoRouterState state) =>
-          const FeatureScreen(feature: AppFeature.explore),
+          const NearbyBirdsScreen(),
     ),
     GoRoute(
       path: '/settings',

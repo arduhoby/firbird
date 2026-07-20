@@ -42,3 +42,15 @@ FirBird data v0.x.y (GitHub Release)
 `firbird-catalog-v1.json`, uygulamanın paket ekranında gösterilecek sürümü, boyutu, SHA-256 özeti, indirme bağlantısı, model uyumluluğu ve lisans bilgisini taşır. Uygulama indirirken geçici dosya kullanır, SHA-256 doğrular ve yalnızca kontrol başarılıysa paketi etkinleştirir.
 
 Türkiye ve Balkanlar paketleri ayrı indirilir. İkisi de kuruluysa ortak türler tekrarlanmaz; sonuçta türün `Türkiye`, `Balkanlar` veya `Türkiye ve Balkanlar · ortak` kapsamından geldiği gösterilir.
+
+## Yakınımdaki kuşlar
+
+Uygulama, BirdNET benzeri bir `Yakınımdaki kuşlar` keşif ekranı sunacaktır. Bu ekran tanımlama yapmadan, kullanıcının seçtiği yaklaşık konum ve tarihe göre o çevrede görülmesi beklenen türleri listeler.
+
+- Konum kullanımı isteğe bağlıdır; kullanıcı mevcut konumunu, haritadan yaklaşık bir noktayı veya bölge listesini seçebilir.
+- Kesin koordinat sunucuya gönderilmez ve varsayılan olarak kalıcı saklanmaz. Koordinat, cihazda bölge/grid kimliğine dönüştürülür.
+- Sonuçlar seçili bölge paketi ile tarih/mevsim öncüllerine göre sıralanır.
+- Her tür kartında Türkçe ad, bilimsel ad, küçük görsel, görülme durumu ve köken etiketi gösterilir.
+- Kullanıcı tür kartından Trakuş ve Ornito.org’daki tür sayfasını açabilir.
+- Konum veya tarih bilinmiyorsa, paket kapsamındaki türler filtrelenmeden ancak uygun bir bilgilendirme ile listelenir.
+- İnternet, yalnızca dış kaynak bağlantılarını açmak için gerekir; kurulu paketlerin listesi çevrimdışı çalışır.

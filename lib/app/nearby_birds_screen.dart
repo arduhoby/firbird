@@ -24,6 +24,8 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
   bool _hasApproximateLocation = false;
   String? _locationMessage;
   String? _selectedRegion;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
 
   static const List<String> _regions = <String>[
     'Marmara',
@@ -104,6 +106,12 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Yakınımdaki kuşlar'),
@@ -116,9 +124,15 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         final List<_NearbyBird> all = snapshot.data ?? const <_NearbyBird>[];
+        final String normalizedQuery = _query.trim().toLowerCase();
         final List<_NearbyBird> visible =
             all
-                .where((_NearbyBird bird) => _includeRare || !bird.isRare)
+                .where(
+                  (_NearbyBird bird) =>
+                      (_includeRare || !bird.isRare) &&
+                      (normalizedQuery.isEmpty ||
+                          bird.searchableText.contains(normalizedQuery)),
+                )
                 .toList()
               ..sort(
                 (_NearbyBird a, _NearbyBird b) =>
@@ -191,6 +205,28 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
               value: _includeRare,
               onChanged: (bool value) => setState(() => _includeRare = value),
             ),
+            TextField(
+              controller: _searchController,
+              onChanged: (String value) => setState(() => _query = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                labelText: 'Tür ara',
+                hintText: 'Örnek: ebabil',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Aramayı temizle',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
             const Divider(),
             Text(
               '${visible.length} tür',
@@ -254,6 +290,9 @@ class _NearbyBird {
   final String scientificName;
   final String englishName;
   final bool isRare;
+
+  String get searchableText =>
+      '$turkishName $scientificName $englishName'.toLowerCase();
 
   SpeciesPrediction get prediction => SpeciesPrediction(
     speciesId: scientificName.toLowerCase().replaceAll(' ', '-'),

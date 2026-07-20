@@ -12,7 +12,7 @@ FirBird, kuş fotoğraflarını cihaz üzerinde tanımlamaya odaklanan açık ka
 - Tanımlama geçmişi cihazda tutulur.
 - Uygulama Android 9 (API 28) ve üzerini hedefler.
 - Balkanlar paketi planlanmaktadır; Türkiye paketiyle birlikte kullanılabilecek ve tür kökenini gösterecektir.
-- `Yakınımdaki kuşlar` ön sürümü, kurulu Türkiye paketindeki düzenli/göçmen türleri çevrimdışı listeler. Yedi coğrafi bölge, tarih, mevcut konum ve nadir kayıt seçimi sunar.
+- `Yakınımdaki kuşlar` ön sürümü, kurulu Türkiye paketindeki düzenli/göçmen türleri çevrimdışı listeler. Yedi coğrafi bölge, tarih, mevcut konum, nadir kayıt seçimi ve Türkçe/bilimsel/İngilizce ada göre tür araması sunar.
 
 İndirilebilir uygulama, model ve bölge paketi düzeni için [GitHub Releases planına](docs/package_format/GITHUB_RELEASES.md) bakın.
 

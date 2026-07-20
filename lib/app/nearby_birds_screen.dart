@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 class NearbyBirdsScreen extends StatefulWidget {
   const NearbyBirdsScreen({super.key});
@@ -38,10 +38,10 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
   ];
 
   Future<List<_NearbyBird>> _loadBirds() async {
-    final Directory? external = await getExternalStorageDirectory();
-    if (external == null) return const <_NearbyBird>[];
+    final Directory external =
+        await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
     final File file = File(
-      path.join(external.path, 'firbird_test_model', 'candidates.json'),
+      path.join(external.path, 'candidates.json'),
     );
     if (!await file.exists()) return const <_NearbyBird>[];
     final Map<String, dynamic> json =

@@ -7,6 +7,7 @@ import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/observation_context_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -50,7 +51,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/packages',
       builder: (BuildContext context, GoRouterState state) =>
-          const FeatureScreen(feature: AppFeature.packages),
+          const TurkeyPackagesScreen(),
     ),
     GoRoute(
       path: '/explore',
@@ -658,6 +659,56 @@ class _PhotoMetadata {
 }
 
 enum AppFeature { history, packages, explore, settings, speciesDetail }
+
+class TurkeyPackagesScreen extends StatelessWidget {
+  const TurkeyPackagesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Bölge paketleri'),
+      leading: const BackToHomeButton(),
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Card(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          child: const ListTile(
+            leading: Icon(Icons.check_circle_outline),
+            title: Text('Türkiye paketi'),
+            subtitle: Text(
+              'Sürüm 0.1.0 · Uygulamaya dahil · 464 tür kaydı',
+            ),
+            trailing: Text('Hazır'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.download_for_offline_outlined),
+            title: Text('Balkanlar paketi'),
+            subtitle: Text('Yakında isteğe bağlı indirilebilir olacak.'),
+            trailing: Text('Yakında'),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () async {
+            await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Türkiye paketi hazır.')),
+              );
+            }
+          },
+          icon: const Icon(Icons.offline_bolt_outlined),
+          label: const Text('Türkiye paketini hazırla'),
+        ),
+      ],
+    ),
+  );
+}
 
 class FeatureScreen extends StatelessWidget {
   const FeatureScreen({required this.feature, super.key});

@@ -5,13 +5,14 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import 'bird_inference_engine.dart';
 
-/// Test engine for the downloaded BioCLIP-2 image encoder and regional
-/// candidate vectors. The large model stays outside the APK.
+/// BioCLIP-2 image encoder and regional candidate vectors.
+/// Türkiye 0.1.0 ships with the app and is extracted once to app storage.
 class OnnxBirdInferenceEngine implements BirdInferenceEngine {
   OnnxBirdInferenceEngine({
     required this.modelFile,
@@ -36,14 +37,44 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
   Float32List? _candidateEmbeddings;
   int _dimensions = 768;
 
-  Future<Directory> _directory() async {
+  static const String turkeyPackageVersion = '0.1.0';
+  static const String _assetRoot = 'tools/model_staging/turkey_0.1.0';
+
+  static Future<Directory> ensureTurkeyPackageInstalled() async {
     final Directory? external = await getExternalStorageDirectory();
     if (external == null) {
       throw const StrongModelNotAvailableException(
-        'Test model directory is unavailable.',
+        'Türkiye paketi için uygulama depolama alanı kullanılamıyor.',
       );
     }
-    return Directory(path.join(external.path, 'firbird_test_model'));
+    final Directory directory = Directory(
+      path.join(external.path, 'firbird_test_model'),
+    );
+    final List<String> files = <String>[
+      'model.onnx',
+      'embeddings.npy',
+      'candidates.json',
+    ];
+    final bool ready = await Future.wait(
+      files.map((String name) => File(path.join(directory.path, name)).exists()),
+    ).then((List<bool> values) => values.every((bool value) => value));
+    if (ready) return directory;
+
+    await directory.create(recursive: true);
+    for (final String name in files) {
+      final File target = File(path.join(directory.path, name));
+      if (await target.exists()) continue;
+      final ByteData bytes = await rootBundle.load('$_assetRoot/$name');
+      await target.writeAsBytes(
+        bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+        flush: true,
+      );
+    }
+    return directory;
+  }
+
+  Future<Directory> _directory() async {
+    return ensureTurkeyPackageInstalled();
   }
 
   @override
@@ -57,7 +88,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
         !await candidates.exists() ||
         !await embeddings.exists()) {
       throw const StrongModelNotAvailableException(
-        'Guclu test modeli henuz telefona yuklenmedi.',
+        'Türkiye 0.1.0 cihaz içi paketi hazırlanamadı.',
       );
     }
     _session = await _runtime.createSession(onnx.path);
@@ -170,7 +201,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
                 _candidates![index].prediction(weights[index] / total),
           )
           .toList(),
-      modelVersion: 'bioclip2-int8-turkey-balkans-test',
+      modelVersion: 'bioclip2-int8-turkey-0.1.0',
       locationAffectedResult: context.countryCode != null,
       dateAffectedResult: context.observationDate != null,
       sourceImageUri: image.uri,
@@ -182,7 +213,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
       Future<ModelInformation>.value(
         const ModelInformation(
           identifier: 'bioclip2-int8',
-          version: 'test',
+          version: turkeyPackageVersion,
           isMock: false,
         ),
       );

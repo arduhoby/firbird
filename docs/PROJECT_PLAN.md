@@ -13,6 +13,10 @@ FirBird is an offline-first, open-source bird identification application. The An
 
 No photo, EXIF field, or location is sent from the device during identification.
 
+## Planlanan kamera kısayolu
+
+Fotoğraf seçim ekranında `Fotoğraf seç` düğmesinin yanına küçük bir kamera simgesi eklenecektir. Kullanıcı bu simgeye dokunarak anında fotoğraf çekebilecek; çekilen fotoğraf doğrudan mevcut tanımlama akışına aktarılacaktır. Kamera izni yalnızca ilk kullanımda istenir ve fotoğraf cihaz dışına gönderilmez.
+
 ## GitHub indirilebilir dosya planı
 
 Kaynak kod ile büyük, sürümlü indirilebilir içerikler ayrı tutulur. Kaynak kod normal Git geçmişinde kalır; uygulama, model ve bölge paketleri yalnızca GitHub Releases varlığı olarak yayımlanır.

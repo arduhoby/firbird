@@ -7,7 +7,7 @@
   "modelBytes": 306917008,
   "sha256": "6932aadb7f54f33a40ce0d38acf5e867de015eded62632f984d49cd2b1431f3f",
   "license": "MIT",
-  "candidateScope": "turkey-balkans-residents-and-regular-migrants",
-  "candidatePolicy": "Include species that regularly breed, winter, or pass through Türkiye and the Balkans; rank accidental vagrants separately.",
+  "candidateScope": "turkey-regular-migrants-and-accidentals",
+  "candidatePolicy": "Current test package includes Türkiye regular, migratory, and accidental records. Balkans is distributed as a separate package.",
   "status": "requires-turkey-text-embeddings"
 }

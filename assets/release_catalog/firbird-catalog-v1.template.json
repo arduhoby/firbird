@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-20T00:00:00Z",
+  "packages": [
+    {
+      "id": "turkey-all",
+      "version": "0.1.0",
+      "downloadUrl": "https://github.com/arduhoby/firbird/releases/download/data-v0.1.0/turkey-all-v0.1.0.firbird",
+      "sha256": "REPLACE_WITH_RELEASE_SHA256",
+      "sizeBytes": 0,
+      "coverage": ["TR"],
+      "originScope": "turkiye",
+      "modelId": "turkey-bioclip2-int8"
+    },
+    {
+      "id": "balkans",
+      "version": "0.1.0",
+      "downloadUrl": "https://github.com/arduhoby/firbird/releases/download/data-v0.1.0/balkans-v0.1.0.firbird",
+      "sha256": "REPLACE_WITH_RELEASE_SHA256",
+      "sizeBytes": 0,
+      "coverage": ["AL", "BA", "BG", "GR", "HR", "ME", "MK", "RO", "RS", "SI", "XK"],
+      "originScope": "balkanlar",
+      "modelId": "turkey-bioclip2-int8"
+    }
+  ]
+}

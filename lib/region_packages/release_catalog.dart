@@ -43,6 +43,9 @@ class CatalogPackage {
     required this.downloadUrl,
     required this.sha256,
     required this.sizeBytes,
+    this.coverage = const <String>[],
+    this.originScope,
+    this.modelId,
   });
 
   factory CatalogPackage.fromJson(Map<String, Object?> json) {
@@ -51,11 +54,17 @@ class CatalogPackage {
     final Object? downloadUrl = json['downloadUrl'];
     final Object? sha256 = json['sha256'];
     final Object? sizeBytes = json['sizeBytes'];
+    final Object? coverage = json['coverage'];
+    final Object? originScope = json['originScope'];
+    final Object? modelId = json['modelId'];
     if (id is! String ||
         version is! String ||
         downloadUrl is! String ||
         sha256 is! String ||
         sizeBytes is! int ||
+        (coverage != null && coverage is! List<Object?>) ||
+        (originScope != null && originScope is! String) ||
+        (modelId != null && modelId is! String) ||
         Uri.tryParse(downloadUrl)?.hasScheme != true) {
       throw const CatalogException('Catalog package entry is invalid.');
     }
@@ -65,6 +74,11 @@ class CatalogPackage {
       downloadUrl: Uri.parse(downloadUrl),
       sha256: sha256.toLowerCase(),
       sizeBytes: sizeBytes,
+      coverage: coverage == null
+          ? const <String>[]
+          : (coverage as List<Object?>).cast<String>(),
+      originScope: originScope as String?,
+      modelId: modelId as String?,
     );
   }
 
@@ -73,6 +87,9 @@ class CatalogPackage {
   final Uri downloadUrl;
   final String sha256;
   final int sizeBytes;
+  final List<String> coverage;
+  final String? originScope;
+  final String? modelId;
 }
 
 class CatalogException implements Exception {

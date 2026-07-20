@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "countryCode": "BG",
+      "source": "Replace with a verified, redistributable checklist source",
+      "license": "CC-BY-4.0",
+      "version": "replace-with-source-version",
+      "species": [
+        {
+          "scientificName": "Carduelis carduelis",
+          "occurrence": "regular"
+        }
+      ]
+    }
+  ]
+}

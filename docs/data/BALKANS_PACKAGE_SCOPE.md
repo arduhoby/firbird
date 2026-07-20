@@ -27,3 +27,7 @@ Bu değer, türün biyolojik kökenini değil FirBird paketindeki görülme kaps
 3. Ortak türler bilimsel ada göre tekilleştirilmelidir.
 4. Bilinmeyen/uyuşmayan taksonlar otomatik yayınlanmaz; inceleme listesine alınır.
 5. Yayın öncesinde Marmara fotoğraflarıyla cihaz testi yapılır.
+
+## Oluşturma hattı
+
+`tools/build_balkans_candidate_manifest.ps1`, ülke kaynaklarını bilimsel adla birleştirir ve yalnızca `CC0-1.0` veya `CC-BY-4.0` lisanslı kayıtları kabul eder. Çıktı, model vektörü eşleştirmesinden önce incelenebilir aday listesi ile reddedilen kayıtlar listesidir.

@@ -1,0 +1,13 @@
+{
+  "id": "turkey-bioclip2-int8",
+  "displayName": "Turkiye guclu kus modeli",
+  "version": "0.1.0-preview",
+  "runtime": "onnx",
+  "modelUri": "https://huggingface.co/mahan-ym/bioclip-2-quantized/resolve/main/onnx/bioclip2_model_int8.onnx?download=true",
+  "modelBytes": 306917008,
+  "sha256": "6932aadb7f54f33a40ce0d38acf5e867de015eded62632f984d49cd2b1431f3f",
+  "license": "MIT",
+  "candidateScope": "turkey-balkans-residents-and-regular-migrants",
+  "candidatePolicy": "Include species that regularly breed, winter, or pass through Türkiye and the Balkans; rank accidental vagrants separately.",
+  "status": "requires-turkey-text-embeddings"
+}

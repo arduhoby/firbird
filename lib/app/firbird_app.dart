@@ -9,8 +9,11 @@ import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 
 final GoRouter _router = GoRouter(
   initialLocation: '/onboarding',
@@ -189,7 +192,7 @@ class HomeScreen extends StatelessWidget {
           Text(l10n.homeDescription),
           const SizedBox(height: 32),
           FilledButton.icon(
-            onPressed: () => context.go('/photo'),
+            onPressed: () => context.push('/photo'),
             icon: const Icon(Icons.photo_library_outlined),
             label: Text(l10n.selectPhoto),
           ),
@@ -197,22 +200,22 @@ class HomeScreen extends StatelessWidget {
           _HomeAction(
             icon: Icons.history_outlined,
             label: l10n.recentIdentifications,
-            onTap: () => context.go('/history'),
+            onTap: () => context.push('/history'),
           ),
           _HomeAction(
             icon: Icons.inventory_2_outlined,
             label: l10n.regionPackages,
-            onTap: () => context.go('/packages'),
+            onTap: () => context.push('/packages'),
           ),
           _HomeAction(
             icon: Icons.travel_explore_outlined,
             label: l10n.exploreBirds,
-            onTap: () => context.go('/explore'),
+            onTap: () => context.push('/explore'),
           ),
           _HomeAction(
             icon: Icons.settings_outlined,
             label: l10n.settings,
-            onTap: () => context.go('/settings'),
+            onTap: () => context.push('/settings'),
           ),
         ],
       ),
@@ -258,8 +261,23 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
   _PhotoMetadata _metadata = const _PhotoMetadata();
   bool _isLoading = false;
   String? _errorMessage;
-  bool _usePhotoDate = false;
-  bool _usePhotoLocation = false;
+  DateTime _selectedDate = DateTime.now();
+  bool _dateUnknown = false;
+  bool _locationUnknown = true;
+  String? _selectedRegion;
+  LatLng? _selectedPoint;
+  bool _showMap = false;
+  bool _locating = false;
+
+  static const List<String> _regions = <String>[
+    'Marmara',
+    'Ege',
+    'Akdeniz',
+    'İç Anadolu',
+    'Karadeniz',
+    'Doğu Anadolu',
+    'Güneydoğu Anadolu',
+  ];
 
   Future<void> _selectPhoto() async {
     setState(() {
@@ -284,8 +302,11 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
       setState(() {
         _selectedImage = image;
         _metadata = metadata;
-        _usePhotoDate = metadata.capturedAt != null;
-        _usePhotoLocation = false;
+        _selectedDate = metadata.capturedAt ?? DateTime.now();
+        _dateUnknown = false;
+        _locationUnknown = true;
+        _selectedRegion = null;
+        _selectedPoint = null;
       });
     } catch (_) {
       if (!mounted) {
@@ -340,6 +361,41 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
     );
   }
 
+  Future<void> _pickDate() async {
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (date != null && mounted) setState(() => _selectedDate = date);
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('permission');
+      }
+      final Position position = await Geolocator.getCurrentPosition();
+      if (mounted)
+        setState(() {
+          _selectedPoint = LatLng(position.latitude, position.longitude);
+          _selectedRegion = null;
+          _locationUnknown = false;
+        });
+    } catch (_) {
+      if (mounted) setState(() => _errorMessage = 'locationUnavailable');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
@@ -377,35 +433,124 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
             ),
             const SizedBox(height: 8),
             _MetadataSummary(metadata: _metadata),
-            if (_metadata.capturedAt != null)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.usePhotoDate),
-                subtitle: Text(_formatDate(_metadata.capturedAt!)),
-                value: _usePhotoDate,
-                onChanged: (bool value) =>
-                    setState(() => _usePhotoDate = value),
+            const SizedBox(height: 16),
+            Text(
+              'Tarih ve konum',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tarih bilinmiyor'),
+              subtitle: Text(
+                _dateUnknown
+                    ? 'Tarih kullanılmayacak.'
+                    : _formatDate(_selectedDate),
               ),
-            if (_metadata.hasGps)
-              SwitchListTile(
+              value: _dateUnknown,
+              onChanged: (bool? value) =>
+                  setState(() => _dateUnknown = value ?? false),
+            ),
+            if (!_dateUnknown)
+              ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(l10n.usePhotoLocation),
-                subtitle: Text(l10n.locationConsentDescription),
-                value: _usePhotoLocation,
-                onChanged: (bool value) =>
-                    setState(() => _usePhotoLocation = value),
+                leading: const Icon(Icons.calendar_month_outlined),
+                title: const Text('Tarihi değiştir'),
+                subtitle: Text(_formatDate(_selectedDate)),
+                onTap: _pickDate,
               ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Konumu bilmiyorum'),
+              subtitle: Text(
+                _locationUnknown
+                    ? 'Konum sonucu etkilemeyecek.'
+                    : 'Yaklaşık konum seçildi.',
+              ),
+              value: _locationUnknown,
+              onChanged: (bool? value) =>
+                  setState(() => _locationUnknown = value ?? true),
+            ),
+            if (!_locationUnknown) ...<Widget>[
+              OutlinedButton.icon(
+                onPressed: _locating ? null : _useCurrentLocation,
+                icon: const Icon(Icons.my_location),
+                label: Text(
+                  _locating ? 'Konum alınıyor…' : 'Mevcut konumumu kullan',
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedRegion,
+                decoration: const InputDecoration(
+                  labelText: 'Bölgeden seç',
+                  border: OutlineInputBorder(),
+                ),
+                items: _regions
+                    .map(
+                      (String region) => DropdownMenuItem<String>(
+                        value: region,
+                        child: Text(region),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? region) => setState(() {
+                  _selectedRegion = region;
+                  _selectedPoint = null;
+                }),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() => _showMap = !_showMap),
+                icon: const Icon(Icons.map_outlined),
+                label: Text(_showMap ? 'Haritayı kapat' : 'Haritadan seç'),
+              ),
+              if (_showMap)
+                SizedBox(
+                  height: 240,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: const LatLng(39.0, 35.0),
+                      initialZoom: 5.5,
+                      onTap: (TapPosition _, LatLng point) => setState(() {
+                        _selectedPoint = point;
+                        _selectedRegion = null;
+                      }),
+                    ),
+                    children: <Widget>[
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      ),
+                      if (_selectedPoint != null)
+                        MarkerLayer(
+                          markers: <Marker>[
+                            Marker(
+                              point: _selectedPoint!,
+                              width: 36,
+                              height: 36,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => context.push(
-                '/context',
-                extra: PhotoContextHints(
-                  exifDate: _metadata.capturedAt,
-                  hasExifLocation: _metadata.hasGps,
-                  imagePath: selectedImage.path,
+                '/analysis',
+                extra: IdentificationRequest(
+                  image: ImageInput(uri: selectedImage.path),
+                  context: IdentificationContext(
+                    countryCode: _locationUnknown ? null : 'TR',
+                    observationDate: _dateUnknown ? null : _selectedDate,
+                  ),
                 ),
               ),
-              child: Text(l10n.setLocationAndDate),
+              child: Text(l10n.identify),
             ),
           ],
           if (_errorMessage != null) ...<Widget>[
@@ -456,10 +601,6 @@ class _EmptyPhotoState extends StatelessWidget {
           onPressed: isLoading ? null : onSelectPhoto,
           icon: const Icon(Icons.photo_library_outlined),
           label: Text(l10n.selectPhoto),
-        ),
-        TextButton(
-          onPressed: () => context.go('/context'),
-          child: Text(l10n.setLocationAndDate),
         ),
         if (isLoading) ...<Widget>[
           const SizedBox(height: 24),

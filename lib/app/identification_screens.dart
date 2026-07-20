@@ -15,16 +15,16 @@ final candidateThresholdProvider = FutureProvider<double>(
   (Ref ref) => ref.read(appDatabaseProvider).candidateThreshold(),
 );
 
-class AnalysisScreen extends StatefulWidget {
+class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({required this.request, super.key});
 
   final IdentificationRequest request;
 
   @override
-  State<AnalysisScreen> createState() => _AnalysisScreenState();
+  ConsumerState<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
-class _AnalysisScreenState extends State<AnalysisScreen> {
+class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   final BirdInferenceEngine _engine =
       OnnxBirdInferenceEngine.fromExternalTestFiles();
   late final Future<InferenceResult> _result;
@@ -60,9 +60,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               }
               if (snapshot.hasData && !_hasNavigated) {
                 _hasNavigated = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  final InferenceResult result = snapshot.data!;
+                  await _saveToHistory(result);
                   if (mounted) {
-                    context.go('/result', extra: snapshot.data);
+                    context.pushReplacement('/result', extra: result);
                   }
                 });
               }
@@ -83,6 +85,26 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               );
             },
       ),
+    );
+  }
+
+  Future<void> _saveToHistory(InferenceResult result) async {
+    if (result.predictions.isEmpty) return;
+    final AppDatabase database = ref.read(appDatabaseProvider);
+    if (!await database.isHistoryEnabled()) return;
+    final SpeciesPrediction first = result.predictions.first;
+    final String confidence = switch (first.score) {
+      >= 0.8 => 'Yüksek eşleşme',
+      >= 0.5 => 'Orta eşleşme',
+      _ => 'Düşük eşleşme',
+    };
+    await database.addIdentification(
+      speciesId: first.speciesId,
+      turkishName: first.turkishName,
+      scientificName: first.scientificName,
+      confidence: confidence,
+      modelVersion: result.modelVersion,
+      imageUri: result.sourceImageUri,
     );
   }
 }
@@ -227,15 +249,9 @@ class ResultsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () => context.go('/photo'),
+            onPressed: () => context.push('/photo'),
             icon: const Icon(Icons.add_a_photo_outlined),
             label: const Text('Yeni arama'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => _saveToHistory(context, ref, first),
-            icon: const Icon(Icons.bookmark_add_outlined),
-            label: Text(l10n.saveToHistory),
           ),
         ],
       ),
@@ -248,34 +264,6 @@ class ResultsScreen extends ConsumerWidget {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
     final String text = l10n.shareText(first.turkishName, first.scientificName);
     return SharePlus.instance.share(ShareParams(text: text));
-  }
-
-  Future<void> _saveToHistory(
-    BuildContext context,
-    WidgetRef ref,
-    SpeciesPrediction first,
-  ) async {
-    final AppDatabase database = ref.read(appDatabaseProvider);
-    final String confidence = _confidenceLabel(context, first.score);
-    if (!await database.isHistoryEnabled()) {
-      return;
-    }
-    await database.addIdentification(
-      speciesId: first.speciesId,
-      turkishName: first.turkishName,
-      scientificName: first.scientificName,
-      confidence: confidence,
-      modelVersion: result.modelVersion,
-    );
-  }
-
-  String _confidenceLabel(BuildContext context, double score) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
-    return switch (score) {
-      >= 0.8 => l10n.highMatch,
-      >= 0.5 => l10n.mediumMatch,
-      _ => l10n.lowMatch,
-    };
   }
 }
 
@@ -413,9 +401,11 @@ class _CandidateTable extends StatelessWidget {
                           children: <Widget>[
                             Text(
                               <String>[
-                                prediction.turkishName,
-                                prediction.scientificName,
-                              ].where((String name) => name.isNotEmpty).join(' · '),
+                                    prediction.turkishName,
+                                    prediction.scientificName,
+                                  ]
+                                  .where((String name) => name.isNotEmpty)
+                                  .join(' · '),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleSmall,

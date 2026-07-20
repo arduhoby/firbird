@@ -9,7 +9,8 @@ FirBird, kuş fotoğraflarını cihaz üzerinde tanımlamaya odaklanan açık ka
 - Galeriden fotoğraf seçme ve cihaz üzerinde tanımlama çalışır.
 - BioCLIP-2 test modeliyle Türkiye için 464 aday tür kullanılır: 382 düzenli/göçmen tür ve 82 nadir kayıt.
 - Sonuçta Türkçe, bilimsel ve İngilizce adlar; adaylar; görsel güven düzeyi; Trakuş ve Ornito.org bağlantıları gösterilir.
-- Tanımlama geçmişi cihazda tutulur.
+- Tanımlama geçmişi sonuç oluştuğunda otomatik olarak cihazdaki SQLite veritabanına kaydedilir; ayarlardan kapatılabilir.
+- Fotoğraf ekranında tarih varsayılan olarak fotoğraf bilgisinden, yoksa bugünden gelir. Tarih/konum bilinmiyor seçenekleri ile mevcut konum, yedi bölge ve haritadan seçim aynı ekranda sunulur.
 - Uygulama Android 9 (API 28) ve üzerini hedefler.
 - Balkanlar paketi planlanmaktadır; Türkiye paketiyle birlikte kullanılabilecek ve tür kökenini gösterecektir.
 - `Yakınımdaki kuşlar` ön sürümü, kurulu Türkiye paketindeki düzenli/göçmen türleri çevrimdışı listeler. Yedi coğrafi bölge, tarih, mevcut konum, nadir kayıt seçimi ve Türkçe/bilimsel/İngilizce ada göre tür araması sunar.

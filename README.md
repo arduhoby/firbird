@@ -13,6 +13,8 @@ FirBird, kuş fotoğraflarını cihaz üzerinde tanımlamaya odaklanan açık ka
 - Uygulama Android 9 (API 28) ve üzerini hedefler.
 - Balkanlar paketi planlanmaktadır; Türkiye paketiyle birlikte kullanılabilecek ve tür kökenini gösterecektir.
 
+İndirilebilir uygulama, model ve bölge paketi düzeni için [GitHub Releases planına](docs/package_format/GITHUB_RELEASES.md) bakın.
+
 ## Gizlilik
 
 FirBird, tanımlama için fotoğrafı, EXIF bilgisini veya konumu bir sunucuya yüklemez. Geçmiş kayıtları yalnızca cihazda tutulur. İnternet bağlantısı yalnızca isteğe bağlı paket/model indirme ve dış bilgi kaynaklarını açma için gerekir.

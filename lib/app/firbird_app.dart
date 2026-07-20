@@ -209,7 +209,7 @@ class HomeScreen extends StatelessWidget {
           ),
           _HomeAction(
             icon: Icons.travel_explore_outlined,
-            label: l10n.exploreBirds,
+            label: 'Yakınımdaki kuşlar',
             onTap: () => context.push('/explore'),
           ),
           _HomeAction(

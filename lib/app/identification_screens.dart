@@ -344,8 +344,19 @@ class _ContextEffect extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(label, style: Theme.of(context).textTheme.titleSmall),
-                Text(l10n.contextNotUsed),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: const Color(0xFF4A2A00),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  l10n.contextNotUsed,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF4A2A00),
+                  ),
+                ),
               ],
             ),
           ),

@@ -129,7 +129,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           ListTile(
             title: Text(l10n.activePackage),
-            subtitle: const Text('turkey-all (sample)'),
+            subtitle: const Text('Türkiye 0.1.0 · uygulamaya dahil'),
+          ),
+          const ListTile(
+            title: Text('Uygulama sürümü'),
+            subtitle: Text('0.1.0'),
           ),
           ListTile(
             title: Text(l10n.privacy),

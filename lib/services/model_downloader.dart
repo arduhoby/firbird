@@ -19,13 +19,7 @@ class ModelDownloader {
     required void Function() onSuccess,
   }) async {
     try {
-      final Directory? externalDir = await getExternalStorageDirectory();
-      if (externalDir == null) {
-        onError('Depolama alanına erişilemiyor.');
-        return;
-      }
-      
-      final Directory targetDir = Directory(path.join(externalDir.path, 'firbird_test_model'));
+      final Directory targetDir = await getApplicationDocumentsDirectory();
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
       }
@@ -41,6 +35,10 @@ class ModelDownloader {
         url,
         file.path,
         onReceiveProgress: onReceiveProgress,
+        options: Options(
+          followRedirects: true,
+          validateStatus: (status) => status! < 500,
+        ),
       );
       
       onSuccess();
@@ -50,9 +48,8 @@ class ModelDownloader {
   }
   
   Future<bool> isModelDownloaded(String fileName) async {
-    final Directory? externalDir = await getExternalStorageDirectory();
-    if (externalDir == null) return false;
-    final File file = File(path.join(externalDir.path, 'firbird_test_model', fileName));
+    final Directory targetDir = await getApplicationDocumentsDirectory();
+    final File file = File(path.join(targetDir.path, fileName));
     return await file.exists();
   }
 }

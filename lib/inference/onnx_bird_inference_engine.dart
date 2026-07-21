@@ -59,12 +59,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
   static const String _assetRoot = 'tools/model_staging/turkey_0.1.0';
 
   static Future<Directory> ensureTurkeyPackageInstalled() async {
-    final Directory? external = await getExternalStorageDirectory();
-    if (external == null) {
-      throw const StrongModelNotAvailableException(
-        'Türkiye paketi için uygulama depolama alanı kullanılamıyor.',
-      );
-    }
+    final Directory external = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(
       path.join(external.path, 'firbird_test_model'),
     );

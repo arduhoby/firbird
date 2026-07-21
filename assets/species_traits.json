@@ -1,0 +1,147 @@
+{
+  "carduelis-carduelis": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.55,
+    "minAgeConfidence": 0.50,
+    "ageTerminology": {
+      "chick": "Yavru",
+      "juvenile": "Genç",
+      "adult": "Yetişkin"
+    }
+  },
+  "chloris-chloris": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.60,
+    "minAgeConfidence": 0.55
+  },
+  "passer-domesticus": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.60,
+    "minAgeConfidence": 0.55
+  },
+  "passer-montanus": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "hard",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.65
+  },
+  "fringilla-coelebs": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.58,
+    "minAgeConfidence": 0.52
+  },
+  "serinus-serinus": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.60,
+    "minAgeConfidence": 0.55
+  },
+  "turdus-merula": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.55,
+    "minAgeConfidence": 0.50,
+    "ageTerminology": {
+      "chick": "Yavru",
+      "juvenile": "Birinci yıl",
+      "adult": "Yetişkin"
+    }
+  },
+  "erithacus-rubecula": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.55,
+    "ageTerminology": {
+      "chick": "Yavru",
+      "juvenile": "Genç (benekli)",
+      "adult": "Yetişkin"
+    }
+  },
+  "hirundo-rustica": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.60,
+    "minAgeConfidence": 0.55
+  },
+  "motacilla-alba": {
+    "sexDiscrimination": "seasonalOrPlumage",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.65,
+    "minAgeConfidence": 0.60
+  },
+  "corvus-cornix": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "hard",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.65
+  },
+  "pica-pica": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "hard",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.65
+  },
+  "columba-livia": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "hard",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.70
+  },
+  "streptopelia-decaocto": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.60
+  },
+  "alcedo-atthis": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.55,
+    "minAgeConfidence": 0.50,
+    "ageTerminology": {
+      "chick": "Yavru",
+      "juvenile": "Genç",
+      "adult": "Yetişkin"
+    }
+  },
+  "upupa-epops": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.60
+  },
+  "luscinia-megarhynchos": {
+    "sexDiscrimination": "unreliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.75,
+    "minAgeConfidence": 0.55
+  },
+  "phoenicurus-ochruros": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.58,
+    "minAgeConfidence": 0.55
+  },
+  "sylvia-atricapilla": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "seasonal",
+    "minSexConfidence": 0.58,
+    "minAgeConfidence": 0.55,
+    "ageTerminology": {
+      "chick": "Yavru",
+      "juvenile": "Birinci yıl",
+      "adult": "Yetişkin"
+    }
+  },
+  "parus-major": {
+    "sexDiscrimination": "reliable",
+    "ageDiscrimination": "reliable",
+    "minSexConfidence": 0.58,
+    "minAgeConfidence": 0.52
+  }
+}

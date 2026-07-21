@@ -649,6 +649,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Photos and location stay on your device.'**
   String get privacySummary;
+
+  /// No description provided for @sexAgeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex & Life Stage'**
+  String get sexAgeTitle;
+
+  /// No description provided for @sexLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex'**
+  String get sexLabel;
+
+  /// No description provided for @ageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Life Stage'**
+  String get ageLabel;
+
+  /// No description provided for @sexFemale.
+  ///
+  /// In en, this message translates to:
+  /// **'Female'**
+  String get sexFemale;
+
+  /// No description provided for @sexMale.
+  ///
+  /// In en, this message translates to:
+  /// **'Male'**
+  String get sexMale;
+
+  /// No description provided for @sexUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Uncertain'**
+  String get sexUnknown;
+
+  /// No description provided for @ageChick.
+  ///
+  /// In en, this message translates to:
+  /// **'Chick'**
+  String get ageChick;
+
+  /// No description provided for @ageJuvenile.
+  ///
+  /// In en, this message translates to:
+  /// **'Juvenile'**
+  String get ageJuvenile;
+
+  /// No description provided for @ageAdult.
+  ///
+  /// In en, this message translates to:
+  /// **'Adult'**
+  String get ageAdult;
+
+  /// No description provided for @ageUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Uncertain'**
+  String get ageUnknown;
+
+  /// No description provided for @sexAgeMethodBioclip2.
+  ///
+  /// In en, this message translates to:
+  /// **'BioCLIP 2 visual estimate'**
+  String get sexAgeMethodBioclip2;
+
+  /// No description provided for @sexAgeMethodUserValidated.
+  ///
+  /// In en, this message translates to:
+  /// **'User validated'**
+  String get sexAgeMethodUserValidated;
+
+  /// No description provided for @sexAgeMethodHybrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Hybrid method'**
+  String get sexAgeMethodHybrid;
+
+  /// No description provided for @sexUnreliableWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex determination from photos may not be reliable for this species.'**
+  String get sexUnreliableWarning;
+
+  /// No description provided for @sexSeasonalWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex estimate is based on plumage only and may vary by season.'**
+  String get sexSeasonalWarning;
+
+  /// No description provided for @sexAgeConflictWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex and life stage information may be conflicting.'**
+  String get sexAgeConflictWarning;
+
+  /// No description provided for @correctSexAge.
+  ///
+  /// In en, this message translates to:
+  /// **'Correct / Validate'**
+  String get correctSexAge;
+
+  /// No description provided for @correctionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sex & Life Stage Validation'**
+  String get correctionTitle;
+
+  /// No description provided for @correctionApprovalQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Does the model prediction look correct?'**
+  String get correctionApprovalQuestion;
+
+  /// No description provided for @correctionApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, correct'**
+  String get correctionApprove;
+
+  /// No description provided for @correctionNotCorrect.
+  ///
+  /// In en, this message translates to:
+  /// **'No, correct it'**
+  String get correctionNotCorrect;
+
+  /// No description provided for @correctionWhichParam.
+  ///
+  /// In en, this message translates to:
+  /// **'Which information would you like to correct?'**
+  String get correctionWhichParam;
+
+  /// No description provided for @correctionNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get correctionNext;
+
+  /// No description provided for @correctionSexQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Select sex'**
+  String get correctionSexQuestion;
+
+  /// No description provided for @correctionAgeQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Select life stage'**
+  String get correctionAgeQuestion;
+
+  /// No description provided for @correctionNotSure.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sure'**
+  String get correctionNotSure;
+
+  /// No description provided for @correctionSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get correctionSave;
+
+  /// No description provided for @correctionCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get correctionCancel;
+
+  /// No description provided for @correctionPhotoQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo is clear and bird is fully visible'**
+  String get correctionPhotoQuality;
+
+  /// No description provided for @correctionExpertVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified by an expert'**
+  String get correctionExpertVerified;
+
+  /// No description provided for @correctionSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'Species'**
+  String get correctionSpecies;
+
+  /// No description provided for @correctionSpeciesQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Select correct species:'**
+  String get correctionSpeciesQuestion;
+
+  /// No description provided for @correctionSearchSpecies.
+  ///
+  /// In en, this message translates to:
+  /// **'Search species...'**
+  String get correctionSearchSpecies;
 }
 
 class _AppLocalizationsDelegate

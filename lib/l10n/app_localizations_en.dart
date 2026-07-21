@@ -310,4 +310,109 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacySummary => 'Photos and location stay on your device.';
+
+  @override
+  String get sexAgeTitle => 'Sex & Life Stage';
+
+  @override
+  String get sexLabel => 'Sex';
+
+  @override
+  String get ageLabel => 'Life Stage';
+
+  @override
+  String get sexFemale => 'Female';
+
+  @override
+  String get sexMale => 'Male';
+
+  @override
+  String get sexUnknown => 'Uncertain';
+
+  @override
+  String get ageChick => 'Chick';
+
+  @override
+  String get ageJuvenile => 'Juvenile';
+
+  @override
+  String get ageAdult => 'Adult';
+
+  @override
+  String get ageUnknown => 'Uncertain';
+
+  @override
+  String get sexAgeMethodBioclip2 => 'BioCLIP 2 visual estimate';
+
+  @override
+  String get sexAgeMethodUserValidated => 'User validated';
+
+  @override
+  String get sexAgeMethodHybrid => 'Hybrid method';
+
+  @override
+  String get sexUnreliableWarning =>
+      'Sex determination from photos may not be reliable for this species.';
+
+  @override
+  String get sexSeasonalWarning =>
+      'Sex estimate is based on plumage only and may vary by season.';
+
+  @override
+  String get sexAgeConflictWarning =>
+      'Sex and life stage information may be conflicting.';
+
+  @override
+  String get correctSexAge => 'Correct / Validate';
+
+  @override
+  String get correctionTitle => 'Sex & Life Stage Validation';
+
+  @override
+  String get correctionApprovalQuestion =>
+      'Does the model prediction look correct?';
+
+  @override
+  String get correctionApprove => 'Yes, correct';
+
+  @override
+  String get correctionNotCorrect => 'No, correct it';
+
+  @override
+  String get correctionWhichParam =>
+      'Which information would you like to correct?';
+
+  @override
+  String get correctionNext => 'Continue';
+
+  @override
+  String get correctionSexQuestion => 'Select sex';
+
+  @override
+  String get correctionAgeQuestion => 'Select life stage';
+
+  @override
+  String get correctionNotSure => 'Not sure';
+
+  @override
+  String get correctionSave => 'Save';
+
+  @override
+  String get correctionCancel => 'Cancel';
+
+  @override
+  String get correctionPhotoQuality =>
+      'Photo is clear and bird is fully visible';
+
+  @override
+  String get correctionExpertVerified => 'Verified by an expert';
+
+  @override
+  String get correctionSpecies => 'Species';
+
+  @override
+  String get correctionSpeciesQuestion => 'Select correct species:';
+
+  @override
+  String get correctionSearchSpecies => 'Search species...';
 }

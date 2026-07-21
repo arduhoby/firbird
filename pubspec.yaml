@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.1.1+11
+version: 0.2.1+21
 
 environment:
   sdk: ^3.12.2
@@ -54,6 +54,11 @@ dependencies:
   dio: ^5.10.0
   flutter_onnxruntime: ^1.8.2
   url_launcher: ^6.3.2
+  image: ^4.8.0
+  shared_preferences: ^2.5.5
+  record: ^7.1.1
+  audio_decoder: ^0.8.1
+  file_picker: ^3.0.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,8 +82,9 @@ flutter:
   generate: true
   assets:
     - assets/models/birds_v1.tflite
+    - assets/models/yolov8n.onnx
     - assets/model_catalog/turkey-bioclip2-int8.json
-    - tools/model_staging/turkey_0.1.0/model.onnx
+    - assets/species_traits.json
     - tools/model_staging/turkey_0.1.0/embeddings.npy
     - tools/model_staging/turkey_0.1.0/candidates.json
 

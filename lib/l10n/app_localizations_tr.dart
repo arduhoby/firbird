@@ -309,4 +309,106 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get privacySummary => 'Fotoğraflar ve konum cihazınızda kalır.';
+
+  @override
+  String get sexAgeTitle => 'Cinsiyet & Yaşam Evresi';
+
+  @override
+  String get sexLabel => 'Cinsiyet';
+
+  @override
+  String get ageLabel => 'Yaşam Evresi';
+
+  @override
+  String get sexFemale => 'Dişi';
+
+  @override
+  String get sexMale => 'Erkek';
+
+  @override
+  String get sexUnknown => 'Belirsiz';
+
+  @override
+  String get ageChick => 'Yavru';
+
+  @override
+  String get ageJuvenile => 'Genç';
+
+  @override
+  String get ageAdult => 'Yetişkin';
+
+  @override
+  String get ageUnknown => 'Belirsiz';
+
+  @override
+  String get sexAgeMethodBioclip2 => 'BioCLIP 2 görsel tahmini';
+
+  @override
+  String get sexAgeMethodUserValidated => 'Kullanıcı doğrulaması';
+
+  @override
+  String get sexAgeMethodHybrid => 'Karma yöntem';
+
+  @override
+  String get sexUnreliableWarning =>
+      'Bu türde dişi/erkek ayrımı fotoğraftan güvenilir olmayabilir.';
+
+  @override
+  String get sexSeasonalWarning =>
+      'Cinsiyet tahmini yalnızca tüy görünümüne dayanmaktadır; mevsime göre değişebilir.';
+
+  @override
+  String get sexAgeConflictWarning =>
+      'Cinsiyet ve yaşam evresi bilgileri birbiriyle çelişiyor olabilir.';
+
+  @override
+  String get correctSexAge => 'Düzelt / Doğrula';
+
+  @override
+  String get correctionTitle => 'Cinsiyet & Yaşam Evresi Doğrulama';
+
+  @override
+  String get correctionApprovalQuestion => 'Model tahmini size uygun mu?';
+
+  @override
+  String get correctionApprove => 'Evet, uygun';
+
+  @override
+  String get correctionNotCorrect => 'Hayır, düzelt';
+
+  @override
+  String get correctionWhichParam => 'Hangi bilgiyi düzeltmek istiyorsunuz?';
+
+  @override
+  String get correctionNext => 'Devam';
+
+  @override
+  String get correctionSexQuestion => 'Cinsiyeti seçin';
+
+  @override
+  String get correctionAgeQuestion => 'Yaşam evresini seçin';
+
+  @override
+  String get correctionNotSure => 'Emin değilim';
+
+  @override
+  String get correctionSave => 'Kaydet';
+
+  @override
+  String get correctionCancel => 'Vazgeç';
+
+  @override
+  String get correctionPhotoQuality => 'Fotoğraf net ve kuş tam görünüyor';
+
+  @override
+  String get correctionExpertVerified => 'Uzman tarafından doğrulandı';
+
+  @override
+  String get correctionSpecies => 'Tür (Species)';
+
+  @override
+  String get correctionSpeciesQuestion => 'Doğru türü seçin:';
+
+  @override
+  String get correctionSearchSpecies => 'Tür ara...';
 }

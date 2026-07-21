@@ -2,8 +2,11 @@ import 'dart:io';
 
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/sex_age_correction_sheet.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
+import 'package:firbird/inference/onnx_bird_detector.dart';
+import 'package:firbird/inference/bird_cropper.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +36,41 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   @override
   void initState() {
     super.initState();
-    _result = _engine.identify(widget.request.image, widget.request.context);
+    _result = _runFullInference();
+  }
+
+  Future<InferenceResult> _runFullInference() async {
+    final AppDatabase database = ref.read(appDatabaseProvider);
+    final String cropMode = await database.cropMode();
+    
+    ImageInput finalImage = widget.request.image;
+
+    if (cropMode == 'auto') {
+      try {
+        final File modelFile = await OnnxBirdDetector.ensureModelExtracted();
+        final OnnxBirdDetector detector = OnnxBirdDetector(modelFile: modelFile);
+        final List<BirdBoundingBox> boxes = await detector.detect(finalImage);
+        
+        if (boxes.isNotEmpty) {
+          // En yüksek olasılıklı kutu (zaten sıralı geliyor)
+          final BirdBoundingBox bestBox = boxes.first;
+          
+          final String? croppedPath = await BirdCropper.cropBird(
+            finalImage.uri, 
+            bestBox,
+          );
+          
+          if (croppedPath != null) {
+            finalImage = ImageInput(uri: croppedPath);
+          }
+        }
+      } catch (e) {
+        // Hata olursa orijinal resimle devam et
+        debugPrint('Crop failed: $e');
+      }
+    }
+
+    return _engine.identify(finalImage, widget.request.context);
   }
 
   @override
@@ -61,8 +98,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               if (snapshot.hasData && !_hasNavigated) {
                 _hasNavigated = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
-                  final InferenceResult result = snapshot.data!;
-                  await _saveToHistory(result);
+                  InferenceResult result = snapshot.data!;
+                  final int? recordId = await _saveToHistory(result);
+                  if (recordId != null) {
+                    result = result.copyWith(recordId: recordId);
+                  }
                   if (mounted) {
                     context.pushReplacement('/result', extra: result);
                   }
@@ -88,23 +128,28 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     );
   }
 
-  Future<void> _saveToHistory(InferenceResult result) async {
-    if (result.predictions.isEmpty) return;
+  Future<int?> _saveToHistory(InferenceResult result) async {
+    if (result.predictions.isEmpty) return null;
     final AppDatabase database = ref.read(appDatabaseProvider);
-    if (!await database.isHistoryEnabled()) return;
+    if (!await database.isHistoryEnabled()) return null;
     final SpeciesPrediction first = result.predictions.first;
     final String confidence = switch (first.score) {
       >= 0.8 => 'Yüksek eşleşme',
       >= 0.5 => 'Orta eşleşme',
       _ => 'Düşük eşleşme',
     };
-    await database.addIdentification(
+    return database.addIdentification(
       speciesId: first.speciesId,
       turkishName: first.turkishName,
       scientificName: first.scientificName,
       confidence: confidence,
       modelVersion: result.modelVersion,
       imageUri: result.sourceImageUri,
+      sexCategory: result.sexAge?.sex.displayCategory.name,
+      sexConfidence: result.sexAge?.sex.confidence,
+      ageCategory: result.sexAge?.age.displayCategory.name,
+      ageConfidence: result.sexAge?.age.confidence,
+      predictionMethod: result.sexAge?.sex.method.name,
     );
   }
 }
@@ -129,15 +174,28 @@ class _AnalysisStep extends StatelessWidget {
   }
 }
 
-class ResultsScreen extends ConsumerWidget {
+class ResultsScreen extends ConsumerStatefulWidget {
   const ResultsScreen({required this.result, super.key});
 
   final InferenceResult result;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResultsScreen> createState() => _ResultsScreenState();
+}
+
+class _ResultsScreenState extends ConsumerState<ResultsScreen> {
+  late InferenceResult _currentResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentResult = widget.result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
-    final SpeciesPrediction first = result.predictions.first;
+    final SpeciesPrediction first = _currentResult.predictions.first;
     final bool hasReliableMatch = first.score >= 0.65;
     final double threshold = ref
         .watch(candidateThresholdProvider)
@@ -146,7 +204,7 @@ class ResultsScreen extends ConsumerWidget {
           loading: () => 0.20,
           error: (_, _) => 0.20,
         );
-    final List<SpeciesPrediction> visiblePredictions = result.predictions
+    final List<SpeciesPrediction> visiblePredictions = _currentResult.predictions
         .where((SpeciesPrediction prediction) => prediction.score >= threshold)
         .toList(growable: false);
 
@@ -179,11 +237,11 @@ class ResultsScreen extends ConsumerWidget {
                 children: <Widget>[
                   _ConfidenceChip(score: first.score),
                   const SizedBox(height: 12),
-                  if (_sourceImageExists(result.sourceImageUri))
+                  if (_sourceImageExists(_currentResult.sourceImageUri))
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       child: Image.file(
-                        File(result.sourceImageUri!),
+                        File(_currentResult.sourceImageUri!),
                         width: double.infinity,
                         height: 235,
                         fit: BoxFit.cover,
@@ -209,6 +267,54 @@ class ResultsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          // --- Cinsiyet & Yaşam Evresi bölümü ---
+          if (_currentResult.sexAge != null)
+            _SexAgeSection(
+              recordId: _currentResult.recordId,
+              sexAge: _currentResult.sexAge!,
+              onSpeciesCorrected: (SpeciesPrediction newSpecies) {
+                setState(() {
+                  final List<SpeciesPrediction> newPredictions = List<SpeciesPrediction>.from(_currentResult.predictions);
+                  // Remove if exists and place at the beginning
+                  newPredictions.removeWhere((SpeciesPrediction p) => p.speciesId == newSpecies.speciesId);
+                  newPredictions.insert(0, newSpecies);
+                  _currentResult = _currentResult.copyWith(
+                    predictions: newPredictions,
+                  );
+                });
+              },
+            )
+          else ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final SexAgeCorrectionResult? res = await showSexAgeCorrectionSheet(
+                    context,
+                    recordId: _currentResult.recordId,
+                  );
+                  if (res != null && res.species != null) {
+                    setState(() {
+                      final List<SpeciesPrediction> newPredictions = List<SpeciesPrediction>.from(_currentResult.predictions);
+                      newPredictions.removeWhere((SpeciesPrediction p) => p.speciesId == res.species!.speciesId);
+                      newPredictions.insert(0, res.species!);
+                      _currentResult = _currentResult.copyWith(
+                        predictions: newPredictions,
+                      );
+                    });
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tür düzeltmesi kaydedildi')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Sonucu Değerlendir / Düzelt'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
           Text(
             l10n.topCandidates,
             style: Theme.of(context).textTheme.titleLarge,
@@ -222,18 +328,18 @@ class ResultsScreen extends ConsumerWidget {
               child: Text('Seçili eşik üzerinde ek aday bulunamadı.'),
             ),
           const SizedBox(height: 16),
-          if (!result.locationAffectedResult)
+          if (!_currentResult.locationAffectedResult)
             _ContextEffect(label: l10n.locationEffect),
-          if (!result.dateAffectedResult)
+          if (!_currentResult.dateAffectedResult)
             _ContextEffect(label: l10n.dateEffect),
           const SizedBox(height: 16),
           Text(
-            <String>[l10n.modelVersion, result.modelVersion].join(': '),
+            <String>[l10n.modelVersion, _currentResult.modelVersion].join(': '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
           Text(
-            result.modelVersion.startsWith('mock')
+            _currentResult.modelVersion.startsWith('mock')
                 ? l10n.mockResultNotice
                 : 'BioCLIP-2 cihaz içi modeli kullanılıyor · Türkiye test paketi: 382 düzenli/göçmen tür ve 82 nadir kayıt. Sonuç bir öneridir; fotoğraf net değilse kesin kabul etmeyin.',
             textAlign: TextAlign.center,
@@ -639,6 +745,322 @@ class _DetailSection extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Text(title),
       subtitle: Text(value),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cinsiyet & Yaşam Evresi bölümü
+// ---------------------------------------------------------------------------
+
+class _SexAgeSection extends ConsumerStatefulWidget {
+  const _SexAgeSection({
+    required this.recordId,
+    required this.sexAge,
+    this.onSpeciesCorrected,
+  });
+
+  final int? recordId;
+  final SexAgePrediction sexAge;
+  final void Function(SpeciesPrediction)? onSpeciesCorrected;
+
+  @override
+  ConsumerState<_SexAgeSection> createState() => _SexAgeSectionState();
+}
+
+class _SexAgeSectionState extends ConsumerState<_SexAgeSection> {
+  late SexAgePrediction _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.sexAge;
+  }
+
+  Future<void> _openCorrection() async {
+    final SexAgeCorrectionResult? res = await showSexAgeCorrectionSheet(
+      context,
+      recordId: widget.recordId,
+      initialSex: _current.sex.displayCategory,
+      initialAge: _current.age.displayCategory,
+    );
+
+    if (res != null) {
+      if (res.species != null && widget.onSpeciesCorrected != null) {
+        widget.onSpeciesCorrected!(res.species!);
+      }
+      setState(() {
+        final PredictionMethod newMethod = res.userApproved
+            ? PredictionMethod.userApproved
+            : PredictionMethod.userValidated;
+            
+        _current = SexAgePrediction(
+          sex: SexPrediction(
+            scores: res.sex != null ? <SexCategory, double>{res.sex!: 1.0} : _current.sex.scores,
+            method: newMethod,
+          ),
+          age: AgePrediction(
+            scores: res.age != null ? <AgeCategory, double>{res.age!: 1.0} : _current.age.scores,
+            method: newMethod,
+            terminology: _current.age.terminology,
+          ),
+          conflictWarning: _current.conflictWarning,
+          isSexUnreliable: _current.isSexUnreliable,
+        );
+      });
+      if (mounted && res.species != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tür düzeltmesi kaydedildi')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final TextTheme text = Theme.of(context).textTheme;
+    final SexPrediction sex = _current.sex;
+    final AgePrediction age = _current.age;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // Başlık
+          Row(
+            children: <Widget>[
+              Icon(Icons.biotech_outlined, size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                l10n.sexAgeTitle,
+                style: text.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Çelişki uyarısı
+          if (_current.conflictWarning)
+            _SexAgeWarning(
+              message: l10n.sexAgeConflictWarning,
+              color: const Color(0xFFFFF3CD),
+              iconColor: const Color(0xFF856404),
+            ),
+
+          // Cinsiyet skoru satırı
+          Text(l10n.sexLabel, style: text.labelLarge),
+          const SizedBox(height: 6),
+          _buildSexBars(context, sex, l10n, _current.isSexUnreliable),
+          const SizedBox(height: 14),
+
+          // Yaşam evresi skoru satırı
+          Text(l10n.ageLabel, style: text.labelLarge),
+          const SizedBox(height: 6),
+          _buildAgeBars(context, age, l10n),
+          const SizedBox(height: 14),
+
+          // Yöntem etiketi
+          Text(
+            sex.method.label,
+            style: text.bodySmall?.copyWith(color: colors.outline),
+          ),
+          const SizedBox(height: 12),
+
+          // Düzelt butonu
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openCorrection,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: Text(l10n.correctSexAge),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSexBars(
+    BuildContext context,
+    SexPrediction sex,
+    AppLocalizations l10n,
+    bool isUnreliable,
+  ) {
+    if (isUnreliable) {
+      return Text(
+        l10n.sexUnreliableWarning,
+        style: Theme.of(context)
+            .textTheme
+            .bodyMedium
+            ?.copyWith(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.error),
+      );
+    }
+
+    final bool lowConfidence = sex.displayCategory == SexCategory.unknown &&
+        (sex.scores[SexCategory.female] ?? 0) < 0.60 &&
+        (sex.scores[SexCategory.male] ?? 0) < 0.60;
+
+    if (lowConfidence) {
+      return Text(
+        l10n.sexUnknown,
+        style: Theme.of(context)
+            .textTheme
+            .bodyMedium
+            ?.copyWith(fontStyle: FontStyle.italic),
+      );
+    }
+
+    return Column(
+      children: <Widget>[
+        _ScoreBar(
+          label: l10n.sexFemale,
+          score: sex.scores[SexCategory.female] ?? 0,
+          color: const Color(0xFFE91E8C),
+        ),
+        const SizedBox(height: 4),
+        _ScoreBar(
+          label: l10n.sexMale,
+          score: sex.scores[SexCategory.male] ?? 0,
+          color: const Color(0xFF1565C0),
+        ),
+        const SizedBox(height: 4),
+        _ScoreBar(
+          label: l10n.sexUnknown,
+          score: sex.scores[SexCategory.unknown] ?? 0,
+          color: Colors.grey,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAgeBars(
+    BuildContext context,
+    AgePrediction age,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      children: <Widget>[
+        _ScoreBar(
+          label: age.labelFor(AgeCategory.adult),
+          score: age.scores[AgeCategory.adult] ?? 0,
+          color: const Color(0xFF2E7D32),
+        ),
+        const SizedBox(height: 4),
+        _ScoreBar(
+          label: age.labelFor(AgeCategory.juvenile),
+          score: age.scores[AgeCategory.juvenile] ?? 0,
+          color: const Color(0xFF558B2F),
+        ),
+        const SizedBox(height: 4),
+        _ScoreBar(
+          label: age.labelFor(AgeCategory.chick),
+          score: age.scores[AgeCategory.chick] ?? 0,
+          color: const Color(0xFF9E9D24),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScoreBar extends StatelessWidget {
+  const _ScoreBar({
+    required this.label,
+    required this.score,
+    required this.color,
+  });
+
+  final String label;
+  final double score;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final int pct = (score * 100).round();
+    return Row(
+      children: <Widget>[
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: score,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: color,
+              minHeight: 10,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '%$pct',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SexAgeWarning extends StatelessWidget {
+  const _SexAgeWarning({
+    required this.message,
+    required this.color,
+    required this.iconColor,
+  });
+
+  final String message;
+  final Color color;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.warning_amber_rounded, size: 16, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: iconColor),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

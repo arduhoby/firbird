@@ -67,25 +67,27 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _historyEnabled = true;
-  double _candidateThreshold = 0.20;
+  String _cropMode = 'auto';
+  double _candidateThreshold = 0.05;
 
   @override
   void initState() {
     super.initState();
-    Future<void>(() async {
-      final bool enabled = await ref
-          .read(appDatabaseProvider)
-          .isHistoryEnabled();
-      final double threshold = await ref
-          .read(appDatabaseProvider)
-          .candidateThreshold();
-      if (mounted) {
-        setState(() {
-          _historyEnabled = enabled;
-          _candidateThreshold = threshold;
-        });
-      }
-    });
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final AppDatabase database = ref.read(appDatabaseProvider);
+    final bool history = await database.isHistoryEnabled();
+    final String cropMode = await database.cropMode();
+    final double threshold = await database.candidateThreshold();
+    if (mounted) {
+      setState(() {
+        _historyEnabled = history;
+        _cropMode = cropMode;
+        _candidateThreshold = threshold;
+      });
+    }
   }
 
   @override
@@ -110,6 +112,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               }
             },
           ),
+          const ListTile(
+            title: Text('Kırpma Modu (Yapay Zeka)'),
+            subtitle: Text('Kuşu fotoğrafta bulup kırpma yöntemi.'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: SegmentedButton<String>(
+              segments: const <ButtonSegment<String>>[
+                ButtonSegment<String>(
+                  value: 'off',
+                  label: Text('Kapalı'),
+                ),
+                ButtonSegment<String>(
+                  value: 'manual',
+                  label: Text('Manuel (Sor)'),
+                ),
+                ButtonSegment<String>(
+                  value: 'auto',
+                  label: Text('Otomatik'),
+                ),
+              ],
+              selected: <String>{_cropMode},
+              onSelectionChanged: (Set<String> newSelection) async {
+                final String mode = newSelection.first;
+                await ref.read(appDatabaseProvider).setCropMode(mode);
+                if (mounted) {
+                  setState(() => _cropMode = mode);
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
           ListTile(
             title: const Text('Aday gösterme eşiği'),
             subtitle: Text(
@@ -133,7 +167,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const ListTile(
             title: Text('Uygulama sürümü'),
-            subtitle: Text('0.1.0'),
+            subtitle: Text('0.2.1'),
           ),
           ListTile(
             title: Text(l10n.privacy),

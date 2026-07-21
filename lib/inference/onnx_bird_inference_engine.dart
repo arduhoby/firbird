@@ -4,12 +4,28 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:firbird/inference/species_sex_age_policy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import 'bird_inference_engine.dart';
+import 'sex_age_estimator.dart';
+
+final candidateSpeciesProvider = FutureProvider<List<SpeciesPrediction>>((ref) async {
+  final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
+  final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
+  if (!await candidatesFile.exists()) return const <SpeciesPrediction>[];
+  final String content = await candidatesFile.readAsString();
+  final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
+  final List<dynamic> json = source['candidates'] as List<dynamic>;
+  return json
+      .map((dynamic item) => _RegionalCandidate.fromJson(item as Map<String, dynamic>))
+      .map((_RegionalCandidate c) => c.prediction(0.0))
+      .toList();
+});
 
 /// BioCLIP-2 image encoder and regional candidate vectors.
 /// Türkiye 0.1.0 ships with the app and is extracted once to app storage.
@@ -36,6 +52,8 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
   List<_RegionalCandidate>? _candidates;
   Float32List? _candidateEmbeddings;
   int _dimensions = 768;
+  SpeciesSexAgePolicyStore? _policyStore;
+  final SexAgeEstimator _sexAgeEstimator = const PlaceholderSexAgeEstimator();
 
   static const String turkeyPackageVersion = '0.1.0';
   static const String _assetRoot = 'tools/model_staging/turkey_0.1.0';
@@ -50,18 +68,16 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
     final Directory directory = Directory(
       path.join(external.path, 'firbird_test_model'),
     );
-    final List<String> files = <String>[
-      'model.onnx',
+    final List<String> bundledFiles = <String>[
       'embeddings.npy',
       'candidates.json',
     ];
-    final bool ready = await Future.wait(
-      files.map((String name) => File(path.join(directory.path, name)).exists()),
-    ).then((List<bool> values) => values.every((bool value) => value));
-    if (ready) return directory;
+    
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
 
-    await directory.create(recursive: true);
-    for (final String name in files) {
+    for (final String name in bundledFiles) {
       final File target = File(path.join(directory.path, name));
       if (await target.exists()) continue;
       final ByteData bytes = await rootBundle.load('$_assetRoot/$name');
@@ -112,6 +128,12 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
       bytes.buffer,
       bytes.offsetInBytes + 10 + headerLength,
     );
+    _policyStore = await SpeciesSexAgePolicyStore.load();
+  }
+
+  @override
+  List<SpeciesPrediction> get candidateSpecies {
+    return _candidates?.map((_RegionalCandidate c) => c.prediction(0.0)).toList() ?? <SpeciesPrediction>[];
   }
 
   @override
@@ -193,18 +215,33 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
       logits.length,
       (int index) => index,
     )..sort((int a, int b) => logits[b].compareTo(logits[a]));
+    final List<SpeciesPrediction> top5 = order
+        .take(5)
+        .map(
+          (int index) =>
+              _candidates![index].prediction(weights[index] / total),
+        )
+        .toList();
+
+    // Cinsiyet & yaşam evresi tahmini — en yüksek skorlu tür üzerinden.
+    SexAgePrediction? sexAge;
+    if (top5.isNotEmpty && _policyStore != null) {
+      final SpeciesSexAgePolicy policy =
+          _policyStore!.forSpecies(top5.first.speciesId);
+      sexAge = _sexAgeEstimator.estimate(
+        speciesId: top5.first.speciesId,
+        imageFeatures: features,
+        policy: policy,
+      );
+    }
+
     return InferenceResult(
-      predictions: order
-          .take(5)
-          .map(
-            (int index) =>
-                _candidates![index].prediction(weights[index] / total),
-          )
-          .toList(),
+      predictions: top5,
       modelVersion: 'bioclip2-int8-turkey-0.1.0',
       locationAffectedResult: context.countryCode != null,
       dateAffectedResult: context.observationDate != null,
       sourceImageUri: image.uri,
+      sexAge: sexAge,
     );
   }
 

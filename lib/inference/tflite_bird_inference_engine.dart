@@ -26,6 +26,9 @@ class TfliteBirdInferenceEngine implements BirdInferenceEngine {
   );
 
   @override
+  List<SpeciesPrediction> get candidateSpecies => const <SpeciesPrediction>[];
+
+  @override
   Future<void> warmUp() async {
     if (_isDisposed) {
       throw const ModelNotAvailableException(

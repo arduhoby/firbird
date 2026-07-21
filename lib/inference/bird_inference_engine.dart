@@ -2,6 +2,132 @@ import 'dart:async';
 
 import 'package:firbird/inference/contextual_reranker.dart';
 
+// ---------------------------------------------------------------------------
+// Cinsiyet & Yaşam Evresi
+// ---------------------------------------------------------------------------
+
+enum SexCategory {
+  female,
+  male,
+  unknown;
+
+  String get label => switch (this) {
+        SexCategory.female => 'Dişi',
+        SexCategory.male => 'Erkek',
+        SexCategory.unknown => 'Belirsiz',
+      };
+}
+
+enum AgeCategory {
+  chick,
+  juvenile,
+  adult,
+  unknown;
+
+  String defaultLabel() => switch (this) {
+        AgeCategory.chick => 'Yavru',
+        AgeCategory.juvenile => 'Genç',
+        AgeCategory.adult => 'Yetişkin',
+        AgeCategory.unknown => 'Belirsiz',
+      };
+}
+
+enum PredictionMethod {
+  /// BioCLIP-2 zero-shot text prompt benzerliği (mevcut yöntem).
+  zeroShot,
+
+  /// BioCLIP-2 tabanlı ince ayarlı model (gelecek).
+  bioclip2,
+
+  /// Kullanıcı "Uygun" dedi — model tahminini onayladı.
+  userApproved,
+
+  /// Kullanıcı düzeltti.
+  userValidated,
+
+  /// Birden fazla yöntem birleşimi.
+  hybrid;
+
+  String get label => switch (this) {
+        PredictionMethod.zeroShot => 'BioCLIP 2 · metin benzerliği',
+        PredictionMethod.bioclip2 => 'BioCLIP 2',
+        PredictionMethod.userApproved => 'Kullanıcı onayladı',
+        PredictionMethod.userValidated => 'Kullanıcı düzeltmesi',
+        PredictionMethod.hybrid => 'Karma',
+      };
+}
+
+class SexPrediction {
+  const SexPrediction({
+    required this.scores,
+    required this.method,
+  });
+
+  /// Her cinsiyet için olasılık skoru (toplamı ~1.0).
+  final Map<SexCategory, double> scores;
+  final PredictionMethod method;
+
+  SexCategory get displayCategory {
+    final SexCategory best =
+        scores.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final double bestScore = scores[best] ?? 0;
+    if (best == SexCategory.unknown || bestScore < 0.60) {
+      return SexCategory.unknown;
+    }
+    return best;
+  }
+
+  double get confidence => scores[displayCategory] ?? 0;
+}
+
+class AgePrediction {
+  const AgePrediction({
+    required this.scores,
+    required this.method,
+    this.terminology,
+  });
+
+  /// Her yaşam evresi için olasılık skoru (toplamı ~1.0).
+  final Map<AgeCategory, double> scores;
+  final PredictionMethod method;
+
+  /// Türe özgü terim haritası (örn. 'Yavru', 'Tüy değişimi', 'Yetişkin').
+  final Map<AgeCategory, String>? terminology;
+
+  AgeCategory get displayCategory {
+    final AgeCategory best =
+        scores.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    return best;
+  }
+
+  double get confidence => scores[displayCategory] ?? 0;
+
+  String labelFor(AgeCategory category) =>
+      terminology?[category] ?? category.defaultLabel();
+}
+
+class SexAgePrediction {
+  const SexAgePrediction({
+    required this.sex,
+    required this.age,
+    this.conflictWarning = false,
+    this.isSexUnreliable = false,
+  });
+
+  final SexPrediction sex;
+  final AgePrediction age;
+
+  /// Cinsiyet ve yaşam evresi birbiriyle çelişiyorsa true.
+  final bool conflictWarning;
+
+  /// Bu tür için cinsiyet tahmini güvenilir değilse true.
+  final bool isSexUnreliable;
+}
+
+// ---------------------------------------------------------------------------
+// Görsel Girdi
+// ---------------------------------------------------------------------------
+
 class ImageInput {
   const ImageInput({required this.uri});
 
@@ -88,6 +214,8 @@ class InferenceResult {
     required this.locationAffectedResult,
     required this.dateAffectedResult,
     this.sourceImageUri,
+    this.sexAge,
+    this.recordId,
   });
 
   final List<SpeciesPrediction> predictions;
@@ -95,6 +223,25 @@ class InferenceResult {
   final bool locationAffectedResult;
   final bool dateAffectedResult;
   final String? sourceImageUri;
+  final int? recordId;
+
+  /// Cinsiyet & yaşam evresi tahmini. Model veya politika mevcut değilse null.
+  final SexAgePrediction? sexAge;
+
+  InferenceResult copyWith({
+    int? recordId,
+    List<SpeciesPrediction>? predictions,
+  }) {
+    return InferenceResult(
+      predictions: predictions ?? this.predictions,
+      modelVersion: modelVersion,
+      locationAffectedResult: locationAffectedResult,
+      dateAffectedResult: dateAffectedResult,
+      sourceImageUri: sourceImageUri,
+      sexAge: sexAge,
+      recordId: recordId ?? this.recordId,
+    );
+  }
 }
 
 class IdentificationRequest {
@@ -117,6 +264,9 @@ class ModelInformation {
 }
 
 abstract interface class BirdInferenceEngine {
+  /// Mevcut modeldeki (veya yüklü paketteki) tüm desteklenen türler.
+  List<SpeciesPrediction> get candidateSpecies;
+
   Future<InferenceResult> identify(
     ImageInput image,
     IdentificationContext context,
@@ -148,6 +298,9 @@ abstract interface class PredictionReranker {
 }
 
 class MockBirdInferenceEngine implements BirdInferenceEngine {
+  @override
+  List<SpeciesPrediction> get candidateSpecies => _mockPredictions;
+
   static const List<SpeciesPrediction> _mockPredictions = <SpeciesPrediction>[
     SpeciesPrediction(
       speciesId: 'carduelis-carduelis',

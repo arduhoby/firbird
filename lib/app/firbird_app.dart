@@ -1,28 +1,45 @@
 import 'dart:io';
 
 import 'package:exif/exif.dart';
+import 'package:firbird/app/crop_confirmation_screen.dart';
 import 'package:firbird/app/identification_screens.dart';
 import 'package:firbird/app/history_and_settings_screens.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/observation_context_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
+import 'package:firbird/app/model_download_screen.dart';
+import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 final GoRouter _router = GoRouter(
-  initialLocation: '/onboarding',
+  initialLocation: '/download',
   routes: <RouteBase>[
+    GoRoute(
+      path: '/download',
+      builder: (BuildContext context, GoRouterState state) =>
+          const ModelDownloadScreen(),
+    ),
     GoRoute(
       path: '/',
       builder: (BuildContext context, GoRouterState state) =>
           const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/crop',
+      builder: (BuildContext context, GoRouterState state) =>
+          CropConfirmationScreen(
+            request: state.extra! as IdentificationRequest,
+          ),
     ),
     GoRoute(
       path: '/onboarding',
@@ -249,16 +266,17 @@ class _HomeAction extends StatelessWidget {
   }
 }
 
-class PhotoSelectionScreen extends StatefulWidget {
+class PhotoSelectionScreen extends ConsumerStatefulWidget {
   const PhotoSelectionScreen({super.key});
 
   @override
-  State<PhotoSelectionScreen> createState() => _PhotoSelectionScreenState();
+  ConsumerState<PhotoSelectionScreen> createState() => _PhotoSelectionScreenState();
 }
 
-class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
+class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
   final ImagePicker _picker = ImagePicker();
-  XFile? _selectedImage;
+  XFile? _selectedMedia;
+  bool _isAudio = false;
   _PhotoMetadata _metadata = const _PhotoMetadata();
   bool _isLoading = false;
   String? _errorMessage;
@@ -280,31 +298,49 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
     'Güneydoğu Anadolu',
   ];
 
-  Future<void> _selectPhoto() async {
+  Future<void> _selectMedia({required bool isAudio}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        requestFullMetadata: true,
-      );
-      if (image == null || !mounted) {
+      XFile? mediaFile;
+      
+      if (isAudio) {
+        final FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'mp4'],
+        );
+        if (result != null && result.files.single.path != null) {
+          mediaFile = XFile(result.files.single.path!);
+        }
+      } else {
+        mediaFile = await _picker.pickImage(
+          source: ImageSource.gallery,
+          requestFullMetadata: true,
+        );
+      }
+
+      if (mediaFile == null || !mounted) {
         return;
       }
 
-      final _PhotoMetadata metadata = await _readMetadata(image);
+      _PhotoMetadata metadata = const _PhotoMetadata();
+      if (!isAudio) {
+        metadata = await _readMetadata(mediaFile);
+      }
+      
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _selectedImage = image;
+        _selectedMedia = mediaFile;
+        _isAudio = isAudio;
         _metadata = metadata;
         _selectedDate = metadata.capturedAt ?? DateTime.now();
-        _dateUnknown = false;
+        _dateUnknown = isAudio; // varsayılan olarak seste tarih bilinmiyor
         _locationUnknown = true;
         _selectedRegion = null;
         _selectedPoint = null;
@@ -400,7 +436,7 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
-    final XFile? selectedImage = _selectedImage;
+    final XFile? selectedMedia = _selectedMedia;
 
     return Scaffold(
       appBar: AppBar(
@@ -410,22 +446,41 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
-          if (selectedImage == null)
-            _EmptyPhotoState(isLoading: _isLoading, onSelectPhoto: _selectPhoto)
+          if (selectedMedia == null)
+            _EmptyPhotoState(
+              isLoading: _isLoading, 
+              onSelectPhoto: () => _selectMedia(isAudio: false),
+              onSelectAudio: () => _selectMedia(isAudio: true),
+            )
           else ...<Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.file(
-                File(selectedImage.path),
-                fit: BoxFit.contain,
-                semanticLabel: l10n.photoPreview,
+            if (_isAudio)
+              Card(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.audiotrack, size: 64),
+                      const SizedBox(height: 16),
+                      Text(selectedMedia.name, textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.file(
+                  File(selectedMedia.path),
+                  fit: BoxFit.contain,
+                  semanticLabel: l10n.photoPreview,
+                ),
               ),
-            ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: _isLoading ? null : _selectPhoto,
+              onPressed: _isLoading ? null : () => _selectMedia(isAudio: _isAudio),
               icon: const Icon(Icons.swap_horiz),
-              label: Text(l10n.changePhoto),
+              label: Text(_isAudio ? 'Farklı Ses/Video Seç' : l10n.changePhoto),
             ),
             const SizedBox(height: 24),
             Text(
@@ -541,16 +596,25 @@ class _PhotoSelectionScreenState extends State<PhotoSelectionScreen> {
             ],
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => context.push(
-                '/analysis',
-                extra: IdentificationRequest(
-                  image: ImageInput(uri: selectedImage.path),
+              onPressed: () async {
+                final String mode = await ref.read(appDatabaseProvider).cropMode();
+                final request = IdentificationRequest(
+                  image: ImageInput(uri: selectedMedia.path),
                   context: IdentificationContext(
                     countryCode: _locationUnknown ? null : 'TR',
                     observationDate: _dateUnknown ? null : _selectedDate,
                   ),
-                ),
-              ),
+                );
+                if (mounted) {
+                  if (_isAudio) {
+                    context.push('/analysis', extra: request); // TODO: Audio route
+                  } else if (mode == 'manual') {
+                    context.push('/crop', extra: request);
+                  } else {
+                    context.push('/analysis', extra: request);
+                  }
+                }
+              },
               child: Text(l10n.identify),
             ),
           ],
@@ -579,10 +643,12 @@ class _EmptyPhotoState extends StatelessWidget {
   const _EmptyPhotoState({
     required this.isLoading,
     required this.onSelectPhoto,
+    required this.onSelectAudio,
   });
 
   final bool isLoading;
   final VoidCallback onSelectPhoto;
+  final VoidCallback onSelectAudio;
 
   @override
   Widget build(BuildContext context) {
@@ -602,6 +668,12 @@ class _EmptyPhotoState extends StatelessWidget {
           onPressed: isLoading ? null : onSelectPhoto,
           icon: const Icon(Icons.photo_library_outlined),
           label: Text(l10n.selectPhoto),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: isLoading ? null : onSelectAudio,
+          icon: const Icon(Icons.audiotrack_outlined),
+          label: const Text('Dosyadan Ses / Video Seç'),
         ),
         if (isLoading) ...<Widget>[
           const SizedBox(height: 24),

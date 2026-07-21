@@ -121,6 +121,105 @@ class $IdentificationRecordsTable extends IdentificationRecords
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sexCategoryMeta = const VerificationMeta(
+    'sexCategory',
+  );
+  @override
+  late final GeneratedColumn<String> sexCategory = GeneratedColumn<String>(
+    'sex_category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sexConfidenceMeta = const VerificationMeta(
+    'sexConfidence',
+  );
+  @override
+  late final GeneratedColumn<double> sexConfidence = GeneratedColumn<double>(
+    'sex_confidence',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ageCategoryMeta = const VerificationMeta(
+    'ageCategory',
+  );
+  @override
+  late final GeneratedColumn<String> ageCategory = GeneratedColumn<String>(
+    'age_category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ageConfidenceMeta = const VerificationMeta(
+    'ageConfidence',
+  );
+  @override
+  late final GeneratedColumn<double> ageConfidence = GeneratedColumn<double>(
+    'age_confidence',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _predictionMethodMeta = const VerificationMeta(
+    'predictionMethod',
+  );
+  @override
+  late final GeneratedColumn<String> predictionMethod = GeneratedColumn<String>(
+    'prediction_method',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userCorrectedSexMeta = const VerificationMeta(
+    'userCorrectedSex',
+  );
+  @override
+  late final GeneratedColumn<String> userCorrectedSex = GeneratedColumn<String>(
+    'user_corrected_sex',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userCorrectedAgeMeta = const VerificationMeta(
+    'userCorrectedAge',
+  );
+  @override
+  late final GeneratedColumn<String> userCorrectedAge = GeneratedColumn<String>(
+    'user_corrected_age',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userCorrectedSpeciesIdMeta =
+      const VerificationMeta('userCorrectedSpeciesId');
+  @override
+  late final GeneratedColumn<String> userCorrectedSpeciesId =
+      GeneratedColumn<String>(
+        'user_corrected_species_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _userCorrectedTurkishNameMeta =
+      const VerificationMeta('userCorrectedTurkishName');
+  @override
+  late final GeneratedColumn<String> userCorrectedTurkishName =
+      GeneratedColumn<String>(
+        'user_corrected_turkish_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -133,6 +232,15 @@ class $IdentificationRecordsTable extends IdentificationRecords
     thumbnailUri,
     packageId,
     createdAt,
+    sexCategory,
+    sexConfidence,
+    ageCategory,
+    ageConfidence,
+    predictionMethod,
+    userCorrectedSex,
+    userCorrectedAge,
+    userCorrectedSpeciesId,
+    userCorrectedTurkishName,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -227,6 +335,87 @@ class $IdentificationRecordsTable extends IdentificationRecords
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('sex_category')) {
+      context.handle(
+        _sexCategoryMeta,
+        sexCategory.isAcceptableOrUnknown(
+          data['sex_category']!,
+          _sexCategoryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sex_confidence')) {
+      context.handle(
+        _sexConfidenceMeta,
+        sexConfidence.isAcceptableOrUnknown(
+          data['sex_confidence']!,
+          _sexConfidenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('age_category')) {
+      context.handle(
+        _ageCategoryMeta,
+        ageCategory.isAcceptableOrUnknown(
+          data['age_category']!,
+          _ageCategoryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('age_confidence')) {
+      context.handle(
+        _ageConfidenceMeta,
+        ageConfidence.isAcceptableOrUnknown(
+          data['age_confidence']!,
+          _ageConfidenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('prediction_method')) {
+      context.handle(
+        _predictionMethodMeta,
+        predictionMethod.isAcceptableOrUnknown(
+          data['prediction_method']!,
+          _predictionMethodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_corrected_sex')) {
+      context.handle(
+        _userCorrectedSexMeta,
+        userCorrectedSex.isAcceptableOrUnknown(
+          data['user_corrected_sex']!,
+          _userCorrectedSexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_corrected_age')) {
+      context.handle(
+        _userCorrectedAgeMeta,
+        userCorrectedAge.isAcceptableOrUnknown(
+          data['user_corrected_age']!,
+          _userCorrectedAgeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_corrected_species_id')) {
+      context.handle(
+        _userCorrectedSpeciesIdMeta,
+        userCorrectedSpeciesId.isAcceptableOrUnknown(
+          data['user_corrected_species_id']!,
+          _userCorrectedSpeciesIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_corrected_turkish_name')) {
+      context.handle(
+        _userCorrectedTurkishNameMeta,
+        userCorrectedTurkishName.isAcceptableOrUnknown(
+          data['user_corrected_turkish_name']!,
+          _userCorrectedTurkishNameMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -276,6 +465,42 @@ class $IdentificationRecordsTable extends IdentificationRecords
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      sexCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sex_category'],
+      ),
+      sexConfidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}sex_confidence'],
+      ),
+      ageCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}age_category'],
+      ),
+      ageConfidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}age_confidence'],
+      ),
+      predictionMethod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}prediction_method'],
+      ),
+      userCorrectedSex: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_corrected_sex'],
+      ),
+      userCorrectedAge: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_corrected_age'],
+      ),
+      userCorrectedSpeciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_corrected_species_id'],
+      ),
+      userCorrectedTurkishName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_corrected_turkish_name'],
+      ),
     );
   }
 
@@ -297,6 +522,15 @@ class IdentificationRecord extends DataClass
   final String? thumbnailUri;
   final String? packageId;
   final DateTime createdAt;
+  final String? sexCategory;
+  final double? sexConfidence;
+  final String? ageCategory;
+  final double? ageConfidence;
+  final String? predictionMethod;
+  final String? userCorrectedSex;
+  final String? userCorrectedAge;
+  final String? userCorrectedSpeciesId;
+  final String? userCorrectedTurkishName;
   const IdentificationRecord({
     required this.id,
     required this.speciesId,
@@ -308,6 +542,15 @@ class IdentificationRecord extends DataClass
     this.thumbnailUri,
     this.packageId,
     required this.createdAt,
+    this.sexCategory,
+    this.sexConfidence,
+    this.ageCategory,
+    this.ageConfidence,
+    this.predictionMethod,
+    this.userCorrectedSex,
+    this.userCorrectedAge,
+    this.userCorrectedSpeciesId,
+    this.userCorrectedTurkishName,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -328,6 +571,37 @@ class IdentificationRecord extends DataClass
       map['package_id'] = Variable<String>(packageId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || sexCategory != null) {
+      map['sex_category'] = Variable<String>(sexCategory);
+    }
+    if (!nullToAbsent || sexConfidence != null) {
+      map['sex_confidence'] = Variable<double>(sexConfidence);
+    }
+    if (!nullToAbsent || ageCategory != null) {
+      map['age_category'] = Variable<String>(ageCategory);
+    }
+    if (!nullToAbsent || ageConfidence != null) {
+      map['age_confidence'] = Variable<double>(ageConfidence);
+    }
+    if (!nullToAbsent || predictionMethod != null) {
+      map['prediction_method'] = Variable<String>(predictionMethod);
+    }
+    if (!nullToAbsent || userCorrectedSex != null) {
+      map['user_corrected_sex'] = Variable<String>(userCorrectedSex);
+    }
+    if (!nullToAbsent || userCorrectedAge != null) {
+      map['user_corrected_age'] = Variable<String>(userCorrectedAge);
+    }
+    if (!nullToAbsent || userCorrectedSpeciesId != null) {
+      map['user_corrected_species_id'] = Variable<String>(
+        userCorrectedSpeciesId,
+      );
+    }
+    if (!nullToAbsent || userCorrectedTurkishName != null) {
+      map['user_corrected_turkish_name'] = Variable<String>(
+        userCorrectedTurkishName,
+      );
+    }
     return map;
   }
 
@@ -349,6 +623,33 @@ class IdentificationRecord extends DataClass
           ? const Value.absent()
           : Value(packageId),
       createdAt: Value(createdAt),
+      sexCategory: sexCategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sexCategory),
+      sexConfidence: sexConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sexConfidence),
+      ageCategory: ageCategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ageCategory),
+      ageConfidence: ageConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ageConfidence),
+      predictionMethod: predictionMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(predictionMethod),
+      userCorrectedSex: userCorrectedSex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userCorrectedSex),
+      userCorrectedAge: userCorrectedAge == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userCorrectedAge),
+      userCorrectedSpeciesId: userCorrectedSpeciesId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userCorrectedSpeciesId),
+      userCorrectedTurkishName: userCorrectedTurkishName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userCorrectedTurkishName),
     );
   }
 
@@ -368,6 +669,19 @@ class IdentificationRecord extends DataClass
       thumbnailUri: serializer.fromJson<String?>(json['thumbnailUri']),
       packageId: serializer.fromJson<String?>(json['packageId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      sexCategory: serializer.fromJson<String?>(json['sexCategory']),
+      sexConfidence: serializer.fromJson<double?>(json['sexConfidence']),
+      ageCategory: serializer.fromJson<String?>(json['ageCategory']),
+      ageConfidence: serializer.fromJson<double?>(json['ageConfidence']),
+      predictionMethod: serializer.fromJson<String?>(json['predictionMethod']),
+      userCorrectedSex: serializer.fromJson<String?>(json['userCorrectedSex']),
+      userCorrectedAge: serializer.fromJson<String?>(json['userCorrectedAge']),
+      userCorrectedSpeciesId: serializer.fromJson<String?>(
+        json['userCorrectedSpeciesId'],
+      ),
+      userCorrectedTurkishName: serializer.fromJson<String?>(
+        json['userCorrectedTurkishName'],
+      ),
     );
   }
   @override
@@ -384,6 +698,19 @@ class IdentificationRecord extends DataClass
       'thumbnailUri': serializer.toJson<String?>(thumbnailUri),
       'packageId': serializer.toJson<String?>(packageId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'sexCategory': serializer.toJson<String?>(sexCategory),
+      'sexConfidence': serializer.toJson<double?>(sexConfidence),
+      'ageCategory': serializer.toJson<String?>(ageCategory),
+      'ageConfidence': serializer.toJson<double?>(ageConfidence),
+      'predictionMethod': serializer.toJson<String?>(predictionMethod),
+      'userCorrectedSex': serializer.toJson<String?>(userCorrectedSex),
+      'userCorrectedAge': serializer.toJson<String?>(userCorrectedAge),
+      'userCorrectedSpeciesId': serializer.toJson<String?>(
+        userCorrectedSpeciesId,
+      ),
+      'userCorrectedTurkishName': serializer.toJson<String?>(
+        userCorrectedTurkishName,
+      ),
     };
   }
 
@@ -398,6 +725,15 @@ class IdentificationRecord extends DataClass
     Value<String?> thumbnailUri = const Value.absent(),
     Value<String?> packageId = const Value.absent(),
     DateTime? createdAt,
+    Value<String?> sexCategory = const Value.absent(),
+    Value<double?> sexConfidence = const Value.absent(),
+    Value<String?> ageCategory = const Value.absent(),
+    Value<double?> ageConfidence = const Value.absent(),
+    Value<String?> predictionMethod = const Value.absent(),
+    Value<String?> userCorrectedSex = const Value.absent(),
+    Value<String?> userCorrectedAge = const Value.absent(),
+    Value<String?> userCorrectedSpeciesId = const Value.absent(),
+    Value<String?> userCorrectedTurkishName = const Value.absent(),
   }) => IdentificationRecord(
     id: id ?? this.id,
     speciesId: speciesId ?? this.speciesId,
@@ -409,6 +745,29 @@ class IdentificationRecord extends DataClass
     thumbnailUri: thumbnailUri.present ? thumbnailUri.value : this.thumbnailUri,
     packageId: packageId.present ? packageId.value : this.packageId,
     createdAt: createdAt ?? this.createdAt,
+    sexCategory: sexCategory.present ? sexCategory.value : this.sexCategory,
+    sexConfidence: sexConfidence.present
+        ? sexConfidence.value
+        : this.sexConfidence,
+    ageCategory: ageCategory.present ? ageCategory.value : this.ageCategory,
+    ageConfidence: ageConfidence.present
+        ? ageConfidence.value
+        : this.ageConfidence,
+    predictionMethod: predictionMethod.present
+        ? predictionMethod.value
+        : this.predictionMethod,
+    userCorrectedSex: userCorrectedSex.present
+        ? userCorrectedSex.value
+        : this.userCorrectedSex,
+    userCorrectedAge: userCorrectedAge.present
+        ? userCorrectedAge.value
+        : this.userCorrectedAge,
+    userCorrectedSpeciesId: userCorrectedSpeciesId.present
+        ? userCorrectedSpeciesId.value
+        : this.userCorrectedSpeciesId,
+    userCorrectedTurkishName: userCorrectedTurkishName.present
+        ? userCorrectedTurkishName.value
+        : this.userCorrectedTurkishName,
   );
   IdentificationRecord copyWithCompanion(IdentificationRecordsCompanion data) {
     return IdentificationRecord(
@@ -432,6 +791,33 @@ class IdentificationRecord extends DataClass
           : this.thumbnailUri,
       packageId: data.packageId.present ? data.packageId.value : this.packageId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      sexCategory: data.sexCategory.present
+          ? data.sexCategory.value
+          : this.sexCategory,
+      sexConfidence: data.sexConfidence.present
+          ? data.sexConfidence.value
+          : this.sexConfidence,
+      ageCategory: data.ageCategory.present
+          ? data.ageCategory.value
+          : this.ageCategory,
+      ageConfidence: data.ageConfidence.present
+          ? data.ageConfidence.value
+          : this.ageConfidence,
+      predictionMethod: data.predictionMethod.present
+          ? data.predictionMethod.value
+          : this.predictionMethod,
+      userCorrectedSex: data.userCorrectedSex.present
+          ? data.userCorrectedSex.value
+          : this.userCorrectedSex,
+      userCorrectedAge: data.userCorrectedAge.present
+          ? data.userCorrectedAge.value
+          : this.userCorrectedAge,
+      userCorrectedSpeciesId: data.userCorrectedSpeciesId.present
+          ? data.userCorrectedSpeciesId.value
+          : this.userCorrectedSpeciesId,
+      userCorrectedTurkishName: data.userCorrectedTurkishName.present
+          ? data.userCorrectedTurkishName.value
+          : this.userCorrectedTurkishName,
     );
   }
 
@@ -447,7 +833,16 @@ class IdentificationRecord extends DataClass
           ..write('imageUri: $imageUri, ')
           ..write('thumbnailUri: $thumbnailUri, ')
           ..write('packageId: $packageId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('sexCategory: $sexCategory, ')
+          ..write('sexConfidence: $sexConfidence, ')
+          ..write('ageCategory: $ageCategory, ')
+          ..write('ageConfidence: $ageConfidence, ')
+          ..write('predictionMethod: $predictionMethod, ')
+          ..write('userCorrectedSex: $userCorrectedSex, ')
+          ..write('userCorrectedAge: $userCorrectedAge, ')
+          ..write('userCorrectedSpeciesId: $userCorrectedSpeciesId, ')
+          ..write('userCorrectedTurkishName: $userCorrectedTurkishName')
           ..write(')'))
         .toString();
   }
@@ -464,6 +859,15 @@ class IdentificationRecord extends DataClass
     thumbnailUri,
     packageId,
     createdAt,
+    sexCategory,
+    sexConfidence,
+    ageCategory,
+    ageConfidence,
+    predictionMethod,
+    userCorrectedSex,
+    userCorrectedAge,
+    userCorrectedSpeciesId,
+    userCorrectedTurkishName,
   );
   @override
   bool operator ==(Object other) =>
@@ -478,7 +882,16 @@ class IdentificationRecord extends DataClass
           other.imageUri == this.imageUri &&
           other.thumbnailUri == this.thumbnailUri &&
           other.packageId == this.packageId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.sexCategory == this.sexCategory &&
+          other.sexConfidence == this.sexConfidence &&
+          other.ageCategory == this.ageCategory &&
+          other.ageConfidence == this.ageConfidence &&
+          other.predictionMethod == this.predictionMethod &&
+          other.userCorrectedSex == this.userCorrectedSex &&
+          other.userCorrectedAge == this.userCorrectedAge &&
+          other.userCorrectedSpeciesId == this.userCorrectedSpeciesId &&
+          other.userCorrectedTurkishName == this.userCorrectedTurkishName);
 }
 
 class IdentificationRecordsCompanion
@@ -493,6 +906,15 @@ class IdentificationRecordsCompanion
   final Value<String?> thumbnailUri;
   final Value<String?> packageId;
   final Value<DateTime> createdAt;
+  final Value<String?> sexCategory;
+  final Value<double?> sexConfidence;
+  final Value<String?> ageCategory;
+  final Value<double?> ageConfidence;
+  final Value<String?> predictionMethod;
+  final Value<String?> userCorrectedSex;
+  final Value<String?> userCorrectedAge;
+  final Value<String?> userCorrectedSpeciesId;
+  final Value<String?> userCorrectedTurkishName;
   const IdentificationRecordsCompanion({
     this.id = const Value.absent(),
     this.speciesId = const Value.absent(),
@@ -504,6 +926,15 @@ class IdentificationRecordsCompanion
     this.thumbnailUri = const Value.absent(),
     this.packageId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.sexCategory = const Value.absent(),
+    this.sexConfidence = const Value.absent(),
+    this.ageCategory = const Value.absent(),
+    this.ageConfidence = const Value.absent(),
+    this.predictionMethod = const Value.absent(),
+    this.userCorrectedSex = const Value.absent(),
+    this.userCorrectedAge = const Value.absent(),
+    this.userCorrectedSpeciesId = const Value.absent(),
+    this.userCorrectedTurkishName = const Value.absent(),
   });
   IdentificationRecordsCompanion.insert({
     this.id = const Value.absent(),
@@ -516,6 +947,15 @@ class IdentificationRecordsCompanion
     this.thumbnailUri = const Value.absent(),
     this.packageId = const Value.absent(),
     required DateTime createdAt,
+    this.sexCategory = const Value.absent(),
+    this.sexConfidence = const Value.absent(),
+    this.ageCategory = const Value.absent(),
+    this.ageConfidence = const Value.absent(),
+    this.predictionMethod = const Value.absent(),
+    this.userCorrectedSex = const Value.absent(),
+    this.userCorrectedAge = const Value.absent(),
+    this.userCorrectedSpeciesId = const Value.absent(),
+    this.userCorrectedTurkishName = const Value.absent(),
   }) : speciesId = Value(speciesId),
        turkishName = Value(turkishName),
        scientificName = Value(scientificName),
@@ -533,6 +973,15 @@ class IdentificationRecordsCompanion
     Expression<String>? thumbnailUri,
     Expression<String>? packageId,
     Expression<DateTime>? createdAt,
+    Expression<String>? sexCategory,
+    Expression<double>? sexConfidence,
+    Expression<String>? ageCategory,
+    Expression<double>? ageConfidence,
+    Expression<String>? predictionMethod,
+    Expression<String>? userCorrectedSex,
+    Expression<String>? userCorrectedAge,
+    Expression<String>? userCorrectedSpeciesId,
+    Expression<String>? userCorrectedTurkishName,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -545,6 +994,17 @@ class IdentificationRecordsCompanion
       if (thumbnailUri != null) 'thumbnail_uri': thumbnailUri,
       if (packageId != null) 'package_id': packageId,
       if (createdAt != null) 'created_at': createdAt,
+      if (sexCategory != null) 'sex_category': sexCategory,
+      if (sexConfidence != null) 'sex_confidence': sexConfidence,
+      if (ageCategory != null) 'age_category': ageCategory,
+      if (ageConfidence != null) 'age_confidence': ageConfidence,
+      if (predictionMethod != null) 'prediction_method': predictionMethod,
+      if (userCorrectedSex != null) 'user_corrected_sex': userCorrectedSex,
+      if (userCorrectedAge != null) 'user_corrected_age': userCorrectedAge,
+      if (userCorrectedSpeciesId != null)
+        'user_corrected_species_id': userCorrectedSpeciesId,
+      if (userCorrectedTurkishName != null)
+        'user_corrected_turkish_name': userCorrectedTurkishName,
     });
   }
 
@@ -559,6 +1019,15 @@ class IdentificationRecordsCompanion
     Value<String?>? thumbnailUri,
     Value<String?>? packageId,
     Value<DateTime>? createdAt,
+    Value<String?>? sexCategory,
+    Value<double?>? sexConfidence,
+    Value<String?>? ageCategory,
+    Value<double?>? ageConfidence,
+    Value<String?>? predictionMethod,
+    Value<String?>? userCorrectedSex,
+    Value<String?>? userCorrectedAge,
+    Value<String?>? userCorrectedSpeciesId,
+    Value<String?>? userCorrectedTurkishName,
   }) {
     return IdentificationRecordsCompanion(
       id: id ?? this.id,
@@ -571,6 +1040,17 @@ class IdentificationRecordsCompanion
       thumbnailUri: thumbnailUri ?? this.thumbnailUri,
       packageId: packageId ?? this.packageId,
       createdAt: createdAt ?? this.createdAt,
+      sexCategory: sexCategory ?? this.sexCategory,
+      sexConfidence: sexConfidence ?? this.sexConfidence,
+      ageCategory: ageCategory ?? this.ageCategory,
+      ageConfidence: ageConfidence ?? this.ageConfidence,
+      predictionMethod: predictionMethod ?? this.predictionMethod,
+      userCorrectedSex: userCorrectedSex ?? this.userCorrectedSex,
+      userCorrectedAge: userCorrectedAge ?? this.userCorrectedAge,
+      userCorrectedSpeciesId:
+          userCorrectedSpeciesId ?? this.userCorrectedSpeciesId,
+      userCorrectedTurkishName:
+          userCorrectedTurkishName ?? this.userCorrectedTurkishName,
     );
   }
 
@@ -607,6 +1087,37 @@ class IdentificationRecordsCompanion
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (sexCategory.present) {
+      map['sex_category'] = Variable<String>(sexCategory.value);
+    }
+    if (sexConfidence.present) {
+      map['sex_confidence'] = Variable<double>(sexConfidence.value);
+    }
+    if (ageCategory.present) {
+      map['age_category'] = Variable<String>(ageCategory.value);
+    }
+    if (ageConfidence.present) {
+      map['age_confidence'] = Variable<double>(ageConfidence.value);
+    }
+    if (predictionMethod.present) {
+      map['prediction_method'] = Variable<String>(predictionMethod.value);
+    }
+    if (userCorrectedSex.present) {
+      map['user_corrected_sex'] = Variable<String>(userCorrectedSex.value);
+    }
+    if (userCorrectedAge.present) {
+      map['user_corrected_age'] = Variable<String>(userCorrectedAge.value);
+    }
+    if (userCorrectedSpeciesId.present) {
+      map['user_corrected_species_id'] = Variable<String>(
+        userCorrectedSpeciesId.value,
+      );
+    }
+    if (userCorrectedTurkishName.present) {
+      map['user_corrected_turkish_name'] = Variable<String>(
+        userCorrectedTurkishName.value,
+      );
+    }
     return map;
   }
 
@@ -622,7 +1133,16 @@ class IdentificationRecordsCompanion
           ..write('imageUri: $imageUri, ')
           ..write('thumbnailUri: $thumbnailUri, ')
           ..write('packageId: $packageId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('sexCategory: $sexCategory, ')
+          ..write('sexConfidence: $sexConfidence, ')
+          ..write('ageCategory: $ageCategory, ')
+          ..write('ageConfidence: $ageConfidence, ')
+          ..write('predictionMethod: $predictionMethod, ')
+          ..write('userCorrectedSex: $userCorrectedSex, ')
+          ..write('userCorrectedAge: $userCorrectedAge, ')
+          ..write('userCorrectedSpeciesId: $userCorrectedSpeciesId, ')
+          ..write('userCorrectedTurkishName: $userCorrectedTurkishName')
           ..write(')'))
         .toString();
   }
@@ -1194,6 +1714,15 @@ typedef $$IdentificationRecordsTableCreateCompanionBuilder =
       Value<String?> thumbnailUri,
       Value<String?> packageId,
       required DateTime createdAt,
+      Value<String?> sexCategory,
+      Value<double?> sexConfidence,
+      Value<String?> ageCategory,
+      Value<double?> ageConfidence,
+      Value<String?> predictionMethod,
+      Value<String?> userCorrectedSex,
+      Value<String?> userCorrectedAge,
+      Value<String?> userCorrectedSpeciesId,
+      Value<String?> userCorrectedTurkishName,
     });
 typedef $$IdentificationRecordsTableUpdateCompanionBuilder =
     IdentificationRecordsCompanion Function({
@@ -1207,6 +1736,15 @@ typedef $$IdentificationRecordsTableUpdateCompanionBuilder =
       Value<String?> thumbnailUri,
       Value<String?> packageId,
       Value<DateTime> createdAt,
+      Value<String?> sexCategory,
+      Value<double?> sexConfidence,
+      Value<String?> ageCategory,
+      Value<double?> ageConfidence,
+      Value<String?> predictionMethod,
+      Value<String?> userCorrectedSex,
+      Value<String?> userCorrectedAge,
+      Value<String?> userCorrectedSpeciesId,
+      Value<String?> userCorrectedTurkishName,
     });
 
 class $$IdentificationRecordsTableFilterComposer
@@ -1265,6 +1803,51 @@ class $$IdentificationRecordsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sexCategory => $composableBuilder(
+    column: $table.sexCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get sexConfidence => $composableBuilder(
+    column: $table.sexConfidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ageCategory => $composableBuilder(
+    column: $table.ageCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get ageConfidence => $composableBuilder(
+    column: $table.ageConfidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get predictionMethod => $composableBuilder(
+    column: $table.predictionMethod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userCorrectedSex => $composableBuilder(
+    column: $table.userCorrectedSex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userCorrectedAge => $composableBuilder(
+    column: $table.userCorrectedAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userCorrectedSpeciesId => $composableBuilder(
+    column: $table.userCorrectedSpeciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userCorrectedTurkishName => $composableBuilder(
+    column: $table.userCorrectedTurkishName,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1327,6 +1910,51 @@ class $$IdentificationRecordsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sexCategory => $composableBuilder(
+    column: $table.sexCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get sexConfidence => $composableBuilder(
+    column: $table.sexConfidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ageCategory => $composableBuilder(
+    column: $table.ageCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get ageConfidence => $composableBuilder(
+    column: $table.ageConfidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get predictionMethod => $composableBuilder(
+    column: $table.predictionMethod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userCorrectedSex => $composableBuilder(
+    column: $table.userCorrectedSex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userCorrectedAge => $composableBuilder(
+    column: $table.userCorrectedAge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userCorrectedSpeciesId => $composableBuilder(
+    column: $table.userCorrectedSpeciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userCorrectedTurkishName => $composableBuilder(
+    column: $table.userCorrectedTurkishName,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$IdentificationRecordsTableAnnotationComposer
@@ -1377,6 +2005,51 @@ class $$IdentificationRecordsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sexCategory => $composableBuilder(
+    column: $table.sexCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get sexConfidence => $composableBuilder(
+    column: $table.sexConfidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ageCategory => $composableBuilder(
+    column: $table.ageCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get ageConfidence => $composableBuilder(
+    column: $table.ageConfidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get predictionMethod => $composableBuilder(
+    column: $table.predictionMethod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userCorrectedSex => $composableBuilder(
+    column: $table.userCorrectedSex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userCorrectedAge => $composableBuilder(
+    column: $table.userCorrectedAge,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userCorrectedSpeciesId => $composableBuilder(
+    column: $table.userCorrectedSpeciesId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userCorrectedTurkishName => $composableBuilder(
+    column: $table.userCorrectedTurkishName,
+    builder: (column) => column,
+  );
 }
 
 class $$IdentificationRecordsTableTableManager
@@ -1435,6 +2108,15 @@ class $$IdentificationRecordsTableTableManager
                 Value<String?> thumbnailUri = const Value.absent(),
                 Value<String?> packageId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> sexCategory = const Value.absent(),
+                Value<double?> sexConfidence = const Value.absent(),
+                Value<String?> ageCategory = const Value.absent(),
+                Value<double?> ageConfidence = const Value.absent(),
+                Value<String?> predictionMethod = const Value.absent(),
+                Value<String?> userCorrectedSex = const Value.absent(),
+                Value<String?> userCorrectedAge = const Value.absent(),
+                Value<String?> userCorrectedSpeciesId = const Value.absent(),
+                Value<String?> userCorrectedTurkishName = const Value.absent(),
               }) => IdentificationRecordsCompanion(
                 id: id,
                 speciesId: speciesId,
@@ -1446,6 +2128,15 @@ class $$IdentificationRecordsTableTableManager
                 thumbnailUri: thumbnailUri,
                 packageId: packageId,
                 createdAt: createdAt,
+                sexCategory: sexCategory,
+                sexConfidence: sexConfidence,
+                ageCategory: ageCategory,
+                ageConfidence: ageConfidence,
+                predictionMethod: predictionMethod,
+                userCorrectedSex: userCorrectedSex,
+                userCorrectedAge: userCorrectedAge,
+                userCorrectedSpeciesId: userCorrectedSpeciesId,
+                userCorrectedTurkishName: userCorrectedTurkishName,
               ),
           createCompanionCallback:
               ({
@@ -1459,6 +2150,15 @@ class $$IdentificationRecordsTableTableManager
                 Value<String?> thumbnailUri = const Value.absent(),
                 Value<String?> packageId = const Value.absent(),
                 required DateTime createdAt,
+                Value<String?> sexCategory = const Value.absent(),
+                Value<double?> sexConfidence = const Value.absent(),
+                Value<String?> ageCategory = const Value.absent(),
+                Value<double?> ageConfidence = const Value.absent(),
+                Value<String?> predictionMethod = const Value.absent(),
+                Value<String?> userCorrectedSex = const Value.absent(),
+                Value<String?> userCorrectedAge = const Value.absent(),
+                Value<String?> userCorrectedSpeciesId = const Value.absent(),
+                Value<String?> userCorrectedTurkishName = const Value.absent(),
               }) => IdentificationRecordsCompanion.insert(
                 id: id,
                 speciesId: speciesId,
@@ -1470,6 +2170,15 @@ class $$IdentificationRecordsTableTableManager
                 thumbnailUri: thumbnailUri,
                 packageId: packageId,
                 createdAt: createdAt,
+                sexCategory: sexCategory,
+                sexConfidence: sexConfidence,
+                ageCategory: ageCategory,
+                ageConfidence: ageConfidence,
+                predictionMethod: predictionMethod,
+                userCorrectedSex: userCorrectedSex,
+                userCorrectedAge: userCorrectedAge,
+                userCorrectedSpeciesId: userCorrectedSpeciesId,
+                userCorrectedTurkishName: userCorrectedTurkishName,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

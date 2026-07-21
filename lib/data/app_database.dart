@@ -18,6 +18,19 @@ class IdentificationRecords extends Table {
   TextColumn get thumbnailUri => text().nullable()();
   TextColumn get packageId => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+
+  // --- Cinsiyet & Yaşam Evresi (schemaVersion 2) ---
+  TextColumn get sexCategory => text().nullable()();
+  RealColumn get sexConfidence => real().nullable()();
+  TextColumn get ageCategory => text().nullable()();
+  RealColumn get ageConfidence => real().nullable()();
+  TextColumn get predictionMethod => text().nullable()();
+  TextColumn get userCorrectedSex => text().nullable()();
+  TextColumn get userCorrectedAge => text().nullable()();
+
+  // --- Tür (schemaVersion 2) ---
+  TextColumn get userCorrectedSpeciesId => text().nullable()();
+  TextColumn get userCorrectedTurkishName => text().nullable()();
 }
 
 class AppSettings extends Table {
@@ -45,7 +58,28 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          await m.addColumn(
+            identificationRecords,
+            identificationRecords.userCorrectedSpeciesId,
+          );
+          await m.addColumn(
+            identificationRecords,
+            identificationRecords.userCorrectedTurkishName,
+          );
+        }
+      },
+    );
+  }
 
   Stream<List<IdentificationRecord>> watchHistory() {
     return (select(identificationRecords)
@@ -55,7 +89,7 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  Future<void> addIdentification({
+  Future<int> addIdentification({
     required String speciesId,
     required String turkishName,
     required String scientificName,
@@ -64,6 +98,11 @@ class AppDatabase extends _$AppDatabase {
     String? imageUri,
     String? thumbnailUri,
     String? packageId,
+    String? sexCategory,
+    double? sexConfidence,
+    String? ageCategory,
+    double? ageConfidence,
+    String? predictionMethod,
   }) {
     return into(identificationRecords).insert(
       IdentificationRecordsCompanion.insert(
@@ -76,6 +115,11 @@ class AppDatabase extends _$AppDatabase {
         thumbnailUri: Value<String?>(thumbnailUri),
         packageId: Value<String?>(packageId),
         createdAt: DateTime.now(),
+        sexCategory: Value<String?>(sexCategory),
+        sexConfidence: Value<double?>(sexConfidence),
+        ageCategory: Value<String?>(ageCategory),
+        ageConfidence: Value<double?>(ageConfidence),
+        predictionMethod: Value<String?>(predictionMethod),
       ),
     );
   }
@@ -84,6 +128,32 @@ class AppDatabase extends _$AppDatabase {
     return (delete(
       identificationRecords,
     )..where((IdentificationRecords table) => table.id.equals(id))).go();
+  }
+
+  /// Kullanıcı tahmini onayladıktan veya düzelttikten sonra ilgili alanları günceller.
+  ///
+  /// [approved] true → kullanıcı modelin tahminini doğru buldu (userApproved).
+  /// [approved] false → kullanıcı düzeltti (userValidated).
+  Future<void> updateCorrection(
+    int id, {
+    String? correctedSex,
+    String? correctedAge,
+    String? correctedSpeciesId,
+    String? correctedTurkishName,
+    required bool approved,
+  }) {
+    final String method = approved ? 'userApproved' : 'userValidated';
+    return (update(identificationRecords)
+          ..where((IdentificationRecords table) => table.id.equals(id)))
+        .write(
+          IdentificationRecordsCompanion(
+            userCorrectedSex: Value<String?>(correctedSex),
+            userCorrectedAge: Value<String?>(correctedAge),
+            userCorrectedSpeciesId: Value<String?>(correctedSpeciesId),
+            userCorrectedTurkishName: Value<String?>(correctedTurkishName),
+            predictionMethod: Value<String?>(method),
+          ),
+        );
   }
 
   Future<void> clearHistory() => delete(identificationRecords).go();
@@ -120,6 +190,24 @@ class AppDatabase extends _$AppDatabase {
       AppSettingsCompanion.insert(
         key: 'candidateThreshold',
         value: threshold.toStringAsFixed(2),
+      ),
+    );
+  }
+
+  Future<String> cropMode() async {
+    final AppSetting? setting =
+        await (select(appSettings)..where(
+              (AppSettings table) => table.key.equals('cropMode'),
+            ))
+            .getSingleOrNull();
+    return setting?.value ?? 'auto'; // 'off', 'auto', 'manual'
+  }
+
+  Future<void> setCropMode(String mode) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'cropMode',
+        value: mode,
       ),
     );
   }

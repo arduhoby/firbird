@@ -3,12 +3,15 @@ import 'dart:io';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/sex_age_correction_sheet.dart';
+import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_detector.dart';
 import 'package:firbird/inference/bird_cropper.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -28,8 +31,7 @@ class AnalysisScreen extends ConsumerStatefulWidget {
 }
 
 class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
-  final BirdInferenceEngine _engine =
-      OnnxBirdInferenceEngine.fromExternalTestFiles();
+  BirdInferenceEngine? _engine;
   late final Future<InferenceResult> _result;
   bool _hasNavigated = false;
 
@@ -44,8 +46,19 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final String cropMode = await database.cropMode();
     
     ImageInput finalImage = widget.request.image;
-
-    if (cropMode == 'auto') {
+    final String ext = p.extension(finalImage.uri).toLowerCase();
+    final bool isAudio = ['.mp3', '.m4a', '.wav', '.aac', '.mp4'].contains(ext);
+    
+    if (isAudio) {
+      final Directory? extDir = await getExternalStorageDirectory();
+      final String modelPath = p.join(extDir!.path, 'firbird_test_model', 'birdnet.onnx');
+      final String labelsPath = p.join(extDir.path, 'firbird_test_model', 'birdnet_labels.txt');
+      _engine = AudioInferenceEngine(modelPath: modelPath, labelsPath: labelsPath);
+    } else {
+      _engine = OnnxBirdInferenceEngine.fromExternalTestFiles();
+    }
+    
+    if (cropMode == 'auto' && !isAudio) {
       try {
         final File modelFile = await OnnxBirdDetector.ensureModelExtracted();
         final OnnxBirdDetector detector = OnnxBirdDetector(modelFile: modelFile);
@@ -70,12 +83,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       }
     }
 
-    return _engine.identify(finalImage, widget.request.context);
+    return _engine!.identify(finalImage, widget.request.context);
   }
 
   @override
   void dispose() {
-    _engine.dispose();
+    _engine?.dispose();
     super.dispose();
   }
 

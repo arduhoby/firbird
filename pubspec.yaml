@@ -43,22 +43,23 @@ dependencies:
   exif: ^3.3.0
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
-  geolocator: ^14.0.3
-  share_plus: ^13.2.1
+  geolocator: any
+  share_plus: any
   drift: ^2.34.2
   sqlite3_flutter_libs: ^0.6.0+eol
   path_provider: ^2.1.6
   archive: ^4.0.9
   crypto: ^3.0.7
   path: ^1.9.1
-  dio: ^5.10.0
-  flutter_onnxruntime: ^1.8.2
-  url_launcher: ^6.3.2
   image: ^4.8.0
   shared_preferences: ^2.5.5
   record: ^7.1.1
   audio_decoder: ^0.8.1
-  file_picker: ^3.0.4
+  file_picker: 8.1.4
+  dio: ^5.10.0
+  flutter_onnxruntime: ^1.8.2
+  url_launcher: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -120,6 +121,5 @@ flutter:
   #       - asset: fonts/TrajanPro.ttf
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
-  #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package

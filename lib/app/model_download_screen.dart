@@ -25,7 +25,8 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
     final downloader = ref.read(modelDownloaderProvider);
     final isBioClipDownloaded = await downloader.isModelDownloaded('model.onnx');
     final isBirdNetDownloaded = await downloader.isModelDownloaded('birdnet.onnx');
-    if (isBioClipDownloaded && isBirdNetDownloaded) {
+    final isBirdNetLabelsDownloaded = await downloader.isModelDownloaded('birdnet_labels.txt');
+    if (isBioClipDownloaded && isBirdNetDownloaded && isBirdNetLabelsDownloaded) {
       if (mounted) context.go('/onboarding');
     }
   }
@@ -45,7 +46,7 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
       onReceiveProgress: (int received, int total) {
         if (total != -1 && mounted) {
           setState(() {
-            _progress = (received / total) * 0.9; // 90% for BioCLIP
+            _progress = (received / total) * 0.85; // 85% for BioCLIP
           });
         }
       },
@@ -69,7 +70,7 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
       onReceiveProgress: (int received, int total) {
         if (total != -1 && mounted) {
           setState(() {
-            _progress = 0.9 + ((received / total) * 0.1); // 10% for BirdNET
+            _progress = 0.85 + ((received / total) * 0.14); // 14% for BirdNET
           });
         }
       },
@@ -81,10 +82,32 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
           });
         }
       },
-      onSuccess: () {
-        if (mounted) {
-          context.go('/onboarding');
-        }
+      onSuccess: () async {
+        // Download BirdNET labels
+        await downloader.downloadModel(
+          url: 'https://huggingface.co/justinchuby/BirdNET-onnx/resolve/main/BirdNET_GLOBAL_6K_V2.4_Labels.txt?download=true',
+          fileName: 'birdnet_labels.txt',
+          onReceiveProgress: (int received, int total) {
+            if (total != -1 && mounted) {
+              setState(() {
+                _progress = 0.99 + ((received / total) * 0.01); // 1% for labels
+              });
+            }
+          },
+          onError: (String error) {
+            if (mounted) {
+              setState(() {
+                _isDownloading = false;
+                _error = 'BirdNET Labels: $error';
+              });
+            }
+          },
+          onSuccess: () {
+            if (mounted) {
+              context.go('/onboarding');
+            }
+          },
+        );
       },
     );
   }

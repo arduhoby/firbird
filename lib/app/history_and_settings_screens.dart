@@ -167,7 +167,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const ListTile(
             title: Text('Uygulama sürümü'),
-            subtitle: Text('0.2.1'),
+            subtitle: Text('0.2.2'),
           ),
           ListTile(
             title: Text(l10n.privacy),

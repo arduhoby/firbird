@@ -279,55 +279,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 32),
-          const Divider(),
-          const SizedBox(height: 16),
-          _HomeAction(
-            icon: Icons.history_outlined,
-            label: l10n.recentIdentifications,
-            onTap: () => context.push('/history'),
-          ),
-          _HomeAction(
-            icon: Icons.inventory_2_outlined,
-            label: l10n.regionPackages,
-            onTap: () => context.push('/packages'),
-          ),
-          _HomeAction(
-            icon: Icons.travel_explore_outlined,
-            label: 'Yakınımdaki kuşlar',
-            onTap: () => context.push('/explore'),
-          ),
-          _HomeAction(
-            icon: Icons.settings_outlined,
-            label: l10n.settings,
-            onTap: () => context.push('/settings'),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _HomeAction extends StatelessWidget {
-  const _HomeAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

@@ -253,12 +253,15 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                   if (_sourceImageExists(_currentResult.sourceImageUri))
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Image.file(
-                        File(_currentResult.sourceImageUri!),
+                      child: Container(
                         width: double.infinity,
-                        height: 235,
-                        fit: BoxFit.cover,
-                        semanticLabel: 'Tanımlanan kuş fotoğrafı',
+                        height: 260,
+                        color: Colors.black.withOpacity(0.04),
+                        child: Image.file(
+                          File(_currentResult.sourceImageUri!),
+                          fit: BoxFit.contain,
+                          semanticLabel: 'Tanımlanan kuş fotoğrafı',
+                        ),
                       ),
                     ),
                   const SizedBox(height: 14),

@@ -49,7 +49,7 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/photo',
       builder: (BuildContext context, GoRouterState state) =>
-          const PhotoSelectionScreen(),
+          PhotoSelectionScreen(initialMode: state.extra as String?),
     ),
     GoRoute(
       path: '/history',
@@ -203,17 +203,55 @@ class HomeScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: <Widget>[
           Text(
-            l10n.homeHeadline,
+            'Kuş Tanımlamak İçin',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 8),
-          Text(l10n.homeDescription),
-          const SizedBox(height: 32),
-          FilledButton.icon(
-            onPressed: () => context.push('/photo'),
-            icon: const Icon(Icons.photo_library_outlined),
-            label: Text(l10n.selectPhoto),
+          const SizedBox(height: 4),
+          Text(
+            'Aşağıdaki yöntemlerden birini seçerek anında tanımlama yapabilirsiniz:',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/photo', extra: 'gallery'),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Fotoğraf Seç (Galeri)'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/photo', extra: 'audio'),
+              icon: const Icon(Icons.audiotrack_outlined),
+              label: const Text('Dosyadan Ses veya Video Seç'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push('/photo', extra: 'camera'),
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text('Anlık Fotoğraf / Kamera İle'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Divider(),
           const SizedBox(height: 16),
           _HomeAction(
             icon: Icons.history_outlined,
@@ -267,7 +305,9 @@ class _HomeAction extends StatelessWidget {
 }
 
 class PhotoSelectionScreen extends ConsumerStatefulWidget {
-  const PhotoSelectionScreen({super.key});
+  const PhotoSelectionScreen({this.initialMode, super.key});
+
+  final String? initialMode;
 
   @override
   ConsumerState<PhotoSelectionScreen> createState() => _PhotoSelectionScreenState();
@@ -298,7 +338,17 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
     'Güneydoğu Anadolu',
   ];
 
-  Future<void> _selectMedia({required bool isAudio}) async {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialMode != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _selectMedia(mode: widget.initialMode!);
+      });
+    }
+  }
+
+  Future<void> _selectMedia({required String mode}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -307,7 +357,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
     try {
       XFile? mediaFile;
       
-      if (isAudio) {
+      if (mode == 'audio') {
         final FilePickerResult? result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
           allowedExtensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'mp4'],
@@ -315,6 +365,11 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
         if (result != null && result.files.single.path != null) {
           mediaFile = XFile(result.files.single.path!);
         }
+      } else if (mode == 'camera') {
+        mediaFile = await _picker.pickImage(
+          source: ImageSource.camera,
+          requestFullMetadata: true,
+        );
       } else {
         mediaFile = await _picker.pickImage(
           source: ImageSource.gallery,
@@ -326,6 +381,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
         return;
       }
 
+      final bool isAudio = (mode == 'audio');
       _PhotoMetadata metadata = const _PhotoMetadata();
       if (!isAudio) {
         metadata = await _readMetadata(mediaFile);
@@ -340,7 +396,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
         _isAudio = isAudio;
         _metadata = metadata;
         _selectedDate = metadata.capturedAt ?? DateTime.now();
-        _dateUnknown = isAudio; // varsayılan olarak seste tarih bilinmiyor
+        _dateUnknown = isAudio;
         _locationUnknown = true;
         _selectedRegion = null;
         _selectedPoint = null;
@@ -449,8 +505,9 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
           if (selectedMedia == null)
             _EmptyPhotoState(
               isLoading: _isLoading, 
-              onSelectPhoto: () => _selectMedia(isAudio: false),
-              onSelectAudio: () => _selectMedia(isAudio: true),
+              onSelectGallery: () => _selectMedia(mode: 'gallery'),
+              onSelectAudio: () => _selectMedia(mode: 'audio'),
+              onSelectCamera: () => _selectMedia(mode: 'camera'),
             )
           else ...<Widget>[
             if (_isAudio)
@@ -477,10 +534,24 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
                 ),
               ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _isLoading ? null : () => _selectMedia(isAudio: _isAudio),
-              icon: const Icon(Icons.swap_horiz),
-              label: Text(_isAudio ? 'Farklı Ses/Video Seç' : l10n.changePhoto),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : () => _selectMedia(mode: _isAudio ? 'audio' : 'gallery'),
+                    icon: const Icon(Icons.swap_horiz),
+                    label: Text(_isAudio ? 'Farklı Ses/Video' : 'Galeri'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : () => _selectMedia(mode: 'camera'),
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Kamera'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Text(
@@ -642,38 +713,65 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
 class _EmptyPhotoState extends StatelessWidget {
   const _EmptyPhotoState({
     required this.isLoading,
-    required this.onSelectPhoto,
+    required this.onSelectGallery,
     required this.onSelectAudio,
+    required this.onSelectCamera,
   });
 
   final bool isLoading;
-  final VoidCallback onSelectPhoto;
+  final VoidCallback onSelectGallery;
   final VoidCallback onSelectAudio;
+  final VoidCallback onSelectCamera;
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context)!;
-
     return Column(
       children: <Widget>[
         Icon(
-          Icons.photo_library_outlined,
+          Icons.flutter_dash_outlined,
           size: 64,
           color: Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(height: 16),
-        Text(l10n.photoPickerDescription, textAlign: TextAlign.center),
+        Text(
+          'Kuş Tanımlamak İçin',
+          style: Theme.of(context).textTheme.titleLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Aşağıdaki yöntemlerden biriyle dosya veya anlık çekim seçebilirsiniz.',
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: isLoading ? null : onSelectPhoto,
-          icon: const Icon(Icons.photo_library_outlined),
-          label: Text(l10n.selectPhoto),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isLoading ? null : onSelectGallery,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('Fotoğraf Seç (Galeri)'),
+          ),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: isLoading ? null : onSelectAudio,
-          icon: const Icon(Icons.audiotrack_outlined),
-          label: const Text('Dosyadan Ses / Video Seç'),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isLoading ? null : onSelectAudio,
+            icon: const Icon(Icons.audiotrack_outlined),
+            label: const Text('Dosyadan Ses veya Video Seç'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: isLoading ? null : onSelectCamera,
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: const Text('Anlık Fotoğraf / Kamera İle'),
+          ),
         ),
         if (isLoading) ...<Widget>[
           const SizedBox(height: 24),

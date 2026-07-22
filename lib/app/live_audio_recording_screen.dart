@@ -42,7 +42,11 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
   int _secondsRecorded = 0;
   Timer? _timer;
   Timer? _analysisTimer;
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
   String? _recordingPath;
+
+  double _currentDb = -60.0;
+  final List<double> _waveformBars = List<double>.filled(16, 0.1);
 
   final List<LiveDetectionEntry> _detectedSpeciesList = <LiveDetectionEntry>[];
 
@@ -56,6 +60,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
   void dispose() {
     _timer?.cancel();
     _analysisTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     _audioRecorder.dispose();
     super.dispose();
   }
@@ -75,7 +80,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
       final Directory tempDir = await getTemporaryDirectory();
       final String tempPath = path.join(
         tempDir.path,
-        'live_session_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        'live_session_${DateTime.now().millisecondsSinceEpoch}.wav',
       );
 
       final Directory targetDir = await getApplicationDocumentsDirectory();
@@ -84,10 +89,30 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
       _audioEngine = AudioInferenceEngine(modelPath: modelPath, labelsPath: labelsPath);
       await _audioEngine!.warmUp();
 
+      // Use WAV format for real-time stream readability without file locks
       await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 44100),
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 48000,
+          numChannels: 1,
+        ),
         path: tempPath,
       );
+
+      // Amplitude listener for live visual equalizer & audio detection
+      _amplitudeSubscription = _audioRecorder
+          .onAmplitudeChanged(const Duration(milliseconds: 120))
+          .listen((amp) {
+        if (mounted) {
+          final double db = amp.current;
+          final double normalized = ((db + 50) / 50).clamp(0.08, 1.0);
+          setState(() {
+            _currentDb = db;
+            _waveformBars.removeAt(0);
+            _waveformBars.add(normalized);
+          });
+        }
+      });
 
       if (!mounted) return;
 
@@ -105,7 +130,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
         }
       });
 
-      // Analyze rolling live audio every 3 seconds
+      // Analyze rolling live WAV audio every 3 seconds
       _analysisTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
         _runLiveInference();
       });
@@ -121,7 +146,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
   Future<void> _runLiveInference() async {
     if (_recordingPath == null || _isAnalyzing || _audioEngine == null) return;
     final File currentFile = File(_recordingPath!);
-    if (!await currentFile.exists() || await currentFile.length() < 12000) return;
+    if (!await currentFile.exists() || await currentFile.length() < 20000) return;
 
     setState(() => _isAnalyzing = true);
 
@@ -139,8 +164,8 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
         bool listChanged = false;
 
         for (final SpeciesPrediction pred in result.predictions) {
-          // Confidence threshold for live detection (20%)
-          if (pred.score < 0.20) continue;
+          // Sensitivity threshold for live detection (10%)
+          if (pred.score < 0.10) continue;
 
           // Filter non-birds or poultry if needed (e.g. Gallus gallus)
           if (pred.scientificName.toLowerCase().contains('gallus gallus')) continue;
@@ -173,7 +198,8 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
           setState(() {});
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Live inference exception: $e');
     } finally {
       if (mounted) {
         setState(() => _isAnalyzing = false);
@@ -184,6 +210,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
   Future<void> _stopAndSaveSession() async {
     _timer?.cancel();
     _analysisTimer?.cancel();
+    _amplitudeSubscription?.cancel();
 
     try {
       final String? finalPath = await _audioRecorder.stop();
@@ -207,11 +234,11 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
             .take(3)
             .map((e) => e.prediction.turkishName)
             .toList();
-        newFileName = '${names.join(", ")} - $timeStr.m4a';
-      } else if (finalResult.predictions.isNotEmpty && finalResult.predictions.first.score > 0.15) {
-        newFileName = '${finalResult.predictions.first.turkishName} - $timeStr.m4a';
+        newFileName = '${names.join(", ")} - $timeStr.wav';
+      } else if (finalResult.predictions.isNotEmpty && finalResult.predictions.first.score > 0.10) {
+        newFileName = '${finalResult.predictions.first.turkishName} - $timeStr.wav';
       } else {
-        newFileName = 'Canlı Ses Kaydı - $timeStr.m4a';
+        newFileName = 'Canlı Ses Kaydı - $timeStr.wav';
       }
 
       final Directory appDocs = await getApplicationDocumentsDirectory();
@@ -252,6 +279,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bool hasSound = _currentDb > -45.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -270,66 +298,106 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
       ),
       body: Column(
         children: [
-          // Listening Header Bar
+          // Dynamic Equalizer & Listening Header Bar
           Container(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Stack(
-                  alignment: Alignment.center,
+                Row(
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                      ),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: hasSound ? 64 : 56,
+                          height: hasSound ? 64 : 56,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: hasSound
+                                ? Colors.green.withValues(alpha: 0.3)
+                                : theme.colorScheme.primary.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        Icon(
+                          Icons.mic,
+                          color: hasSound ? Colors.green : theme.colorScheme.primary,
+                          size: 28,
+                        ),
+                      ],
                     ),
-                    Icon(
-                      Icons.mic,
-                      color: theme.colorScheme.primary,
-                      size: 28,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                _formatDuration(_secondsRecorded),
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontFeatures: [const FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              if (_isAnalyzing)
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              else if (hasSound)
+                                const Icon(Icons.graphic_eq, color: Colors.green, size: 20)
+                              else
+                                const Icon(Icons.mic_none, color: Colors.grey, size: 18),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isAnalyzing
+                                ? 'Canlı analiz yapılıyor...'
+                                : hasSound
+                                    ? '🎙️ Ses Algılandı! (Analiz ediliyor)'
+                                    : 'Ortam dinleniyor... (Sessiz)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: hasSound ? FontWeight.bold : FontWeight.normal,
+                              color: hasSound ? Colors.green : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            _formatDuration(_secondsRecorded),
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontFeatures: [const FontFeature.tabularFigures()],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          if (_isAnalyzing)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            const Icon(Icons.graphic_eq, color: Colors.green, size: 18),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _isAnalyzing ? 'Canlı analiz yapılıyor...' : 'Ortam dinleniyor (Sürekli tespit aktif)',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                const SizedBox(height: 16),
+
+                // Real-time Visualizer Equalizer Bar Graph
+                SizedBox(
+                  height: 36,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(_waveformBars.length, (i) {
+                      final val = _waveformBars[i];
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        width: 6,
+                        height: 36 * val,
+                        decoration: BoxDecoration(
+                          color: val > 0.4
+                              ? Colors.green
+                              : val > 0.2
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ),
-                    ],
+                      );
+                    }),
                   ),
                 ),
               ],

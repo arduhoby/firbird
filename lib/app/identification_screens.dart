@@ -357,7 +357,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
           Text(
             _currentResult.modelVersion.startsWith('mock')
                 ? l10n.mockResultNotice
-                : 'BioCLIP-2 cihaz içi modeli kullanılıyor · Türkiye test paketi: 382 düzenli/göçmen tür ve 82 nadir kayıt. Sonuç bir öneridir; fotoğraf net değilse kesin kabul etmeyin.',
+                : 'Cihaz içi yapay zeka modelleri kullanılıyor · Türkiye paketi: 503 kayıtlı tür (düzenli/göçmen ve nadir). Sonuç bir öneridir; fotoğraf veya ses net değilse kesin kabul etmeyin.',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,

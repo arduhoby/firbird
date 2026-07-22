@@ -82,7 +82,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
       final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
       if (await candidatesFile.exists()) {
-        final String content = await candidatesFile.readAsString();
+        final String content = (await candidatesFile.readAsString()).replaceAll('\uFEFF', '');
         final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
         final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
         _candidatesByScientificName = {};

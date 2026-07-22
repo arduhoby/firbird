@@ -848,7 +848,7 @@ class TurkeyPackagesScreen extends StatelessWidget {
             leading: Icon(Icons.check_circle_outline),
             title: Text('Türkiye paketi'),
             subtitle: Text(
-              'Sürüm 0.1.0 · Uygulamaya dahil · 464 tür kaydı',
+              'Sürüm 0.1.0 · Uygulamaya dahil · 503 tür kaydı',
             ),
             trailing: Text('Hazır'),
           ),

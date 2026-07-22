@@ -18,7 +18,7 @@ final candidateSpeciesProvider = FutureProvider<List<SpeciesPrediction>>((ref) a
   final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
   final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
   if (!await candidatesFile.exists()) return const <SpeciesPrediction>[];
-  final String content = await candidatesFile.readAsString();
+  final String content = (await candidatesFile.readAsString()).replaceAll('\uFEFF', '');
   final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
   final List<dynamic> json = source['candidates'] as List<dynamic>;
   return json
@@ -75,7 +75,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
 
     for (final String name in bundledFiles) {
       final File target = File(path.join(directory.path, name));
-      if (await target.exists()) continue;
+      if (await target.exists() && name != 'candidates.json') continue;
       final ByteData bytes = await rootBundle.load('$_assetRoot/$name');
       await target.writeAsBytes(
         bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),

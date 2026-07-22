@@ -1,13 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-
 import 'package:flutter/services.dart';
 import 'package:audio_decoder/audio_decoder.dart';
-import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:path/path.dart' as path;
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
+
+import 'bird_inference_engine.dart';
+import 'onnx_bird_inference_engine.dart';
+import 'sex_age_estimator.dart';
+import 'species_sex_age_policy.dart';
 
 class AudioInput {
   const AudioInput({required this.uri});
@@ -20,6 +24,9 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   final String modelPath;
   final String labelsPath;
   List<String> _labels = [];
+  Map<String, SpeciesPrediction>? _candidatesByScientificName;
+  SpeciesSexAgePolicyStore? _policyStore;
+  final SexAgeEstimator _sexAgeEstimator = const PlaceholderSexAgeEstimator();
   
   final OnnxRuntime _runtime = OnnxRuntime();
   OrtSession? _session;
@@ -68,6 +75,55 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       _labels = await labelsFile.readAsLines();
     } else {
       debugPrint('Labels file not found at $labelsPath');
+    }
+
+    // Load regional candidates mapping for Turkish names, origin labels, thumbnail URLs
+    try {
+      final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
+      final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
+      if (await candidatesFile.exists()) {
+        final String content = await candidatesFile.readAsString();
+        final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
+        final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
+        _candidatesByScientificName = {};
+        for (final item in jsonList) {
+          final candidateMap = item as Map<String, dynamic>;
+          final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
+          final String turkishName = candidateMap['turkishName'] as String? ?? '';
+          final String englishName = candidateMap['englishName'] as String? ?? '';
+          final String occurrence = candidateMap['occurrence'] as String? ?? '';
+          final String? imageUrl = candidateMap['imageUrl'] as String?;
+          final String? ornitoId = candidateMap['ornitoId'] as String?;
+          final String sciNameOriginal = candidateMap['scientificName'] as String;
+
+          final String originLabel = switch (occurrence) {
+            'accidental' => 'Türkiye · nadir kayıt',
+            'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
+            'resident' => 'Türkiye · yerleşik',
+            'balkans' => 'Balkanlar kapsamı',
+            _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
+          };
+
+          _candidatesByScientificName![sciName] = SpeciesPrediction(
+            speciesId: sciName.replaceAll(' ', '-'),
+            turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
+            scientificName: sciNameOriginal,
+            englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
+            score: 0.0,
+            thumbnailUrl: imageUrl,
+            ornitoId: ornitoId,
+            originLabel: originLabel,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Could not load candidates.json for AudioInferenceEngine: $e');
+    }
+
+    try {
+      _policyStore = await SpeciesSexAgePolicyStore.load();
+    } catch (e) {
+      debugPrint('Could not load policy store for AudioInferenceEngine: $e');
     }
     
     _isWarmedUp = true;
@@ -145,7 +201,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           await output.dispose();
         }
         
-        offset += chunkSize; // non-overlapping windows. Could use overlapping for better results.
+        offset += chunkSize;
       }
       
       // 5. Sort probabilities and map to SpeciesPrediction
@@ -160,27 +216,55 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         if (score < 0.05) continue; // Noise threshold
         
         final String label = index < _labels.length ? _labels[index] : 'Unknown-$index';
-        // Label is usually "Scientific_Name_Common_Name". Let's mock the split for now.
-        final parts = label.split('_');
-        final String scientificName = parts.length > 1 ? '${parts[0]} ${parts[1]}' : label;
         
-        predictions.add(
-          SpeciesPrediction(
-            speciesId: 'birdnet-$index',
-            turkishName: label, // We will need a proper translation map
-            scientificName: scientificName,
-            englishName: label,
-            score: score,
-          ),
-        );
+        // BirdNET labels format: "Scientific_Name_Common_Name" or "Scientific Name_Common Name"
+        final int underscoreIdx = label.indexOf('_');
+        String rawSciName = label;
+        String rawEngName = label;
+        if (underscoreIdx != -1) {
+          rawSciName = label.substring(0, underscoreIdx).trim().replaceAll('_', ' ');
+          rawEngName = label.substring(underscoreIdx + 1).trim().replaceAll('_', ' ');
+        } else {
+          rawSciName = label.replaceAll('_', ' ');
+          rawEngName = rawSciName;
+        }
+
+        final SpeciesPrediction? matchedCandidate = _candidatesByScientificName?[rawSciName.toLowerCase()];
+        if (matchedCandidate != null) {
+          predictions.add(
+            matchedCandidate.copyWith(score: score),
+          );
+        } else {
+          predictions.add(
+            SpeciesPrediction(
+              speciesId: rawSciName.toLowerCase().replaceAll(' ', '-'),
+              turkishName: rawEngName.isNotEmpty ? rawEngName : rawSciName,
+              scientificName: rawSciName,
+              englishName: rawEngName,
+              score: score,
+              originLabel: 'Dünya Türü',
+            ),
+          );
+        }
       }
       
+      SexAgePrediction? sexAge;
+      if (predictions.isNotEmpty && _policyStore != null) {
+        final SpeciesSexAgePolicy policy = _policyStore!.forSpecies(predictions.first.speciesId);
+        sexAge = _sexAgeEstimator.estimate(
+          speciesId: predictions.first.speciesId,
+          imageFeatures: Float32List(768),
+          policy: policy,
+        );
+      }
+
       return InferenceResult(
         predictions: predictions,
         modelVersion: 'BirdNET-ONNX-v2.4',
         locationAffectedResult: false,
         dateAffectedResult: false,
         sourceImageUri: audio.uri,
+        sexAge: sexAge,
       );
       
     } finally {
@@ -207,22 +291,19 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   }
   
   Float32List _parseWavToFloat32(Uint8List wavBytes) {
-    // Basic WAV parsing assuming 16-bit PCM, 44-byte header
-    // In a real app, parse the RIFF header properly to find the data chunk.
     const int headerSize = 44;
     if (wavBytes.length <= headerSize) {
       return Float32List(0);
     }
     
     final int dataSize = wavBytes.length - headerSize;
-    final int numSamples = dataSize ~/ 2; // 16-bit = 2 bytes per sample
+    final int numSamples = dataSize ~/ 2;
     
     final ByteData byteData = ByteData.sublistView(wavBytes, headerSize);
     final Float32List floatData = Float32List(numSamples);
     
     for (int i = 0; i < numSamples; i++) {
       final int intSample = byteData.getInt16(i * 2, Endian.little);
-      // Normalize to [-1.0, 1.0]
       floatData[i] = intSample / 32768.0;
     }
     

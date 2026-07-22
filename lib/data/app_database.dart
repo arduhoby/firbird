@@ -130,6 +130,12 @@ class AppDatabase extends _$AppDatabase {
     )..where((IdentificationRecords table) => table.id.equals(id))).go();
   }
 
+  Future<void> deleteLiveSession(String sessionId) {
+    return (delete(
+      identificationRecords,
+    )..where((IdentificationRecords table) => table.packageId.equals(sessionId))).go();
+  }
+
   /// Kullanıcı tahmini onayladıktan veya düzelttikten sonra ilgili alanları günceller.
   ///
   /// [approved] true → kullanıcı modelin tahminini doğru buldu (userApproved).

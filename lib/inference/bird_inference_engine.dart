@@ -184,10 +184,10 @@ class SpeciesPrediction {
   final String? ornitoId;
   final String? originLabel;
 
-  SpeciesPrediction copyWith({double? score}) {
+  SpeciesPrediction copyWith({double? score, String? turkishName}) {
     return SpeciesPrediction(
       speciesId: speciesId,
-      turkishName: turkishName,
+      turkishName: turkishName ?? this.turkishName,
       scientificName: scientificName,
       englishName: englishName,
       score: score ?? this.score,

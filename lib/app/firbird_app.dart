@@ -5,6 +5,7 @@ import 'package:firbird/app/crop_confirmation_screen.dart';
 import 'package:firbird/app/identification_screens.dart';
 import 'package:firbird/app/history_and_settings_screens.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/observation_context_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/app/model_download_screen.dart';
@@ -195,8 +196,16 @@ class HomeScreen extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Text(l10n.appName),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Menü',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -868,9 +877,19 @@ class TurkeyPackagesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    drawer: const AppDrawer(),
     appBar: AppBar(
       title: const Text('Bölge paketleri'),
-      leading: const BackToHomeButton(),
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu),
+          tooltip: 'Menü',
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      ),
+      actions: const [
+        BackToHomeButton(),
+      ],
     ),
     body: ListView(
       padding: const EdgeInsets.all(16),

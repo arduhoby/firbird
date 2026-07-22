@@ -229,16 +229,49 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           rawEngName = rawSciName;
         }
 
+        // ── Non-bird / background class filter ──────────────────────────────
+        // BirdNET contains non-bird sounds; skip them all
+        final String sciLower = rawSciName.toLowerCase();
+        final String engLower = rawEngName.toLowerCase();
+        const List<String> _nonBirdKeywords = [
+          'human', 'homo sapien', 'dog', 'canis lupus', 'cat', 'felis catus',
+          'engine', 'car', 'machinery', 'wind', 'rain', 'thunder', 'noise',
+          'insect', 'frog', 'rana', 'bufo', 'cricket', 'cicada',
+          'firework', 'gunshot', 'siren', 'music', 'speech',
+        ];
+        if (_nonBirdKeywords.any((kw) => sciLower.contains(kw) || engLower.contains(kw))) {
+          continue; // skip — not a bird
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         final SpeciesPrediction? matchedCandidate = _candidatesByScientificName?[rawSciName.toLowerCase()];
         if (matchedCandidate != null) {
-          predictions.add(
-            matchedCandidate.copyWith(score: score),
-          );
+          // Only include if we have a valid Turkish name (not just scientific/English fallback)
+          final String trName = matchedCandidate.turkishName.trim();
+          final bool hasTurkishName = trName.isNotEmpty &&
+              trName.toLowerCase() != rawSciName.toLowerCase() &&
+              trName.toLowerCase() != rawEngName.toLowerCase();
+          if (!hasTurkishName) {
+            // No proper Turkish name — skip or use scientificName label only
+            // (still add, but mark turkishName as scientificName so it's recognizable)
+            predictions.add(matchedCandidate.copyWith(
+              score: score,
+              turkishName: rawSciName, // show scientific name rather than English
+            ));
+          } else {
+            predictions.add(matchedCandidate.copyWith(score: score));
+          }
         } else {
+          // Not in candidates.json at all — likely a non-Turkey or non-bird species
+          // Only include if it looks like a real bird (two-part scientific name)
+          final bool looksLikeBird = rawSciName.contains(' ') &&
+              !_nonBirdKeywords.any((kw) => sciLower.contains(kw));
+          if (!looksLikeBird) continue;
+
           predictions.add(
             SpeciesPrediction(
               speciesId: rawSciName.toLowerCase().replaceAll(' ', '-'),
-              turkishName: rawEngName.isNotEmpty ? rawEngName : rawSciName,
+              turkishName: rawSciName, // show scientific name — no Turkish available
               scientificName: rawSciName,
               englishName: rawEngName,
               score: score,

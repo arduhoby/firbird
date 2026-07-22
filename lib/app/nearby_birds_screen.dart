@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:flutter/material.dart';
@@ -113,9 +114,19 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    drawer: const AppDrawer(),
     appBar: AppBar(
       title: const Text('Yakınımdaki kuşlar'),
-      leading: const BackToHomeButton(),
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu),
+          tooltip: 'Menü',
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      ),
+      actions: const [
+        BackToHomeButton(),
+      ],
     ),
     body: FutureBuilder<List<_NearbyBird>>(
       future: _birds,

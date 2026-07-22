@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
@@ -348,6 +349,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
               modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
               imageUri: destPath,
               packageId: sessionId,
+              predictionMethod: 'count:${entry.detectionCount}',
             );
           }
         }
@@ -395,8 +397,16 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
     final bool hasSound = _currentDb > -45.0;
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Canlı Ses Tespit Modu'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Menü',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           if (_detectedSpeciesList.isNotEmpty)
             Padding(

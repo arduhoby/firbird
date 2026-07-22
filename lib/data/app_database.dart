@@ -194,6 +194,24 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<double> liveDetectionMinScore() async {
+    final AppSetting? setting =
+        await (select(appSettings)..where(
+              (AppSettings table) => table.key.equals('liveDetectionMinScore'),
+            ))
+            .getSingleOrNull();
+    return double.tryParse(setting?.value ?? '') ?? 0.0;
+  }
+
+  Future<void> setLiveDetectionMinScore(double score) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'liveDetectionMinScore',
+        value: score.toStringAsFixed(2),
+      ),
+    );
+  }
+
   Future<String> cropMode() async {
     final AppSetting? setting =
         await (select(appSettings)..where(

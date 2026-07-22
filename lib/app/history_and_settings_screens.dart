@@ -11,6 +11,7 @@ class HistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AppDatabase database = ref.watch(appDatabaseProvider);
     final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -19,35 +20,114 @@ class HistoryScreen extends ConsumerWidget {
       ),
       body: StreamBuilder<List<IdentificationRecord>>(
         stream: database.watchHistory(),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<List<IdentificationRecord>> snapshot,
-            ) {
-              final List<IdentificationRecord> records =
-                  snapshot.data ?? <IdentificationRecord>[];
-              if (records.isEmpty) {
-                return Center(child: Text(l10n.historyEmpty));
+        builder: (
+          BuildContext context,
+          AsyncSnapshot<List<IdentificationRecord>> snapshot,
+        ) {
+          final List<IdentificationRecord> records =
+              snapshot.data ?? <IdentificationRecord>[];
+          if (records.isEmpty) {
+            return Center(child: Text(l10n.historyEmpty));
+          }
+
+          // Group records: live sessions (packageId starts with "live_") together
+          final List<_HistoryItem> items = <_HistoryItem>[];
+          String? lastSessionId;
+
+          for (final IdentificationRecord record in records) {
+            final bool isLive = record.packageId?.startsWith('live_') == true;
+
+            if (isLive) {
+              // Insert session header when session changes
+              if (record.packageId != lastSessionId) {
+                lastSessionId = record.packageId;
+                // Extract date from modelVersion "🎙️ Canlı Oturum · dd.MM.yyyy HH:mm"
+                final String header = record.modelVersion.contains('·')
+                    ? record.modelVersion.split('·').last.trim()
+                    : '';
+                items.add(_HistoryItem.sessionHeader(header));
               }
-              return ListView.builder(
-                itemCount: records.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final IdentificationRecord record = records[index];
-                  return Dismissible(
-                    key: ValueKey<int>(record.id),
-                    background: const ColoredBox(color: Colors.red),
-                    onDismissed: (_) =>
-                        database.deleteIdentification(record.id),
-                    child: ListTile(
-                      leading: const Icon(Icons.history_outlined),
-                      title: Text(record.turkishName),
-                      subtitle: Text(record.scientificName),
-                      trailing: Text(record.confidence),
+              items.add(_HistoryItem.liveRecord(record));
+            } else {
+              lastSessionId = null;
+              items.add(_HistoryItem.regularRecord(record));
+            }
+          }
+
+          return ListView.builder(
+            itemCount: items.length,
+            itemBuilder: (BuildContext context, int index) {
+              final _HistoryItem item = items[index];
+
+              if (item.isHeader) {
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.mic, size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Canlı Oturum — ${item.headerLabel}',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final IdentificationRecord record = item.record!;
+              final bool isLive = item.isLive;
+
+              return Dismissible(
+                key: ValueKey<int>(record.id),
+                background: const ColoredBox(color: Colors.red),
+                onDismissed: (_) => database.deleteIdentification(record.id),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                  leading: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: isLive
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.secondaryContainer,
+                    child: Icon(
+                      isLive ? Icons.mic : Icons.flutter_dash,
+                      size: 18,
+                      color: isLive
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSecondaryContainer,
                     ),
-                  );
-                },
+                  ),
+                  title: Text(
+                    record.turkishName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    record.scientificName,
+                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        record.confidence,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => database.clearHistory(),
@@ -56,6 +136,28 @@ class HistoryScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _HistoryItem {
+  _HistoryItem.sessionHeader(this.headerLabel)
+      : isHeader = true,
+        isLive = false,
+        record = null;
+
+  _HistoryItem.liveRecord(this.record)
+      : isHeader = false,
+        isLive = true,
+        headerLabel = '';
+
+  _HistoryItem.regularRecord(this.record)
+      : isHeader = false,
+        isLive = false,
+        headerLabel = '';
+
+  final bool isHeader;
+  final bool isLive;
+  final String headerLabel;
+  final IdentificationRecord? record;
 }
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -69,6 +171,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _historyEnabled = true;
   String _cropMode = 'auto';
   double _candidateThreshold = 0.05;
+  double _liveMinScore = 0.0;
 
   @override
   void initState() {
@@ -81,11 +184,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final bool history = await database.isHistoryEnabled();
     final String cropMode = await database.cropMode();
     final double threshold = await database.candidateThreshold();
+    final double liveMin = await database.liveDetectionMinScore();
     if (mounted) {
       setState(() {
         _historyEnabled = history;
         _cropMode = cropMode;
         _candidateThreshold = threshold;
+        _liveMinScore = liveMin;
       });
     }
   }
@@ -161,13 +266,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChangeEnd: (double value) =>
                 ref.read(appDatabaseProvider).setCandidateThreshold(value),
           ),
+          const SizedBox(height: 8),
+          ListTile(
+            title: const Text('Canlı Tespit — Minimum Güven Eşiği'),
+            subtitle: Text(
+              _liveMinScore == 0.0
+                  ? 'Tüm tespitler gösterilir (filtre yok)'
+                  : '%${(_liveMinScore * 100).round()} altındaki tespitler tabloya alınmaz',
+            ),
+          ),
+          Slider(
+            value: _liveMinScore,
+            min: 0.0,
+            max: 0.90,
+            divisions: 18,
+            label: _liveMinScore == 0.0
+                ? 'Hepsi'
+                : '%${(_liveMinScore * 100).round()}',
+            onChanged: (double value) =>
+                setState(() => _liveMinScore = value),
+            onChangeEnd: (double value) =>
+                ref.read(appDatabaseProvider).setLiveDetectionMinScore(value),
+          ),
           ListTile(
             title: Text(l10n.activePackage),
             subtitle: const Text('Türkiye 0.1.0 · uygulamaya dahil'),
           ),
           const ListTile(
             title: Text('Uygulama sürümü'),
-            subtitle: Text('0.2.5'),
+            subtitle: Text('0.3.0'),
           ),
           ListTile(
             title: Text(l10n.privacy),

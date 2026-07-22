@@ -56,7 +56,7 @@ class AppDrawer extends StatelessWidget {
                             letterSpacing: 0.5,
                           ),
                         ),
-                        const Text(
+                        Text(
                           'v0.3.1',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.8),

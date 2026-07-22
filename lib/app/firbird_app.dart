@@ -22,7 +22,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 final GoRouter _router = GoRouter(
-  initialLocation: '/download',
+  initialLocation: '/',
   routes: <RouteBase>[
     GoRoute(
       path: '/download',

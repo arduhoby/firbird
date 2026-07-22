@@ -64,6 +64,7 @@ class OnnxBirdInferenceEngine implements BirdInferenceEngine {
       path.join(external.path, 'firbird_test_model'),
     );
     final List<String> bundledFiles = <String>[
+      'model.onnx',
       'embeddings.npy',
       'candidates.json',
     ];

@@ -231,13 +231,14 @@ class InferenceResult {
   InferenceResult copyWith({
     int? recordId,
     List<SpeciesPrediction>? predictions,
+    String? sourceImageUri,
   }) {
     return InferenceResult(
       predictions: predictions ?? this.predictions,
       modelVersion: modelVersion,
       locationAffectedResult: locationAffectedResult,
       dateAffectedResult: dateAffectedResult,
-      sourceImageUri: sourceImageUri,
+      sourceImageUri: sourceImageUri ?? this.sourceImageUri,
       sexAge: sexAge,
       recordId: recordId ?? this.recordId,
     );

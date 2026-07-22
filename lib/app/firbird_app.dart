@@ -8,6 +8,7 @@ import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/observation_context_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/app/model_download_screen.dart';
+import 'package:firbird/app/live_audio_recording_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
@@ -50,6 +51,11 @@ final GoRouter _router = GoRouter(
       path: '/photo',
       builder: (BuildContext context, GoRouterState state) =>
           PhotoSelectionScreen(initialMode: state.extra as String?),
+    ),
+    GoRoute(
+      path: '/live_audio',
+      builder: (BuildContext context, GoRouterState state) =>
+          const LiveAudioRecordingScreen(),
     ),
     GoRoute(
       path: '/history',
@@ -235,6 +241,20 @@ class HomeScreen extends StatelessWidget {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/live_audio'),
+              icon: const Icon(Icons.graphic_eq),
+              label: const Text('Anlık Canlı Ses Tanımlama (Mikrofon)'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Theme.of(context).colorScheme.tertiary,
+                foregroundColor: Theme.of(context).colorScheme.onTertiary,
               ),
             ),
           ),
@@ -761,6 +781,19 @@ class _EmptyPhotoState extends StatelessWidget {
             label: const Text('Dosyadan Ses veya Video Seç'),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: isLoading ? null : () => context.push('/live_audio'),
+            icon: const Icon(Icons.graphic_eq),
+            label: const Text('Anlık Canlı Ses Tanımlama (Mikrofon)'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
+              foregroundColor: Theme.of(context).colorScheme.onTertiary,
             ),
           ),
         ),

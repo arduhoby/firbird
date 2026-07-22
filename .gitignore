@@ -48,3 +48,6 @@ app.*.map.json
 # Large, locally downloaded model and source-data artifacts. Release assets
 # are distributed separately, never through the source repository.
 /tools/model_staging/
+assets/models/birdnet.onnx
+assets/models/birdnet_int8.onnx
+*.apk

@@ -50,9 +50,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final bool isAudio = ['.mp3', '.m4a', '.wav', '.aac', '.mp4'].contains(ext);
     
     if (isAudio) {
-      final Directory? extDir = await getExternalStorageDirectory();
-      final String modelPath = p.join(extDir!.path, 'firbird_test_model', 'birdnet.onnx');
-      final String labelsPath = p.join(extDir.path, 'firbird_test_model', 'birdnet_labels.txt');
+      final Directory targetDir = await getApplicationDocumentsDirectory();
+      final String modelPath = p.join(targetDir.path, 'firbird_test_model', 'birdnet.onnx');
+      final String labelsPath = p.join(targetDir.path, 'firbird_test_model', 'birdnet_labels.txt');
       _engine = AudioInferenceEngine(modelPath: modelPath, labelsPath: labelsPath);
     } else {
       _engine = OnnxBirdInferenceEngine.fromExternalTestFiles();

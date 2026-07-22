@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:flutter/services.dart';
 import 'package:audio_decoder/audio_decoder.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
@@ -35,13 +36,34 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   Future<void> warmUp() async {
     if (_isWarmedUp) return;
     
-    // Initialize ONNX runtime if needed (package does this automatically or doesn't need it)
+    final File modelFile = File(modelPath);
+    if (!await modelFile.exists()) {
+      try {
+        final Directory parent = modelFile.parent;
+        if (!await parent.exists()) await parent.create(recursive: true);
+        final ByteData bytes = await rootBundle.load('assets/models/birdnet.onnx');
+        await modelFile.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes), flush: true);
+      } catch (e) {
+        debugPrint('Could not extract birdnet.onnx from assets: $e');
+      }
+    }
+    
+    final File labelsFile = File(labelsPath);
+    if (!await labelsFile.exists()) {
+      try {
+        final Directory parent = labelsFile.parent;
+        if (!await parent.exists()) await parent.create(recursive: true);
+        final ByteData bytes = await rootBundle.load('assets/models/birdnet_labels.txt');
+        await labelsFile.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes), flush: true);
+      } catch (e) {
+        debugPrint('Could not extract birdnet_labels.txt from assets: $e');
+      }
+    }
     
     // Create session
     _session = await _runtime.createSession(modelPath);
     
     // Load labels
-    final File labelsFile = File(labelsPath);
     if (await labelsFile.exists()) {
       _labels = await labelsFile.readAsLines();
     } else {

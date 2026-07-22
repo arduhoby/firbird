@@ -159,11 +159,16 @@ class OnboardingScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               const Spacer(),
-              Icon(
-                Icons.flutter_dash_outlined,
-                size: 88,
-                color: Theme.of(context).colorScheme.primary,
-                semanticLabel: l10n.appName,
+              Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/logo/firbird_logo.png',
+                    height: 110,
+                    width: 110,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               const SizedBox(height: 32),
               Text(
@@ -198,7 +203,21 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: Text(l10n.appName),
+        title: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/logo/firbird_logo.png',
+                height: 28,
+                width: 28,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(l10n.appName),
+          ],
+        ),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -217,6 +236,30 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/logo/firbird_logo.png',
+                  height: 96,
+                  width: 96,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
           Text(
             'Kuş Tanımlamak İçin',
             style: Theme.of(context).textTheme.headlineSmall,

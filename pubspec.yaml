@@ -78,10 +78,10 @@ dev_dependencies:
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
-# The following section is specific to Flutter packages.
 flutter:
   generate: true
   assets:
+    - assets/logo/firbird_logo.png
     - assets/models/birds_v1.tflite
     - assets/models/yolov8n.onnx
     - assets/models/birdnet.onnx

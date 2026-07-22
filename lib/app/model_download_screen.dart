@@ -122,7 +122,17 @@ class _ModelDownloadScreenState extends ConsumerState<ModelDownloadScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.download_rounded, size: 88, color: Colors.green),
+              Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/logo/firbird_logo.png',
+                    height: 100,
+                    width: 100,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
               Text(
                 'Yapay Zeka Modeli İndirilecek',

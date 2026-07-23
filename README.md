@@ -1,55 +1,49 @@
-# FirBird
+# FirBird (v0.3.2)
 
-FirBird, kuş fotoğraflarını cihaz üzerinde tanımlamaya odaklanan açık kaynaklı bir Android uygulamasıdır. Fotoğraf ve konum bilgisi tanımlama amacıyla sunucuya gönderilmez.
+FirBird, kuş fotoğraflarını ve ses kayıtlarını **tamamen cihaz üzerinde (%100 çevrimdışı)** tanımlamaya odaklanan açık kaynaklı bir Android uygulamasıdır. Fotoğraf, ses ve konum bilgileri hiçbir sunucuya gönderilmez.
 
-> Proje aktif geliştirme aşamasındadır. Sonuçlar bir öneridir; özellikle nadir türlerde saha rehberleri ve güvenilir kaynaklarla doğrulanmalıdır.
+> Proje aktif geliştirme aşamasındadır (Güncel Sürüm: **v0.3.2**). Sonuçlar bir öneridir; özellikle nadir türlerde saha rehberleri ve güvenilir kaynaklarla doğrulanmalıdır.
 
-## Bugünkü durum
+---
 
-- Galeriden fotoğraf seçme ve cihaz üzerinde tanımlama çalışır.
-- BioCLIP-2 test modeliyle Türkiye için 464 aday tür kullanılır: 382 düzenli/göçmen tür ve 82 nadir kayıt.
-- Sonuçta Türkçe, bilimsel ve İngilizce adlar; adaylar; görsel güven düzeyi; Trakuş ve Ornito.org bağlantıları gösterilir.
-- Tanımlama geçmişi sonuç oluştuğunda otomatik olarak cihazdaki SQLite veritabanına kaydedilir; ayarlardan kapatılabilir.
-- Fotoğraf ekranında tarih varsayılan olarak fotoğraf bilgisinden, yoksa bugünden gelir. Tarih/konum bilinmiyor seçenekleri ile mevcut konum, yedi bölge ve haritadan seçim aynı ekranda sunulur.
-- Uygulama Android 9 (API 28) ve üzerini hedefler.
-- Balkanlar paketi planlanmaktadır; Türkiye paketiyle birlikte kullanılabilecek ve tür kökenini gösterecektir.
-- `Yakınımdaki kuşlar` ön sürümü, kurulu Türkiye paketindeki düzenli/göçmen türleri çevrimdışı listeler. Yedi coğrafi bölge, tarih, mevcut konum, nadir kayıt seçimi ve Türkçe/bilimsel/İngilizce ada göre tür araması sunar.
+## 🚀 Öne Çıkan Özellikler ve Yetenekler
 
-İndirilebilir uygulama, model ve bölge paketi düzeni için [GitHub Releases planına](docs/package_format/GITHUB_RELEASES.md) bakın.
+- 📸 **Görsel Kuş Tanımlama**: Galeriden veya kameradan yüklenen fotoğraflarla BioCLIP-2 yapay zeka modeli kullanılarak yüksek doğrulukla tür tahmini.
+- 🎙️ **Canlı Ses Tespit Modu**: Dahili BirdNET ONNX modeli (62 MB) ile her 3 saniyede bir ortam seslerini analiz etme, canlı tespit tablosu ve gerçek zamanlı equalizer.
+- 🎨 **Tür Durumuna Göre Renkli Çerçeveler**:
+  - 🟢 **Yeşil Çerçeve**: Yerel ve Göçmen Kuşlar (Türkiye yerleşik ve düzenli göçmen türleri)
+  - 🔴 **Kırmızı Çerçeve**: Nadir Kuşlar (Türkiye'de nadir kaydı bulunan türler)
+  - ⚪ **Gri Çerçeve**: Bölge Dışı / Olması Zor Kuşlar (Dünya türleri veya liste dışı kayıtlar)
+- 📝 **Tablo Açıklama Notları**: Tespit tablolarının altında renk kodlarının anlamını gösteren dinamik bilgi notu.
+- 📍 **Konum Bağlamı ve İzni**: Canlı ses dinleme ve yakınımda kuş arama ekranlarında hassas/yaklaşık konum uyumluluğu.
+- 📜 **Akıllı Tanımlama Geçmişi**: Canlı ses oturumlarını tek bir özet kart olarak gruplama, modal detay tablosu ve WAV ses kaydına erişim.
+- ☰ **Merkezi Navigasyon (AppDrawer)**: Ana Sayfa, Canlı Ses Tespiti, Son Tanımlamalar, Bölge Paketleri, Yakınımdaki Kuşlar ve Ayarlar sayfalarına her ekrandan erişim.
+- 💯 **%100 Çevrimdışı Paket**: 503 kuş türü, Türkçe ve bilimsel isimler, görsel ve işitsel yapay zeka modelleri APK paketine dahildir. Kurulduktan sonra internet indirmesi gerekmez.
 
-## Bölgesel kapsam ve Balkanlar
+---
 
-FirBird'ün mevcut cihaz testi Türkiye için **464 aday tür** kullanır: **382 düzenli/göçmen tür** ve **82 nadir kayıt**. Bu, Balkanlar paketi değildir.
+## 📊 Kapsam ve Kuş Sayıları
 
-Marmara'daki kuşlar Balkan göç yolları ve sınır habitatlarıyla yakından ilişkili olduğundan, Balkanlar FirBird için ayrı ama Türkiye ile birlikte çalışabilen bir bölge paketi olarak hazırlanır. Hedef kapsam Arnavutluk, Bosna-Hersek, Bulgaristan, Yunanistan, Hırvatistan, Karadağ, Kuzey Makedonya, Romanya, Sırbistan, Slovenya ve Kosova'dır.
+- **Toplam Desteklenen Kuş Türü**: **503 Tür** (Türkiye kuş faunası)
+  - **Düzenli ve Göçmen Türler**: **421 Tür**
+  - **Nadir Kayıtlar (Accidental)**: **82 Tür**
+- **Ses Tanıma Destekli Türler**: BirdNET ONNX kütüphanesi kapsamında 6000+ dünya kuş sesi arasından Türkiye ve dünya kuşlarını anlık ayırt edebilme.
 
-Kalite karşılaştırması için güncel Balkan bölge kontrol listesi **542 tür** bildirmektedir. Bu sayı, yayımlanmış FirBird paketinin tür sayısı değildir; ortak türler tekilleştirildikten ve model taksonomisiyle eşleştirildikten sonra net paket sayısı yayımlanacaktır.
-
-Her tanımlama sonucunda paket kapsamı görünür olacaktır:
-
+Her tanımlama sonucunda türün bölgesel kökeni açıkça gösterilir:
 - `Türkiye · yerleşik`
 - `Türkiye · düzenli / göçmen`
 - `Türkiye · nadir kayıt`
-- `Balkanlar · düzenli`
-- `Türkiye ve Balkanlar · ortak`
+- `Dünya Türü`
 
-## Veri, lisans ve kalite yaklaşımı
+---
 
-FirBird, lisansı belirsiz veya ticari yeniden dağıtıma izin vermeyen tür/veri kayıtlarını yayımlanabilir paketlere eklemez. Balkan aday hattı yalnızca `CC0-1.0` ya da `CC-BY-4.0` kaynakları kabul eder; her kaynak için sürüm, erişim tarihi, lisans ve atıf kaydı pakette tutulur.
+## 🛡️ Gizlilik
 
-GBIF Backbone Taxonomy, bilimsel ad eşleştirmesi için CC BY 4.0 lisanslı başlangıç kaynağıdır. Avrupa Birliği ülkelerindeki resmî kuş dağılım verisi, Avrupa Çevre Ajansı'nın Article 12 veri setinden CC BY koşullarıyla değerlendirilmektedir. Telifli kontrol listeleri yalnızca yerel kalite kontrolü için referans alınır; FirBird paketine veya GitHub Releases varlığına kopyalanmaz.
+FirBird, tanımlama için fotoğrafları, ses kayıtlarını, EXIF verilerini veya konumu hiçbir sunucuya yüklemez. Geçmiş kayıtlar ve ses dosyaları yalnızca cihazınızın yerel hafızasında saklanır.
 
-Balkan adayları bilimsel ada göre tekilleştirilir, BioCLIP-2 metin vektörleriyle eşleştirilir ve Marmara fotoğraflarıyla gerçek cihazda test edilir. Ayrıntılar: [Balkan paket kapsamı](docs/data/BALKANS_PACKAGE_SCOPE.md) ve [veri kaynak politikası](docs/data/SOURCE_POLICY.md).
+---
 
-### Yakınımdaki kuşlar: mevcut sınır
-
-İlk mobil sürüm, Türkiye paketindeki düzenli/göçmen türleri seçilen bölge ve tarih bağlamıyla gösterir; nadir kayıtlar varsayılan olarak gizlidir. İlçe/10 km düzeyinde gerçek yakınlık sıralaması, bölgesel dağılım ve mevsimsellik öncülleri hazır olduğunda eklenecektir. Bu nedenle ilk sürümdeki liste, kesin bir saha gözlem listesi değil, kurulu pakete dayalı güvenli başlangıç listesidir.
-
-## Gizlilik
-
-FirBird, tanımlama için fotoğrafı, EXIF bilgisini veya konumu bir sunucuya yüklemez. Geçmiş kayıtları yalnızca cihazda tutulur. İnternet bağlantısı yalnızca isteğe bağlı paket/model indirme ve dış bilgi kaynaklarını açma için gerekir.
-
-## Geliştirme
+## 🛠️ Geliştirme ve Derleme
 
 Flutter SDK ve Android SDK kurulduktan sonra:
 
@@ -57,33 +51,17 @@ Flutter SDK ve Android SDK kurulduktan sonra:
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --debug
+flutter build apk --target-platform android-arm64 --release
 ```
 
-Bağlı Android cihazda çalıştırmak için:
+Bağlı Android cihazda çalıştırmak ve kurmak için:
 
 ```powershell
 flutter run
 ```
 
-Yerel olarak indirilen model ve ham veri dosyaları `tools/model_staging/` altında tutulur ve Git geçmişine eklenmez. Büyük paketler ileride GitHub Releases üzerinden dağıtılacaktır.
+---
 
-## Yol haritası
+## 📜 Lisans
 
-1. Türkiye paketi için indirilebilir, doğrulanabilir paket akışı
-2. Balkanlar tür paketi ve Türkiye+Balkanlar birleşik aday listesi
-3. Konum ve tarihe göre daha güçlü yeniden sıralama
-4. Ses kaydından kuş tanıma
-5. Android deneyimini sağlamlaştırma ve iOS hazırlığı
-
-Detaylar için [ana geliştirme planına](FirBird_Codex_Master_Prompt.md) ve `docs/` altındaki kararlara bakın.
-
-## Lisans
-
-FirBird kaynak kodu [Apache License 2.0](LICENSE) ile lisanslanmıştır. Ticari kullanım, değiştirme, yeniden dağıtım ve satış; lisans koşullarına tabi olarak serbesttir.
-
-Model ağırlıkları, kuş fotoğrafları ve tür verileri ayrı lisans koşullarına tabidir. Ayrıntılar için [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) dosyasına bakın.
-
-## Katkı
-
-Katkılar memnuniyetle karşılanır. Başlamadan önce [CONTRIBUTING.md](CONTRIBUTING.md) dosyasını okuyun.
+FirBird kaynak kodu [Apache License 2.0](LICENSE) ile lisanslanmıştır. Ticari kullanım, değiştirme, yeniden dağıtım ve satış lisans koşullarına tabi olarak serbesttir.

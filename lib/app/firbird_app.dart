@@ -115,11 +115,44 @@ final GoRouter _router = GoRouter(
   ],
 );
 
-class FirBirdApp extends StatelessWidget {
+class ThemeNotifier extends Notifier<ThemeMode> {
+  @override
+  ThemeMode build() {
+    _load();
+    return ThemeMode.system;
+  }
+
+  Future<void> _load() async {
+    final AppDatabase db = ref.read(appDatabaseProvider);
+    final String modeStr = await db.themeMode();
+    state = switch (modeStr) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    final AppDatabase db = ref.read(appDatabaseProvider);
+    final String modeStr = switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      ThemeMode.system => 'system',
+    };
+    await db.setThemeMode(modeStr);
+  }
+}
+
+final NotifierProvider<ThemeNotifier, ThemeMode> themeModeProvider =
+    NotifierProvider<ThemeNotifier, ThemeMode>(ThemeNotifier.new);
+
+class FirBirdApp extends ConsumerWidget {
   const FirBirdApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeMode themeMode = ref.watch(themeModeProvider);
     const Color seedColor = Color(0xFF166534);
 
     return MaterialApp.router(
@@ -128,7 +161,7 @@ class FirBirdApp extends StatelessWidget {
       routerConfig: _router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
         useMaterial3: true,

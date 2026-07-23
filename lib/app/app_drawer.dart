@@ -1,3 +1,4 @@
+import 'package:firbird/app/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -54,7 +55,7 @@ class AppDrawer extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'v0.3.2',
+                          AppConfig.fullVersion,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 12,

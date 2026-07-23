@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
+import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
@@ -743,9 +745,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: Text(l10n.activePackage),
             subtitle: const Text('Türkiye 0.1.0 · uygulamaya dahil'),
           ),
+          const SizedBox(height: 8),
+          const ListTile(
+            title: Text('Uygulama Teması'),
+            subtitle: Text('Açık, Koyu veya Otomatik sistem temasını seçin'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<ThemeMode>(
+              segments: const <ButtonSegment<ThemeMode>>[
+                ButtonSegment<ThemeMode>(
+                  value: ThemeMode.light,
+                  label: Text('Açık'),
+                  icon: Icon(Icons.light_mode_outlined),
+                ),
+                ButtonSegment<ThemeMode>(
+                  value: ThemeMode.dark,
+                  label: Text('Koyu'),
+                  icon: Icon(Icons.dark_mode_outlined),
+                ),
+                ButtonSegment<ThemeMode>(
+                  value: ThemeMode.system,
+                  label: Text('Sistem'),
+                  icon: Icon(Icons.brightness_auto_outlined),
+                ),
+              ],
+              selected: <ThemeMode>{ref.watch(themeModeProvider)},
+              onSelectionChanged: (Set<ThemeMode> newSelection) {
+                if (newSelection.isNotEmpty) {
+                  ref.read(themeModeProvider.notifier).setThemeMode(newSelection.first);
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           const ListTile(
             title: Text('Uygulama sürümü'),
-            subtitle: Text('0.3.2'),
+            subtitle: Text(AppConfig.appVersion),
           ),
           ListTile(
             title: Text(l10n.privacy),

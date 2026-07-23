@@ -236,6 +236,24 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<String> themeMode() async {
+    final AppSetting? setting =
+        await (select(appSettings)..where(
+              (AppSettings table) => table.key.equals('themeMode'),
+            ))
+            .getSingleOrNull();
+    return setting?.value ?? 'system'; // 'light', 'dark', 'system'
+  }
+
+  Future<void> setThemeMode(String mode) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'themeMode',
+        value: mode,
+      ),
+    );
+  }
+
   Future<String?> activePackageId() async {
     final InstalledPackage? package =
         await (select(installedPackages)

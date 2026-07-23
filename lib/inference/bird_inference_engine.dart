@@ -1,6 +1,101 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 
 import 'package:firbird/inference/contextual_reranker.dart';
+import 'package:firbird/inference/onnx_bird_inference_engine.dart';
+
+// ---------------------------------------------------------------------------
+// Kuş Türü Durum Kategorileri (Yerel/Göçmen, Nadir, Bölge Dışı)
+// ---------------------------------------------------------------------------
+
+enum SpeciesStatusCategory {
+  /// Yerel ve Göçmen Kuşlar -> Yeşil çerçeve
+  localOrMigratory,
+
+  /// Nadir Kuşlar -> Kırmızı çerçeve
+  rare,
+
+  /// Bölge Dışı / Olması Zor Kuşlar -> Gri çerçeve
+  outOfRegion,
+}
+
+extension SpeciesStatusCategoryX on SpeciesStatusCategory {
+  Color get borderColor => switch (this) {
+        SpeciesStatusCategory.localOrMigratory => Colors.green,
+        SpeciesStatusCategory.rare => Colors.red,
+        SpeciesStatusCategory.outOfRegion => Colors.grey,
+      };
+
+  String get label => switch (this) {
+        SpeciesStatusCategory.localOrMigratory => 'Yerel / Göçmen',
+        SpeciesStatusCategory.rare => 'Nadir Tür',
+        SpeciesStatusCategory.outOfRegion => 'Bölge Dışı / Zor',
+      };
+}
+
+class SpeciesStatusHelper {
+  static Map<String, String>? _occurrenceMap;
+
+  static Future<void> loadOccurrences() async {
+    if (_occurrenceMap != null) return;
+    try {
+      final Directory dir = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
+      final File file = File(path.join(dir.path, 'candidates.json'));
+      if (await file.exists()) {
+        final Map<String, dynamic> json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        final List<dynamic> candidates = json['candidates'] as List<dynamic>;
+        _occurrenceMap = {};
+        for (final c in candidates) {
+          final map = c as Map<String, dynamic>;
+          final sci = (map['scientificName'] as String).toLowerCase();
+          final occ = map['occurrence'] as String? ?? '';
+          _occurrenceMap![sci] = occ;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading candidates occurrence map: $e');
+    }
+  }
+
+  static SpeciesStatusCategory getCategory({
+    String? originLabel,
+    String? scientificName,
+  }) {
+    if (originLabel != null && originLabel.isNotEmpty) {
+      final String label = originLabel.toLowerCase();
+      if (label.contains('nadir') || label.contains('accidental')) {
+        return SpeciesStatusCategory.rare;
+      }
+      if (label.contains('düzenli') ||
+          label.contains('göçmen') ||
+          label.contains('yerleşik') ||
+          label.contains('resident') ||
+          label.contains('regular-or-migratory')) {
+        return SpeciesStatusCategory.localOrMigratory;
+      }
+      if (label.contains('dünya') || label.contains('balkan') || label.contains('bölge dışı')) {
+        return SpeciesStatusCategory.outOfRegion;
+      }
+    }
+
+    if (scientificName != null) {
+      final String sciLower = scientificName.toLowerCase();
+      if (_occurrenceMap != null) {
+        final String? occ = _occurrenceMap![sciLower];
+        if (occ == 'accidental') return SpeciesStatusCategory.rare;
+        if (occ == 'regular-or-migratory' || occ == 'resident') {
+          return SpeciesStatusCategory.localOrMigratory;
+        }
+        if (occ != null && occ.isNotEmpty) return SpeciesStatusCategory.outOfRegion;
+      }
+    }
+
+    return SpeciesStatusCategory.outOfRegion;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Cinsiyet & Yaşam Evresi
@@ -183,6 +278,11 @@ class SpeciesPrediction {
   final String? thumbnailUrl;
   final String? ornitoId;
   final String? originLabel;
+
+  SpeciesStatusCategory get statusCategory => SpeciesStatusHelper.getCategory(
+        originLabel: originLabel,
+        scientificName: scientificName,
+      );
 
   SpeciesPrediction copyWith({double? score, String? turkishName}) {
     return SpeciesPrediction(

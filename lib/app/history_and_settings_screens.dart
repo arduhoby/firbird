@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/data/app_database.dart';
+import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -420,10 +421,7 @@ class HistoryScreen extends ConsumerWidget {
                             child: ListView.separated(
                               controller: scrollController,
                               itemCount: records.length,
-                              separatorBuilder: (context, _) => Divider(
-                                height: 1,
-                                color: theme.colorScheme.outlineVariant,
-                              ),
+                              separatorBuilder: (context, _) => const SizedBox(height: 2),
                               itemBuilder: (context, index) {
                                 final record = records[index];
                                 // Parse confidence format "%89 · 01:00 – 01:35"
@@ -448,11 +446,24 @@ class HistoryScreen extends ConsumerWidget {
                                   count = int.tryParse(record.predictionMethod!.replaceAll('count:', '')) ?? 1;
                                 }
 
+                                final statusCat = SpeciesStatusHelper.getCategory(
+                                  scientificName: record.scientificName,
+                                );
+                                final Color borderColor = statusCat.borderColor;
+
                                 return Container(
-                                  color: index.isEven
-                                      ? theme.colorScheme.surface
-                                      : theme.colorScheme.surfaceContainerLowest,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: index.isEven
+                                        ? theme.colorScheme.surface
+                                        : theme.colorScheme.surfaceContainerLowest,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: 1.8,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   child: Row(
                                     children: [
                                       Expanded(
@@ -516,6 +527,29 @@ class HistoryScreen extends ConsumerWidget {
                                   ),
                                 );
                               },
+                            ),
+                          ),
+                        ),
+
+                        // Tablo Açıklama Notu (Küçük Fontlu)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildModalLegendNoteItem(context, Colors.green, 'Yerel / Göçmen'),
+                                _buildModalLegendNoteItem(context, Colors.red, 'Nadir Tür'),
+                                _buildModalLegendNoteItem(context, Colors.grey, 'Bölge Dışı / Zor'),
+                              ],
                             ),
                           ),
                         ),
@@ -711,7 +745,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const ListTile(
             title: Text('Uygulama sürümü'),
-            subtitle: Text('0.3.0'),
+            subtitle: Text('0.3.2'),
           ),
           ListTile(
             title: Text(l10n.privacy),
@@ -721,4 +755,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+}
+
+Widget _buildModalLegendNoteItem(BuildContext context, Color color, String label) {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.25),
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 2),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ],
+  );
 }

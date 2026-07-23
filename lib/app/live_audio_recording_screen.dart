@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
@@ -90,6 +91,24 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
         }
         return;
       }
+
+      // Request location permission for live audio detection session
+      try {
+        if (await Geolocator.isLocationServiceEnabled()) {
+          LocationPermission locPerm = await Geolocator.checkPermission();
+          if (locPerm == LocationPermission.denied) {
+            locPerm = await Geolocator.requestPermission();
+          }
+          if (locPerm == LocationPermission.whileInUse || locPerm == LocationPermission.always) {
+            debugPrint('Canlı ses oturumu için konum izni alındı.');
+          }
+        }
+      } catch (e) {
+        debugPrint('Konum izni alınırken hata: $e');
+      }
+
+      // Load occurrences for status categorization
+      await SpeciesStatusHelper.loadOccurrences();
 
       // Load live detection min score from settings
       _liveMinScore = await ref.read(appDatabaseProvider).liveDetectionMinScore();
@@ -648,10 +667,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _detectedSpeciesList.length,
-                            separatorBuilder: (context, _) => Divider(
-                              height: 1,
-                              color: theme.colorScheme.outlineVariant,
-                            ),
+                            separatorBuilder: (context, _) => const SizedBox(height: 2),
                             itemBuilder: (context, index) {
                               final item = _detectedSpeciesList[index];
                               final pred = item.prediction;
@@ -662,12 +678,23 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                                       ? Colors.orange
                                       : Colors.red;
 
+                              final statusCat = pred.statusCategory;
+                              final Color borderColor = statusCat.borderColor;
+
                               return Container(
-                                color: index.isEven
-                                    ? theme.colorScheme.surface
-                                    : theme.colorScheme.surfaceContainerLowest,
+                                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: index.isEven
+                                      ? theme.colorScheme.surface
+                                      : theme.colorScheme.surfaceContainerLowest,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: borderColor,
+                                    width: 1.8,
+                                  ),
+                                ),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   child: Row(
                                     children: [
                                       Expanded(
@@ -734,6 +761,29 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                             },
                           ),
                         ),
+
+                        // Tablo Açıklama Notu (Küçük Fontlu)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildLegendNoteItem(Colors.green, 'Yerel / Göçmen'),
+                                _buildLegendNoteItem(Colors.red, 'Nadir Tür'),
+                                _buildLegendNoteItem(Colors.grey, 'Bölge Dışı / Zor'),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -798,13 +848,39 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         backgroundColor: theme.colorScheme.error,
-                        foregroundColor: Colors.white,
+                        foregroundColor: theme.colorScheme.onError,
                       ),
                     ),
                   ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLegendNoteItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.25),
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

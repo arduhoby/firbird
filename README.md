@@ -22,6 +22,14 @@ FirBird, kuş fotoğraflarını ve ses kayıtlarını **tamamen cihaz üzerinde 
 
 ---
 
+## 📱 Uygulama Ekran Görüntüleri
+
+|<img src="assets/screenshot/Screenshot_20260723_103359_org.firbird.app.jpg" width="220" alt="Ana Sayfa" />|<img src="assets/screenshot/Screenshot_20260723_103548_org.firbird.app.jpg" width="220" alt="Canlı Ses Tespit Modu" />|<img src="assets/screenshot/Screenshot_20260723_103712_org.firbird.app.jpg" width="220" alt="Tanımlama Sonucu" />|<img src="assets/screenshot/Screenshot_20260723_103835_org.firbird.app.jpg" width="220" alt="Ayarlar ve Tema" />|
+|:---:|:---:|:---:|:---:|
+| **Ana Sayfa** | **Canlı Ses Tespiti** | **Tanımlama Sonucu** | **Ayarlar & Tema** |
+
+---
+
 ## 📊 Kapsam ve Kuş Sayıları
 
 - **Toplam Desteklenen Kuş Türü**: **503 Tür** (Türkiye kuş faunası)

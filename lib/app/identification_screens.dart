@@ -242,7 +242,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
           ],
           const SizedBox(height: 24),
           Card(
-            color: const Color(0xFFE1F2FF),
+            color: Theme.of(context).colorScheme.primaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -272,7 +272,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                     ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   if (first.originLabel != null) ...<Widget>[
                     const SizedBox(height: 8),
@@ -450,17 +453,18 @@ class _ContextEffect extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE4C4),
+        color: isDark ? const Color(0xFF3E2723) : const Color(0xFFFFE4C4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: <Widget>[
-          const Icon(Icons.info_outline, color: Color(0xFF9A4D00)),
+          Icon(Icons.info_outline, color: isDark ? const Color(0xFFFFB74D) : const Color(0xFF9A4D00)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -469,14 +473,14 @@ class _ContextEffect extends StatelessWidget {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: const Color(0xFF4A2A00),
+                    color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   l10n.contextNotUsed,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF4A2A00),
+                    color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
                   ),
                 ),
               ],
@@ -583,22 +587,25 @@ class _OriginBadge extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: const Color(0xFFE8F5E9),
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        color: const Color(0xFF28633A),
-        fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1B382B) : const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(999),
       ),
-    ),
-  );
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: isDark ? const Color(0xFF81C784) : const Color(0xFF28633A),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
 
 class _CandidateThumbnail extends StatelessWidget {
@@ -1044,27 +1051,31 @@ class _ScoreBar extends StatelessWidget {
 class _SexAgeWarning extends StatelessWidget {
   const _SexAgeWarning({
     required this.message,
-    required this.color,
-    required this.iconColor,
+    this.color,
+    this.iconColor,
   });
 
   final String message;
-  final Color color;
-  final Color iconColor;
+  final Color? color;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bgColor = color ?? (isDark ? const Color(0xFF4A3B00) : const Color(0xFFFFF3CD));
+    final Color fgColor = iconColor ?? (isDark ? const Color(0xFFFFD54F) : const Color(0xFF856404));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color,
+        color: bgColor,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(Icons.warning_amber_rounded, size: 16, color: iconColor),
+          Icon(Icons.warning_amber_rounded, size: 16, color: fgColor),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1072,7 +1083,7 @@ class _SexAgeWarning extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: iconColor),
+                  ?.copyWith(color: fgColor),
             ),
           ),
         ],

@@ -9,7 +9,26 @@ class AppLocalizationsTr extends AppLocalizations {
   AppLocalizationsTr([String locale = 'tr']) : super(locale);
 
   @override
-  String get appName => 'FirBird';
+  String get appName => 'FirBird 3';
+
+  @override
+  String get homeTagline => 'Doğayı dinle, kuşları tanı.';
+
+  @override
+  String get homePrivacy =>
+      'Tanımlama cihazında kalır. İnternet bağlantısı gerekmez.';
+
+  @override
+  String get appAboutTitle => 'Uygulama hakkında';
+
+  @override
+  String get identifyBird => 'Kuşu tanımla';
+
+  @override
+  String get startWithPhoto => 'Bir fotoğraf seçerek başla';
+
+  @override
+  String get scanAgain => 'Yeni tarama';
 
   @override
   String get homeHeadline => 'Kuşları çevrimdışı tanıyın.';

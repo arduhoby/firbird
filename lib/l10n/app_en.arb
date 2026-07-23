@@ -1,6 +1,12 @@
 {
   "@@locale": "en",
-  "appName": "FirBird",
+  "appName": "FirBird 3",
+  "homeTagline": "Listen to nature, identify birds.",
+  "homePrivacy": "Identification stays on your device. No internet connection is needed.",
+  "appAboutTitle": "About the app",
+  "identifyBird": "Identify a bird",
+  "startWithPhoto": "Start by choosing a photo",
+  "scanAgain": "Scan again",
   "homeHeadline": "Identify birds, offline.",
   "homeDescription": "Choose an existing photo to start an on-device identification.",
   "selectPhoto": "Select photo",

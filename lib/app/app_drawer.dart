@@ -113,6 +113,13 @@ class AppDrawer extends StatelessWidget {
                   onTap: () => _navigate(context, '/live_audio'),
                 ),
                 _DrawerTile(
+                  icon: Icons.music_note_outlined,
+                  activeIcon: Icons.music_note,
+                  title: 'Ses oynatıcı',
+                  isSelected: currentRoute == '/player',
+                  onTap: () => _navigate(context, '/player'),
+                ),
+                _DrawerTile(
                   icon: Icons.history_outlined,
                   activeIcon: Icons.history,
                   title: 'Son Tanımlamalar',

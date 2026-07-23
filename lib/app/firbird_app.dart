@@ -10,6 +10,8 @@ import 'package:firbird/app/observation_context_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/app/model_download_screen.dart';
 import 'package:firbird/app/live_audio_recording_screen.dart';
+import 'package:firbird/app/firbird_theme.dart';
+import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
@@ -39,9 +41,9 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/crop',
       builder: (BuildContext context, GoRouterState state) =>
-          CropConfirmationScreen(
-            request: state.extra! as IdentificationRequest,
-          ),
+          state.extra is IdentificationRequest
+              ? CropConfirmationScreen(request: state.extra! as IdentificationRequest)
+              : const _MissingRouteDataScreen(),
     ),
     GoRoute(
       path: '/onboarding',
@@ -58,6 +60,7 @@ final GoRouter _router = GoRouter(
       builder: (BuildContext context, GoRouterState state) =>
           const LiveAudioRecordingScreen(),
     ),
+    GoRoute(path: '/player', builder: (BuildContext context, GoRouterState state) => const MediaPlayerScreen()),
     GoRoute(
       path: '/history',
       builder: (BuildContext context, GoRouterState state) =>
@@ -105,12 +108,16 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/analysis',
       builder: (BuildContext context, GoRouterState state) =>
-          AnalysisScreen(request: state.extra! as IdentificationRequest),
+          state.extra is IdentificationRequest
+              ? AnalysisScreen(request: state.extra! as IdentificationRequest)
+              : const _MissingRouteDataScreen(),
     ),
     GoRoute(
       path: '/result',
       builder: (BuildContext context, GoRouterState state) =>
-          ResultsScreen(result: state.extra! as InferenceResult),
+          state.extra is InferenceResult
+              ? ResultsScreen(result: state.extra! as InferenceResult)
+              : const _MissingRouteDataScreen(),
     ),
   ],
 );
@@ -144,6 +151,32 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   }
 }
 
+class _MissingRouteDataScreen extends StatelessWidget {
+  const _MissingRouteDataScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(Icons.route_outlined, size: 48),
+                const SizedBox(height: 16),
+                const Text('Bu ekran için gerekli tanımlama verisi bulunamadı.', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => context.go('/'),
+                  child: const Text('Ana sayfaya dön'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
 final NotifierProvider<ThemeNotifier, ThemeMode> themeModeProvider =
     NotifierProvider<ThemeNotifier, ThemeMode>(ThemeNotifier.new);
 
@@ -153,26 +186,15 @@ class FirBirdApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeMode themeMode = ref.watch(themeModeProvider);
-    const Color seedColor = Color(0xFF166534);
-
     return MaterialApp.router(
-      title: 'FirBird',
+      title: 'FirBird 3',
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       themeMode: themeMode,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: FirBirdTheme.light(),
+      darkTheme: FirBirdTheme.dark(),
     );
   }
 }
@@ -232,25 +254,10 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context)!;
-
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                'assets/logo/firbird_logo.png',
-                height: 28,
-                width: 28,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(l10n.appName),
-          ],
-        ),
+        title: const Text('FirBird 3'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -267,98 +274,113 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: <Widget>[
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    spreadRadius: 2,
+          Text(l10n.homeTagline, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(l10n.homePrivacy, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 24),
+          _IdentificationHero(
+            onTap: () => context.push('/photo', extra: 'gallery'),
+          ),
+          const SizedBox(height: 12),
+          Row(children: <Widget>[
+            Expanded(child: _QuickAction(icon: Icons.mic_none_rounded, title: 'Canlı dinle', onTap: () => context.push('/live_audio'))),
+            const SizedBox(width: 8),
+            Expanded(child: _QuickAction(icon: Icons.audio_file_outlined, title: 'Ses dosyası', onTap: () => context.push('/photo', extra: 'audio'))),
+            const SizedBox(width: 8),
+            Expanded(child: _QuickAction(icon: Icons.camera_alt_outlined, title: 'Kamera', onTap: () => context.push('/photo', extra: 'camera'))),
+          ]),
+          const SizedBox(height: 24),
+          Text(l10n.appAboutTitle, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(Icons.shield_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'FirBird 3 v0.4.0, Türkiye’deki 503 kuş türünü fotoğraf ve ses kaydından cihaz üzerinde tanımlar. Fotoğraf, ses ve konum verileri tanımlama için cihazından ayrılmaz. Harita yalnızca sen açmayı seçersen internet kullanır.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.35, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
                   ),
                 ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.asset(
-                  'assets/logo/firbird_logo.png',
-                  height: 96,
-                  width: 96,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Text(
-            'Kuş Tanımlamak İçin',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Aşağıdaki yöntemlerden birini seçerek anında tanımlama yapabilirsiniz:',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.push('/photo', extra: 'gallery'),
-              icon: const Icon(Icons.photo_library_outlined),
-              label: const Text('Fotoğraf Seç (Galeri)'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.push('/photo', extra: 'audio'),
-              icon: const Icon(Icons.audiotrack_outlined),
-              label: const Text('Dosyadan Ses veya Video Seç'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.push('/live_audio'),
-              icon: const Icon(Icons.graphic_eq),
-              label: const Text('Anlık Canlı Ses Tanımlama (Mikrofon)'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Theme.of(context).colorScheme.tertiary,
-                foregroundColor: Theme.of(context).colorScheme.onTertiary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => context.push('/photo', extra: 'camera'),
-              icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('Anlık Fotoğraf / Kamera İle'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        onDestinationSelected: (int index) {
+          switch (index) {
+            case 1:
+              context.push('/explore');
+            case 2:
+              context.push('/history');
+            case 3:
+              context.push('/settings');
+          }
+        },
+        destinations: const <NavigationDestination>[
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'Tanımla'),
+          NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore), label: 'Yakınımda'),
+          NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Geçmiş'),
+          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label: 'Ayarlar'),
+        ],
+      ),
     );
   }
+}
+
+class _IdentificationHero extends StatelessWidget {
+  const _IdentificationHero({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(28),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            child: Row(children: <Widget>[
+              Container(width: 48, height: 48, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.auto_awesome_rounded, color: Theme.of(context).colorScheme.onPrimary, size: 24)),
+              const SizedBox(width: 14),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[Text('Kuşu tanımla', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)), SizedBox(height: 4), Text('Bir fotoğraf seçerek başla')])) ,
+              const Icon(Icons.arrow_forward_rounded),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({required this.icon, required this.title, required this.onTap});
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Card(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+            child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
+              const SizedBox(height: 8),
+              Text(title, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+            ]),
+          ),
+        ),
+      );
 }
 
 class PhotoSelectionScreen extends ConsumerStatefulWidget {
@@ -383,6 +405,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
   String? _selectedRegion;
   LatLng? _selectedPoint;
   bool _showMap = false;
+  bool _onlineMapEnabled = false;
   bool _locating = false;
 
   static const List<String> _regions = <String>[
@@ -462,7 +485,11 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = 'metadataReadFailed');
+      setState(() {
+        _errorMessage = mode == 'audio'
+            ? 'Ses dosyası açılamadı. Başka bir kayıt deneyin.'
+            : 'Fotoğraf açılamadı. Desteklenen başka bir görsel deneyin.';
+      });
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -533,17 +560,59 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
         throw StateError('permission');
       }
       final Position position = await Geolocator.getCurrentPosition();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _selectedPoint = LatLng(position.latitude, position.longitude);
           _selectedRegion = null;
           _locationUnknown = false;
         });
+      }
     } catch (_) {
-      if (mounted) setState(() => _errorMessage = 'locationUnavailable');
+      if (mounted) {
+        setState(() => _errorMessage =
+            'Konum alınamadı. Bölgeden seçebilir veya konumsuz devam edebilirsiniz.');
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
+  }
+
+  Future<void> _toggleOnlineMap() async {
+    if (_onlineMapEnabled) {
+      setState(() => _showMap = !_showMap);
+      return;
+    }
+    final bool? accepted = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Çevrimiçi haritayı aç?', style: Theme.of(sheetContext).textTheme.titleLarge),
+            const SizedBox(height: 10),
+            const Text('Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.'),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(sheetContext, true),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Bu oturumda haritayı aç'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheetContext, false),
+              child: const Text('Bölgeden seç'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    setState(() {
+      _onlineMapEnabled = true;
+      _showMap = true;
+    });
   }
 
   @override
@@ -664,7 +733,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _selectedRegion,
+                initialValue: _selectedRegion,
                 decoration: const InputDecoration(
                   labelText: 'Bölgeden seç',
                   border: OutlineInputBorder(),
@@ -683,7 +752,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
                 }),
               ),
               TextButton.icon(
-                onPressed: () => setState(() => _showMap = !_showMap),
+                onPressed: _toggleOnlineMap,
                 icon: const Icon(Icons.map_outlined),
                 label: Text(_showMap ? 'Haritayı kapat' : 'Haritadan seç'),
               ),
@@ -733,14 +802,13 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
                     observationDate: _dateUnknown ? null : _selectedDate,
                   ),
                 );
-                if (mounted) {
-                  if (_isAudio) {
-                    context.push('/analysis', extra: request); // TODO: Audio route
-                  } else if (mode == 'manual') {
-                    context.push('/crop', extra: request);
-                  } else {
-                    context.push('/analysis', extra: request);
-                  }
+                if (!context.mounted) return;
+                if (_isAudio) {
+                  context.push('/analysis', extra: request);
+                } else if (mode == 'manual') {
+                  context.push('/crop', extra: request);
+                } else {
+                  context.push('/analysis', extra: request);
                 }
               },
               child: Text(l10n.identify),
@@ -749,7 +817,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
           if (_errorMessage != null) ...<Widget>[
             const SizedBox(height: 16),
             Text(
-              l10n.metadataReadFailed,
+              _errorMessage!,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],

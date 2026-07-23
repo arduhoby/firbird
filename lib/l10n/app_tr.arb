@@ -1,6 +1,12 @@
 {
   "@@locale": "tr",
-  "appName": "FirBird",
+  "appName": "FirBird 3",
+  "homeTagline": "Doğayı dinle, kuşları tanı.",
+  "homePrivacy": "Tanımlama cihazında kalır. İnternet bağlantısı gerekmez.",
+  "appAboutTitle": "Uygulama hakkında",
+  "identifyBird": "Kuşu tanımla",
+  "startWithPhoto": "Bir fotoğraf seçerek başla",
+  "scanAgain": "Yeni tarama",
   "homeHeadline": "Kuşları çevrimdışı tanıyın.",
   "homeDescription": "Cihaz üzerinde tanımlamaya başlamak için mevcut bir fotoğraf seçin.",
   "selectPhoto": "Fotoğraf seç",

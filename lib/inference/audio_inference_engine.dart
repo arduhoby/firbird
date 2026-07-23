@@ -233,13 +233,13 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         // BirdNET contains non-bird sounds; skip them all
         final String sciLower = rawSciName.toLowerCase();
         final String engLower = rawEngName.toLowerCase();
-        const List<String> _nonBirdKeywords = [
+        const List<String> nonBirdKeywords = [
           'human', 'homo sapien', 'dog', 'canis lupus', 'cat', 'felis catus',
           'engine', 'car', 'machinery', 'wind', 'rain', 'thunder', 'noise',
           'insect', 'frog', 'rana', 'bufo', 'cricket', 'cicada',
           'firework', 'gunshot', 'siren', 'music', 'speech',
         ];
-        if (_nonBirdKeywords.any((kw) => sciLower.contains(kw) || engLower.contains(kw))) {
+        if (nonBirdKeywords.any((kw) => sciLower.contains(kw) || engLower.contains(kw))) {
           continue; // skip — not a bird
         }
         // ────────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           // Not in candidates.json at all — likely a non-Turkey or non-bird species
           // Only include if it looks like a real bird (two-part scientific name)
           final bool looksLikeBird = rawSciName.contains(' ') &&
-              !_nonBirdKeywords.any((kw) => sciLower.contains(kw));
+              !nonBirdKeywords.any((kw) => sciLower.contains(kw));
           if (!looksLikeBird) continue;
 
           predictions.add(

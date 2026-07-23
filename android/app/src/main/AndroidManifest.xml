@@ -1,9 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Yalnızca kullanıcı çevrimiçi haritayı veya model indirmeyi seçtiğinde kullanılır. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <application
-        android:label="FirBird"
+        android:label="FirBird 3"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

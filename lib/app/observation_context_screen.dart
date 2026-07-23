@@ -40,7 +40,42 @@ class _ObservationContextScreenState extends State<ObservationContextScreen> {
   String? _selectedRegion;
   DateTime? _selectedDate;
   bool _isLocating = false;
+  bool _onlineMapEnabled = false;
   String? _locationError;
+
+  Future<void> _requestOnlineMap() async {
+    final bool? accepted = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Çevrimiçi haritayı aç?', style: Theme.of(sheetContext).textTheme.titleLarge),
+            const SizedBox(height: 10),
+            const Text('Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.'),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(sheetContext, true),
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('Bu oturumda haritayı aç'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheetContext, false),
+              child: const Text('Bölgeden seç'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _onlineMapEnabled = accepted == true;
+      _locationChoice = accepted == true ? LocationChoice.map : LocationChoice.region;
+    });
+  }
 
   Future<void> _useCurrentLocation() async {
     setState(() {
@@ -173,10 +208,9 @@ class _ObservationContextScreenState extends State<ObservationContextScreen> {
             value: LocationChoice.map,
             groupValue: _locationChoice,
             title: Text(l10n.selectOnMap),
-            onChanged: (LocationChoice? _) =>
-                setState(() => _locationChoice = LocationChoice.map),
+            onChanged: (LocationChoice? _) => _requestOnlineMap(),
           ),
-          if (_locationChoice == LocationChoice.map)
+          if (_locationChoice == LocationChoice.map && _onlineMapEnabled)
             _MapPicker(onSelect: _selectMapPoint),
           RadioListTile<LocationChoice>(
             contentPadding: EdgeInsets.zero,
@@ -323,7 +357,7 @@ class _MapPicker extends StatelessWidget {
           children: <Widget>[
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'org.firbird.app',
+              userAgentPackageName: 'org.firbird3.app',
             ),
           ],
         ),
@@ -346,11 +380,37 @@ class _LocationError extends StatelessWidget {
       _ => l10n.locationUnavailable,
     };
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Text(
-        message,
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(Icons.location_off_outlined, size: 20, color: Theme.of(context).colorScheme.onErrorContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(message, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onErrorContainer)),
+                if (code == 'permissionDenied')
+                  TextButton.icon(
+                    onPressed: Geolocator.openAppSettings,
+                    icon: const Icon(Icons.settings_outlined, size: 16),
+                    label: const Text('Ayarları aç'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                      padding: const EdgeInsets.only(top: 6),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

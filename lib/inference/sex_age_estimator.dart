@@ -42,32 +42,21 @@ class PlaceholderSexAgeEstimator implements SexAgeEstimator {
     required Float32List imageFeatures,
     required SpeciesSexAgePolicy policy,
   }) {
-    final bool isSexUnreliable =
-        policy.sexDiscrimination == SexDiscrimination.unreliable;
-
+    // Cinsiyet için gerçek bir görsel model yok: rastlantısal skor gösterme.
+    // Yaş grubu için mevcut geçici tahmini koru; bu bölüm daha önceki ürün
+    // davranışıyla uyumludur ve cinsiyet sonucundan bağımsızdır.
     final int seed = speciesId.codeUnits.fold(0, (a, b) => a ^ b);
     final math.Random rng = math.Random(seed);
-
-    final SexPrediction sex = isSexUnreliable
-        ? const SexPrediction(
-            scores: <SexCategory, double>{SexCategory.unknown: 1.0},
-            method: PredictionMethod.zeroShot,
-          )
-        : _estimateSex(rng, policy);
-
     final AgePrediction age = _estimateAge(rng, policy);
-
-    // Çelişki kontrolü: Yavru + net cinsiyet tahmini çelişebilir.
-    final bool conflict = age.displayCategory == AgeCategory.chick &&
-        sex.displayCategory != SexCategory.unknown &&
-        !isSexUnreliable;
-
     return SexAgePrediction(
-      sex: sex,
+      sex: const SexPrediction(
+        scores: <SexCategory, double>{SexCategory.unknown: 1.0},
+        method: PredictionMethod.zeroShot,
+      ),
       age: age,
-      conflictWarning: conflict,
-      isSexUnreliable: isSexUnreliable,
+      isSexUnreliable: true,
     );
+
   }
 
 

@@ -22,7 +22,7 @@ class TfliteBirdInferenceEngine implements BirdInferenceEngine {
   bool _isDisposed = false;
   bool _isWarmedUp = false;
   static const MethodChannel _channel = MethodChannel(
-    'org.firbird.app/inference',
+    'org.firbird3.app/inference',
   );
 
   @override

@@ -9,7 +9,26 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'FirBird';
+  String get appName => 'FirBird 3';
+
+  @override
+  String get homeTagline => 'Listen to nature, identify birds.';
+
+  @override
+  String get homePrivacy =>
+      'Identification stays on your device. No internet connection is needed.';
+
+  @override
+  String get appAboutTitle => 'About the app';
+
+  @override
+  String get identifyBird => 'Identify a bird';
+
+  @override
+  String get startWithPhoto => 'Start by choosing a photo';
+
+  @override
+  String get scanAgain => 'Scan again';
 
   @override
   String get homeHeadline => 'Identify birds, offline.';

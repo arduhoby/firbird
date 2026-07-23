@@ -1,7 +1,8 @@
-package org.firbird.app
+package org.firbird3.app
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -13,9 +14,10 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "org.firbird.app/inference"
+    private val channelName = "org.firbird3.app/inference"
     private var interpreter: Interpreter? = null
     private var labels: List<String> = emptyList()
+    private var mediaPlayer: MediaPlayer? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -29,6 +31,27 @@ class MainActivity : FlutterActivity() {
                 }
             } catch (exception: Exception) {
                 result.error("inference_failed", exception.message, null)
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.firbird3.app/media_player").setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "playLooping" -> {
+                        val path = call.argument<String>("path") ?: throw IllegalArgumentException("Missing audio path")
+                        stopMedia()
+                        mediaPlayer = MediaPlayer().apply {
+                            setDataSource(path)
+                            isLooping = true
+                            prepare()
+                            start()
+                        }
+                        result.success(null)
+                    }
+                    "stop" -> { stopMedia(); result.success(null) }
+                    else -> result.notImplemented()
+                }
+            } catch (exception: Exception) {
+                result.error("media_failed", exception.message, null)
             }
         }
     }
@@ -78,5 +101,15 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    override fun onDestroy() { interpreter?.close(); super.onDestroy() }
+    private fun stopMedia() {
+        mediaPlayer?.run {
+            if (isPlaying) stop()
+            reset()
+            release()
+        }
+        mediaPlayer = null
+    }
+
+    override fun onPause() { stopMedia(); super.onPause() }
+    override fun onDestroy() { stopMedia(); interpreter?.close(); super.onDestroy() }
 }

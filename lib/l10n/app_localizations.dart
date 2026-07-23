@@ -101,8 +101,44 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'FirBird'**
+  /// **'FirBird 3'**
   String get appName;
+
+  /// No description provided for @homeTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to nature, identify birds.'**
+  String get homeTagline;
+
+  /// No description provided for @homePrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Identification stays on your device. No internet connection is needed.'**
+  String get homePrivacy;
+
+  /// No description provided for @appAboutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About the app'**
+  String get appAboutTitle;
+
+  /// No description provided for @identifyBird.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify a bird'**
+  String get identifyBird;
+
+  /// No description provided for @startWithPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Start by choosing a photo'**
+  String get startWithPhoto;
+
+  /// No description provided for @scanAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan again'**
+  String get scanAgain;
 
   /// No description provided for @homeHeadline.
   ///

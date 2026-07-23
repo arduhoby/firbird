@@ -47,7 +47,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     
     ImageInput finalImage = widget.request.image;
     final String ext = p.extension(finalImage.uri).toLowerCase();
-    final bool isAudio = ['.mp3', '.m4a', '.wav', '.aac', '.mp4'].contains(ext);
+    final bool isAudio = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.mp4'].contains(ext);
     
     if (isAudio) {
       final Directory targetDir = await getApplicationDocumentsDirectory();
@@ -116,9 +116,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   if (recordId != null) {
                     result = result.copyWith(recordId: recordId);
                   }
-                  if (mounted) {
-                    context.pushReplacement('/result', extra: result);
-                  }
+                  if (!context.mounted) return;
+                  context.pushReplacement('/result', extra: result);
                 });
               }
 
@@ -227,7 +226,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
         leading: const BackToHomeButton(),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: <Widget>[
           if (!hasReliableMatch) ...<Widget>[
             const SizedBox(height: 12),
@@ -240,23 +239,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
           Card(
             color: Theme.of(context).colorScheme.primaryContainer,
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   _ConfidenceChip(score: first.score),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   if (_sourceImageExists(_currentResult.sourceImageUri))
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
                         width: double.infinity,
-                        height: 260,
-                        color: Colors.black.withOpacity(0.04),
+                        height: 220,
+                        color: Colors.black.withValues(alpha: 0.04),
                         child: Image.file(
                           File(_currentResult.sourceImageUri!),
                           fit: BoxFit.contain,
@@ -266,15 +265,29 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                     ),
                   const SizedBox(height: 14),
                   Text(
-                    <String>[
-                      first.turkishName,
-                      first.scientificName,
-                    ].join(' · '),
+                    first.turkishName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    first.scientificName,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.75),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: first.score.clamp(0, 1).toDouble(),
+                      minHeight: 7,
+                      backgroundColor: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.12),
                     ),
                   ),
                   if (first.originLabel != null) ...<Widget>[
@@ -346,7 +359,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text('Seçili eşik üzerinde ek aday bulunamadı.'),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           if (!_currentResult.locationAffectedResult)
             _ContextEffect(label: l10n.locationEffect),
           if (!_currentResult.dateAffectedResult)
@@ -367,16 +380,22 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
             ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => _share(context, first),
-            icon: const Icon(Icons.share_outlined),
-            label: Text(l10n.shareResult),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => context.push('/photo'),
-            icon: const Icon(Icons.add_a_photo_outlined),
-            label: const Text('Yeni arama'),
+          Row(
+            children: <Widget>[
+              IconButton.filledTonal(
+                onPressed: () => _share(context, first),
+                tooltip: l10n.shareResult,
+                icon: const Icon(Icons.share_outlined),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => context.push('/photo'),
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text('Yeni tarama'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -410,41 +429,6 @@ class _ConfidenceChip extends StatelessWidget {
   }
 }
 
-class _PredictionNames extends StatelessWidget {
-  const _PredictionNames({required this.prediction});
-
-  final SpeciesPrediction prediction;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<String> names = <String>[
-      prediction.scientificName,
-      prediction.englishName,
-      ...prediction.alternativeNames,
-    ].where((String name) => name != prediction.turkishName).toList();
-    return Text(names.join(' · '));
-  }
-}
-
-class _AlternativeNames extends StatelessWidget {
-  const _AlternativeNames({required this.prediction});
-
-  final SpeciesPrediction prediction;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<String> names = <String>[
-      prediction.englishName,
-      ...prediction.alternativeNames,
-    ].where((String name) => name != prediction.turkishName).toList();
-    if (names.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Text('Diger adlar: ${names.join(' · ')}'),
-    );
-  }
-}
-
 class _ContextEffect extends StatelessWidget {
   const _ContextEffect({required this.label});
 
@@ -456,30 +440,30 @@ class _ContextEffect extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF3E2723) : const Color(0xFFFFE4C4),
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? const Color(0xFF3E2723).withValues(alpha: 0.55) : const Color(0xFFFFE4C4).withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.info_outline, color: isDark ? const Color(0xFFFFB74D) : const Color(0xFF9A4D00)),
-          const SizedBox(width: 12),
+          Icon(Icons.info_outline, size: 15, color: isDark ? const Color(0xFFFFB74D) : const Color(0xFF9A4D00)),
+          const SizedBox(width: 7),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   l10n.contextNotUsed,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
                   ),
                 ),
@@ -622,8 +606,9 @@ class _CandidateThumbnail extends StatelessWidget {
       alignment: Alignment.center,
       child: const Icon(Icons.flutter_dash_outlined),
     );
-    if (url == null || url!.isEmpty)
+    if (url == null || url!.isEmpty) {
       return ClipRRect(borderRadius: BorderRadius.circular(8), child: fallback);
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Image.network(

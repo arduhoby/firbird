@@ -610,64 +610,24 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Column(
                       children: [
-                        // Table header
-                        Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    'TÜR',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onPrimaryContainer,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    'ZAMAN ARALIĞI',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onPrimaryContainer,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 72,
-                                  child: Text(
-                                    'TAH. ORAN',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onPrimaryContainer,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                          child: Text(
+                            'Son tespitler',
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ),
                         // Table rows
                         Container(
                           decoration: BoxDecoration(
                             border: Border.all(color: theme.colorScheme.outlineVariant),
-                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _detectedSpeciesList.length,
-                            separatorBuilder: (context, _) => const SizedBox(height: 2),
+                            separatorBuilder: (context, _) => const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final item = _detectedSpeciesList[index];
                               final pred = item.prediction;
@@ -682,23 +642,23 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                               final Color borderColor = statusCat.borderColor;
 
                               return Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: index.isEven
                                       ? theme.colorScheme.surface
                                       : theme.colorScheme.surfaceContainerLowest,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: borderColor,
                                     width: 1.8,
                                   ),
                                 ),
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                   child: Row(
                                     children: [
                                       Expanded(
-                                        flex: 3,
+                                        flex: 4,
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
@@ -728,7 +688,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                                         ),
                                       ),
                                       Expanded(
-                                        flex: 3,
+                                        flex: 2,
                                         child: Text(
                                           _relativeTimeRange(item),
                                           style: theme.textTheme.bodySmall?.copyWith(
@@ -737,7 +697,7 @@ class _LiveAudioRecordingScreenState extends ConsumerState<LiveAudioRecordingScr
                                         ),
                                       ),
                                       SizedBox(
-                                        width: 72,
+                                        width: 58,
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(

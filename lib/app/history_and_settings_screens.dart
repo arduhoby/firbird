@@ -4,6 +4,7 @@ import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
@@ -389,6 +390,16 @@ class HistoryScreen extends ConsumerWidget {
                         extra: <String, dynamic>{
                           'path': audioPath,
                           'name': path.basename(audioPath),
+                          'detections': records
+                              .map(
+                                (record) => PlaybackDetection.fromHistory(
+                                  turkishName: record.turkishName,
+                                  scientificName: record.scientificName,
+                                  confidenceText: record.confidence,
+                                  predictionMethod: record.predictionMethod,
+                                ),
+                              )
+                              .toList(),
                         },
                       ),
                       borderRadius: BorderRadius.circular(12),

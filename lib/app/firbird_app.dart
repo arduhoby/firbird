@@ -70,6 +70,9 @@ final GoRouter _router = GoRouter(
         return MediaPlayerScreen(
           initialPath: data['path'] as String?,
           initialName: data['name'] as String?,
+          detections: data['detections'] is List<PlaybackDetection>
+              ? data['detections'] as List<PlaybackDetection>
+              : const <PlaybackDetection>[],
         );
       },
     ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'package:firbird/app/app_drawer.dart';
+import 'package:firbird/app/audio_spectrogram.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
@@ -29,6 +31,13 @@ class LiveDetectionEntry {
   final DateTime firstDetectedAt;
   DateTime lastDetectedAt;
   int detectionCount;
+}
+
+class _DetectionMoment {
+  const _DetectionMoment({required this.prediction, required this.detectedAt});
+
+  final SpeciesPrediction prediction;
+  final DateTime detectedAt;
 }
 
 class LiveAudioRecordingScreen extends ConsumerStatefulWidget {
@@ -56,6 +65,7 @@ class _LiveAudioRecordingScreenState
   StreamSubscription<Amplitude>? _amplitudeSubscription;
   String? _savedFilePath;
   DateTime? _sessionStartTime;
+  Position? _sessionPosition;
 
   // The analyzed microphone segments are retained and merged into one WAV.
   // This avoids opening two simultaneous Android microphone recorders.
@@ -71,10 +81,14 @@ class _LiveAudioRecordingScreenState
   Timer? _playbackTimer;
 
   double _currentDb = -60.0;
-  final List<double> _waveformBars = List<double>.filled(16, 0.1);
+  final List<List<double>> _spectrogramColumns = <List<double>>[];
   final List<LiveDetectionEntry> _detectedSpeciesList = <LiveDetectionEntry>[];
+  final List<_DetectionMoment> _detectionMoments = <_DetectionMoment>[];
   final Set<String> _rejectedSpecies = <String>{};
   final Set<String> _confirmedSpecies = <String>{};
+  final List<Set<String>> _recentCandidateWindows = <Set<String>>[];
+  String? _highlightedSpeciesKey;
+  Timer? _highlightTimer;
 
   /// Loaded from settings — minimum confidence to show in live table (0.0 = all)
   double _liveMinScore = 0.0;
@@ -92,8 +106,24 @@ class _LiveAudioRecordingScreenState
     _amplitudeSubscription?.cancel();
     _audioRecorder.dispose();
     _playbackTimer?.cancel();
+    _highlightTimer?.cancel();
     _stopPlayback();
     super.dispose();
+  }
+
+  void _markDetectionFeedback(SpeciesPrediction prediction, DateTime detectedAt) {
+    final String key = prediction.scientificName.toLowerCase();
+    _detectionMoments.add(
+      _DetectionMoment(prediction: prediction, detectedAt: detectedAt),
+    );
+    if (_detectionMoments.length > 24) _detectionMoments.removeAt(0);
+    _highlightTimer?.cancel();
+    _highlightedSpeciesKey = key;
+    _highlightTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _highlightedSpeciesKey == key) {
+        setState(() => _highlightedSpeciesKey = null);
+      }
+    });
   }
 
   Future<void> _stopPlayback() async {
@@ -177,6 +207,55 @@ class _LiveAudioRecordingScreenState
     await _seekPlayback(target);
   }
 
+  Future<void> _saveRecordingWithName() async {
+    final String? sourcePath = _savedFilePath;
+    if (sourcePath == null || !await File(sourcePath).exists() || !mounted) {
+      return;
+    }
+    final TextEditingController controller = TextEditingController();
+    final String? requestedName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kaydı adlandır'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Kayıt adı',
+            hintText: 'Örn. Vize sabah kuş sesleri',
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final String safeName = (requestedName ?? '')
+        .trim()
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    if (safeName.isEmpty) return;
+    final Directory folder = await getApplicationDocumentsDirectory();
+    final String destination = path.join(
+      folder.path,
+      safeName.toLowerCase().endsWith('.wav') ? safeName : '$safeName.wav',
+    );
+    await File(sourcePath).copy(destination);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kaydedildi: ${path.basename(destination)}')),
+      );
+    }
+  }
+
   String _formatPlaybackTime(int ms) {
     final int totalSeconds = (ms / 1000).floor();
     return '${(totalSeconds ~/ 60).toString().padLeft(2, '0')}:${(totalSeconds % 60).toString().padLeft(2, '0')}';
@@ -239,6 +318,7 @@ class _LiveAudioRecordingScreenState
           }
           if (locPerm == LocationPermission.whileInUse ||
               locPerm == LocationPermission.always) {
+            _sessionPosition = await Geolocator.getCurrentPosition();
             debugPrint('Canlı ses oturumu için konum izni alındı.');
           }
         }
@@ -288,13 +368,10 @@ class _LiveAudioRecordingScreenState
           .onAmplitudeChanged(const Duration(milliseconds: 120))
           .listen((amp) {
             if (mounted) {
-              final double db = amp.current;
-              final double normalized = ((db + 50) / 50).clamp(0.08, 1.0);
-              setState(() {
-                _currentDb = db;
-                _waveformBars.removeAt(0);
-                _waveformBars.add(normalized);
-              });
+          final double db = amp.current;
+          setState(() {
+            _currentDb = db;
+          });
             }
           });
 
@@ -369,8 +446,21 @@ class _LiveAudioRecordingScreenState
         _startNextSegment();
       }
 
+      final List<List<double>> spectrum = await WavSpectrogram.analyze(
+        filePath,
+        maxColumns: 24,
+      );
+      if (mounted && spectrum.isNotEmpty) {
+        setState(() {
+          _spectrogramColumns.addAll(spectrum);
+          if (_spectrogramColumns.length > 180) {
+            _spectrogramColumns.removeRange(0, _spectrogramColumns.length - 180);
+          }
+        });
+      }
+
       // Analyze the completed segment
-      await _analyzeSegment(filePath);
+      await _analyzeSegment(filePath, spectrum: spectrum);
 
       // Segment files are removed after the final session WAV is merged.
     } catch (e) {
@@ -380,7 +470,10 @@ class _LiveAudioRecordingScreenState
     }
   }
 
-  Future<void> _analyzeSegment(String filePath) async {
+  Future<void> _analyzeSegment(
+    String filePath, {
+    List<List<double>> spectrum = const <List<double>>[],
+  }) async {
     if (_audioEngine == null || !_isEngineReady) return;
 
     final File segFile = File(filePath);
@@ -405,16 +498,45 @@ class _LiveAudioRecordingScreenState
 
       final DateTime now = DateTime.now();
       bool listChanged = false;
+      final bool cicadaLike = _isCicadaLike(spectrum);
 
-      for (final SpeciesPrediction pred in result.predictions) {
-        // Apply minimum confidence filter from settings
-        if (pred.score < _liveMinScore) continue;
-        if (pred.score < 0.05) continue; // absolute floor
-        // Skip domestic poultry
-        if (pred.scientificName.toLowerCase().contains('gallus gallus'))
+      final List<SpeciesPrediction> regional = result.predictions
+          .where((pred) =>
+              pred.statusCategory != SpeciesStatusCategory.outOfRegion &&
+              !pred.scientificName.toLowerCase().contains('gallus gallus') &&
+              !(cicadaLike &&
+                  pred.scientificName.toLowerCase() ==
+                      'locustella fluviatilis') &&
+              !_rejectedSpecies.contains(pred.scientificName.toLowerCase()))
+          .toList()
+        ..sort((a, b) => b.score.compareTo(a.score));
+
+      final List<SpeciesPrediction> candidates = regional
+          .take(3)
+          .where((pred) => pred.score >= 0.06)
+          .toList();
+      final Set<String> windowKeys = candidates
+          .map((pred) => pred.scientificName.toLowerCase())
+          .toSet();
+      _recentCandidateWindows.add(windowKeys);
+      if (_recentCandidateWindows.length > 3) {
+        _recentCandidateWindows.removeAt(0);
+      }
+
+      for (final SpeciesPrediction pred in candidates) {
+        final double threshold = pred.statusCategory == SpeciesStatusCategory.rare
+            ? 0.25
+            : 0.10;
+        final double effectiveThreshold = math.max(_liveMinScore, threshold);
+        final String candidateKey = pred.scientificName.toLowerCase();
+        final int hits = _recentCandidateWindows
+            .where((window) => window.contains(candidateKey))
+            .length;
+        debugPrint('Live candidate: ${pred.turkishName} score=${pred.score.toStringAsFixed(3)} hits=$hits');
+        if (pred.score < effectiveThreshold ||
+            (hits < 2 && pred.score < 0.35)) {
           continue;
-        if (pred.statusCategory == SpeciesStatusCategory.outOfRegion) continue;
-        if (_rejectedSpecies.contains(pred.scientificName.toLowerCase())) continue;
+        }
 
         final int existingIdx = _detectedSpeciesList.indexWhere(
           (item) =>
@@ -431,6 +553,7 @@ class _LiveAudioRecordingScreenState
           existing.lastDetectedAt = now;
           existing.detectionCount++;
           _detectedSpeciesList.insert(0, existing);
+          _markDetectionFeedback(pred, now);
           listChanged = true;
         } else {
           // New species — insert at top
@@ -442,6 +565,7 @@ class _LiveAudioRecordingScreenState
               lastDetectedAt: now,
             ),
           );
+          _markDetectionFeedback(pred, now);
           listChanged = true;
         }
       }
@@ -453,7 +577,9 @@ class _LiveAudioRecordingScreenState
       if (mounted) {
         final bool hasSound = _currentDb > -45.0;
         setState(
-          () => _statusText = hasSound ? '🎙️ Ses algılandı' : 'Dinleniyor...',
+          () => _statusText = hasSound
+              ? '🎙️ Ses algılandı'
+              : 'Dinleniyor...',
         );
       }
     }
@@ -502,6 +628,10 @@ class _LiveAudioRecordingScreenState
       final Directory appDocs = await getApplicationDocumentsDirectory();
       final String destPath = path.join(appDocs.path, newFileName);
       await _mergeWavSegments(_sessionSegmentPaths, destPath);
+      final List<List<double>> completedSpectrum = await WavSpectrogram.analyze(
+        destPath,
+        maxColumns: 240,
+      );
 
       // Update last detection times with session end
       final DateTime sessionEnd = DateTime.now();
@@ -547,6 +677,9 @@ class _LiveAudioRecordingScreenState
       setState(() {
         _isSessionEnded = true;
         _savedFilePath = destPath;
+        _spectrogramColumns
+          ..clear()
+          ..addAll(completedSpectrum);
         _statusText = 'Oturum tamamlandı';
       });
     } catch (e) {
@@ -600,6 +733,61 @@ class _LiveAudioRecordingScreenState
     final int mins = seconds ~/ 60;
     final int secs = seconds % 60;
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  String _sessionLocationText() {
+    final Position? position = _sessionPosition;
+    final String date = DateFormat('d MMMM yyyy', 'tr_TR')
+        .format(_sessionStartTime ?? DateTime.now());
+    if (position == null) return '$date • Konum alınamadı';
+    return '$date • ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+  }
+
+  /// Cicadas produce a persistent, high-frequency, narrow-band drone. This is
+  /// deliberately conservative and only gates the known Locustella fluviatilis
+  /// confusion case; real bird calls can still be detected beside insects.
+  bool _isCicadaLike(List<List<double>> spectrum) {
+    if (spectrum.length < 12) return false;
+    final List<List<double>> audible = spectrum
+        .where((column) => column.isNotEmpty && column.reduce(math.max) > 0.18)
+        .toList();
+    if (audible.length < spectrum.length * 0.82) return false;
+
+    final List<int> peakBins = audible
+        .map((column) {
+          int peak = 0;
+          for (int i = 1; i < column.length; i++) {
+            if (column[i] > column[peak]) peak = i;
+          }
+          return peak;
+        })
+        .toList();
+    final List<int> sorted = List<int>.from(peakBins)..sort();
+    final int medianPeak = sorted[sorted.length ~/ 2];
+    final double stableFraction = peakBins
+            .where((bin) => (bin - medianPeak).abs() <= 1)
+            .length /
+        peakBins.length;
+    final double averagePeak = peakBins.reduce((a, b) => a + b) / peakBins.length;
+    return averagePeak >= 25 && stableFraction >= 0.84;
+  }
+
+  List<SpectrogramMarker> _liveMarkers() {
+    final DateTime? start = _sessionStartTime;
+    if (start == null || _secondsRecorded <= 0) return const <SpectrogramMarker>[];
+    final double visibleSpan = _isSessionEnded
+        ? _secondsRecorded.toDouble()
+        : math.min(_secondsRecorded.toDouble(), _spectrogramColumns.length / 8);
+    final double visibleStart = _secondsRecorded - visibleSpan;
+    return _detectionMoments.map((moment) {
+      final String key = moment.prediction.scientificName.toLowerCase();
+      final double second = moment.detectedAt.difference(start).inMilliseconds / 1000;
+      return SpectrogramMarker(
+        position: (second - visibleStart) / math.max(visibleSpan, 1),
+        label: moment.prediction.turkishName,
+        confirmed: _confirmedSpecies.contains(key),
+      );
+    }).where((marker) => marker.position >= 0 && marker.position <= 1).toList();
   }
 
   Future<bool?> _reviewDetection(LiveDetectionEntry entry) async {
@@ -674,109 +862,79 @@ class _LiveAudioRecordingScreenState
             ),
             child: Column(
               children: [
-                Row(
+                Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          width: hasSound ? 64 : 56,
-                          height: hasSound ? 64 : 56,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: hasSound
-                                ? Colors.green.withValues(alpha: 0.3)
-                                : theme.colorScheme.primary.withValues(
-                                    alpha: 0.15,
-                                  ),
-                          ),
-                        ),
-                        Icon(
-                          _isSessionEnded ? Icons.mic_off : Icons.mic,
-                          color: _isEngineReady
-                              ? (hasSound
-                                    ? Colors.green
-                                    : theme.colorScheme.primary)
-                              : theme.colorScheme.error,
-                          size: 28,
-                        ),
-                      ],
+                    AudioSpectrogram(
+                      columns: _spectrogramColumns,
+                      markers: _liveMarkers(),
+                      liveCenter: !_isSessionEnded,
+                      playbackPosition: _isSessionEnded && _playbackDurationMs > 0
+                          ? _playbackPositionMs / _playbackDurationMs
+                          : null,
+                      onSeek: _isSessionEnded && _playbackDurationMs > 0
+                          ? (fraction) => _seekPlayback((_playbackDurationMs * fraction).round())
+                          : null,
+                      height: 128,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                _formatDuration(_secondsRecorded),
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontFeatures: [
-                                    const FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              if (!_isSessionEnded && _isEngineReady)
-                                hasSound
-                                    ? const Icon(
-                                        Icons.graphic_eq,
-                                        color: Colors.green,
-                                        size: 20,
-                                      )
-                                    : const Icon(
-                                        Icons.mic_none,
-                                        color: Colors.grey,
-                                        size: 18,
-                                      ),
-                            ],
+                    if (_isSessionEnded && _savedFilePath != null)
+                      IconButton.filled(
+                        tooltip: _isPlaybackActive && !_isPlaybackPaused
+                            ? 'Duraklat'
+                            : 'Oynat',
+                        onPressed: _togglePause,
+                        iconSize: 38,
+                        icon: Icon(_isPlaybackActive && !_isPlaybackPaused
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded),
+                      ),
+                    if (!_isSessionEnded)
+                      Positioned(
+                        right: 10,
+                        bottom: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _statusText,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: (hasSound || !_isEngineReady)
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: _isEngineReady
-                                  ? (hasSound
-                                        ? Colors.green
-                                        : theme.colorScheme.onSurfaceVariant)
-                                  : theme.colorScheme.error,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  hasSound ? Icons.mic : Icons.mic_none,
+                                  color: hasSound ? Colors.greenAccent : Colors.white70,
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _formatDuration(_secondsRecorded),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: [FontFeature.tabularFigures()],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                // Equalizer bars
-                SizedBox(
-                  height: 36,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(_waveformBars.length, (i) {
-                      final val = _waveformBars[i];
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 100),
-                        width: 6,
-                        height: 36 * val,
-                        decoration: BoxDecoration(
-                          color: val > 0.4
-                              ? Colors.green
-                              : val > 0.2
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.outlineVariant,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      );
-                    }),
+                const SizedBox(height: 8),
+                Text(
+                  _sessionLocationText(),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -895,6 +1053,9 @@ class _LiveAudioRecordingScreenState
 
                               final statusCat = pred.statusCategory;
                               final Color borderColor = statusCat.borderColor;
+                              final bool isFreshDetection =
+                                  _highlightedSpeciesKey ==
+                                  pred.scientificName.toLowerCase();
 
                               return Dismissible(
                                 key: ValueKey<String>(pred.scientificName),
@@ -920,7 +1081,10 @@ class _LiveAudioRecordingScreenState
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: index.isEven
+                                  color: isFreshDetection
+                                      ? theme.colorScheme.primaryContainer
+                                          .withValues(alpha: 0.72)
+                                      : index.isEven
                                       ? theme.colorScheme.surface
                                       : theme
                                             .colorScheme
@@ -938,6 +1102,8 @@ class _LiveAudioRecordingScreenState
                                   ),
                                   child: Row(
                                     children: [
+                                      _LiveThumbnail(url: pred.thumbnailUrl),
+                                      const SizedBox(width: 12),
                                       Expanded(
                                         flex: 4,
                                         child: Column(
@@ -1073,7 +1239,9 @@ class _LiveAudioRecordingScreenState
             child: _isSessionEnded
                 ? Column(
                     children: [
-                      if (_savedFilePath != null) ...[
+                      // Playback lives in the spectrogram above; this old
+                      // secondary player is hidden to prioritize the bird list.
+                      if (false) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -1218,19 +1386,11 @@ class _LiveAudioRecordingScreenState
                           Expanded(
                             flex: 2,
                             child: FilledButton.icon(
-                              onPressed: () {
-                                if (_savedFilePath != null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Kaydedildi: ${path.basename(_savedFilePath!)}',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.check_circle_outline),
-                              label: const Text('Kaydedildi ✓'),
+                              onPressed: _savedFilePath == null
+                                  ? null
+                                  : _saveRecordingWithName,
+                              icon: const Icon(Icons.save_alt_outlined),
+                              label: const Text('Farklı adla kaydet'),
                               style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,
@@ -1286,6 +1446,36 @@ class _LiveAudioRecordingScreenState
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LiveThumbnail extends StatelessWidget {
+  const _LiveThumbnail({this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget fallback = Container(
+      width: 54,
+      height: 54,
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      alignment: Alignment.center,
+      child: const Icon(Icons.flutter_dash_outlined),
+    );
+    if (url == null || url!.isEmpty) {
+      return ClipRRect(borderRadius: BorderRadius.circular(10), child: fallback);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        url!,
+        width: 54,
+        height: 54,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      ),
     );
   }
 }

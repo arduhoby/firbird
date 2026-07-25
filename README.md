@@ -1,15 +1,19 @@
-# FirBird 3 (v0.4.0)
+# FirBird 3 (v0.4.1)
 
 FirBird 3, kuş fotoğraflarını ve ses kayıtlarını **tamamen cihaz üzerinde (çevrimdışı)** tanımlamaya odaklanan açık kaynaklı bir Android uygulamasıdır. Fotoğraf, ses ve konum bilgileri tanımlama için hiçbir sunucuya gönderilmez. Çevrimiçi harita yalnızca kullanıcı o oturum için açmayı seçerse OpenStreetMap görüntülerini yükler.
 
-> Proje aktif geliştirme aşamasındadır (Güncel Sürüm: **v0.4.0**). Sonuçlar bir öneridir; özellikle nadir türlerde saha rehberleri ve güvenilir kaynaklarla doğrulanmalıdır.
+> Proje aktif geliştirme aşamasındadır (Güncel Sürüm: **v0.4.1**). Sonuçlar bir öneridir; özellikle nadir türlerde saha rehberleri ve güvenilir kaynaklarla doğrulanmalıdır.
 
 ---
 
 ## 🚀 Öne Çıkan Özellikler ve Yetenekler
 
 - 📸 **Görsel Kuş Tanımlama**: Galeriden veya kameradan yüklenen fotoğraflarla BioCLIP-2 yapay zeka modeli kullanılarak yüksek doğrulukla tür tahmini.
-- 🎙️ **Canlı Ses Tespit Modu**: Dahili BirdNET ONNX modeliyle her 3 saniyede bir ortam sesini analiz eder; sonuçları mobil uyumlu tespit kartları olarak gösterir.
+- 🎙️ **Canlı Ses Tespit Modu**: Dahili BirdNET ONNX modeliyle her 3 saniyede bir ortam sesini analiz eder; bölge dışı türleri gizler, kartları tekrar tespit edildiğinde vurgular ve kuş görselleriyle gösterir.
+- 📈 **Canlı Spektrogram ve Zaman Çizgisi**: Ses akışı sabit merkez çizgisi üzerinde görünür; her kuş tespiti zaman damgasıyla işaretlenir.
+- ▶️ **Tek Oturum Oynatıcısı**: Kayıt durduğunda aynı spektrogram oynatıcıya dönüşür. Geçmişten açılan kayıt da aynı ekranı, kuş çizgilerini ve tıklanabilir tespit kartlarını kullanır.
+- 🔊 **Kayıt ve Dinleme**: Canlı oturum WAV olarak saklanır; kuş kartına dokunarak ilgili ana atlanır ve kayıt istenen adla ayrıca kaydedilebilir.
+- 🦗 **Yanlış Pozitif Koruması**: Sürekli ağustos böceği sesi, ağaç kamışçını ile karışma durumunda arayüzde gösterilmeden filtrelenir.
 - 🎨 **Tür Durumuna Göre Renkli Çerçeveler**:
   - 🟢 **Yeşil Çerçeve**: Yerel ve Göçmen Kuşlar (Türkiye yerleşik ve düzenli göçmen türleri)
   - 🔴 **Kırmızı Çerçeve**: Nadir Kuşlar (Türkiye'de nadir kaydı bulunan türler)
@@ -19,16 +23,6 @@ FirBird 3, kuş fotoğraflarını ve ses kayıtlarını **tamamen cihaz üzerind
 - ☰ **Merkezi Navigasyon (AppDrawer)**: Ana Sayfa, Canlı Ses Tespiti, Son Tanımlamalar, Bölge Paketleri, Yakınımdaki Kuşlar ve Ayarlar sayfalarına her ekrandan erişim.
 - 🎵 **Dahili Ses Oynatıcı**: Telefondan seçilen bir ses dosyasını FirBird 3 içinde döngüde oynatır; uygulama arka plana geçtiğinde otomatik durur.
 - 💯 **Çevrimdışı Tanımlama**: 503 kuş türü, Türkçe ve bilimsel isimler, görsel ve işitsel yapay zeka modelleri APK paketine dahildir. Tanımlama için internet gerekmez.
-
----
-
-## 📱 Uygulama Ekran Görüntüleri
-
-> Ekran görüntüleri v0.3.x arayüzünü göstermektedir. v0.4.0; yenilenmiş ana ekran, kompakt eylem kartları, sonuç kartları ve canlı ses tespit kartlarını içerir.
-
-|<img src="assets/screenshot/Screenshot_20260723_103359_org.firbird.app.jpg" width="220" alt="Ana Sayfa" />|<img src="assets/screenshot/Screenshot_20260723_103548_org.firbird.app.jpg" width="220" alt="Canlı Ses Tespit Modu" />|<img src="assets/screenshot/Screenshot_20260723_103712_org.firbird.app.jpg" width="220" alt="Tanımlama Sonucu" />|<img src="assets/screenshot/Screenshot_20260723_103835_org.firbird.app.jpg" width="220" alt="Ayarlar ve Tema" />|
-|:---:|:---:|:---:|:---:|
-| **Ana Sayfa** | **Canlı Ses Tespiti** | **Tanımlama Sonucu** | **Ayarlar & Tema** |
 
 ---
 
@@ -63,7 +57,7 @@ Flutter SDK ve Android SDK kurulduktan sonra:
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --release --target-platform android-arm64 --split-per-abi
+flutter build apk --release --target-platform android-arm64
 ```
 
 Bağlı Android cihazda çalıştırmak ve kurmak için:
@@ -72,7 +66,7 @@ Bağlı Android cihazda çalıştırmak ve kurmak için:
 flutter run
 ```
 
-VOG-L29 gibi ARM64 cihazlar için çıktı: `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
+VOG-L29 gibi ARM64 cihazlar için çıktı: `build/app/outputs/flutter-apk/app-release.apk`.
 
 ---
 

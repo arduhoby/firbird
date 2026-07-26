@@ -24,6 +24,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   final String labelsPath;
   List<String> _labels = [];
   Map<String, SpeciesPrediction>? _candidatesByScientificName;
+  final List<SpeciesPrediction> _turkeyCandidates = <SpeciesPrediction>[];
   SpeciesSexAgePolicyStore? _policyStore;
   final SexAgeEstimator _sexAgeEstimator = const PlaceholderSexAgeEstimator();
   
@@ -37,8 +38,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
   @override
   List<SpeciesPrediction> get candidateSpecies =>
-      _candidatesByScientificName?.values.toList(growable: false) ??
-      const <SpeciesPrediction>[];
+      List<SpeciesPrediction>.unmodifiable(_turkeyCandidates);
 
   @override
   Future<void> warmUp() => _warmUpFuture ??= _warmUp();
@@ -87,6 +87,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
       final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
       _candidatesByScientificName = {};
+      _turkeyCandidates.clear();
       for (final item in jsonList) {
         final candidateMap = item as Map<String, dynamic>;
         final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
@@ -105,7 +106,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
         };
 
-        _candidatesByScientificName![sciName] = SpeciesPrediction(
+        final SpeciesPrediction candidate = SpeciesPrediction(
           speciesId: sciName.replaceAll(' ', '-'),
           turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
           scientificName: sciNameOriginal,
@@ -115,12 +116,15 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           ornitoId: ornitoId,
           originLabel: originLabel,
         );
+        _candidatesByScientificName![_candidateKey(sciName)] = candidate;
+        _turkeyCandidates.add(candidate);
       }
       debugPrint(
         'BirdNET candidate map loaded: ${_candidatesByScientificName!.length} species.',
       );
     } catch (e) {
       _candidatesByScientificName = <String, SpeciesPrediction>{};
+      _turkeyCandidates.clear();
       debugPrint('Could not load candidates.json for AudioInferenceEngine: $e');
     }
 
@@ -131,6 +135,23 @@ class AudioInferenceEngine implements BirdInferenceEngine {
     }
     
   }
+
+  SpeciesPrediction? _candidateForScientificName(String scientificName) {
+    final String lookupKey = _candidateKey(scientificName);
+    final SpeciesPrediction? direct =
+        _candidatesByScientificName?[lookupKey];
+    if (direct != null) return direct;
+
+    for (final SpeciesPrediction candidate in _turkeyCandidates) {
+      if (_candidateKey(candidate.scientificName) == lookupKey) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  String _candidateKey(String name) =>
+      name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   
   @override
   Future<InferenceResult> identify(
@@ -255,7 +276,8 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         }
         // ────────────────────────────────────────────────────────────────────
 
-        final SpeciesPrediction? matchedCandidate = _candidatesByScientificName?[rawSciName.toLowerCase()];
+        final SpeciesPrediction? matchedCandidate =
+            _candidateForScientificName(rawSciName);
         if (matchedCandidate != null) {
           // Only include if we have a valid Turkish name (not just scientific/English fallback)
           final String trName = matchedCandidate.turkishName.trim();

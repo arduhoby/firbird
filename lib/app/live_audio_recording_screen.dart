@@ -648,7 +648,11 @@ class _LiveAudioRecordingScreenState
       for (final SpeciesPrediction pred in candidates) {
         final bool isRare = pred.statusCategory == SpeciesStatusCategory.rare;
         final double baseThreshold = isRare ? 0.10 : 0.04;
-        final double instantThreshold = isRare ? 0.30 : 0.18;
+        // A single 3-second window can contain playback artefacts or a brief
+        // background sound. Only show one-window results when the model is
+        // very certain; all other candidates need confirmation in a second
+        // adjacent window.
+        final double instantThreshold = isRare ? 0.80 : 0.70;
         final double effectiveThreshold = math.max(
           _liveMinScore,
           baseThreshold,

@@ -154,13 +154,20 @@ class EbirdContextSource {
     required this.recordCount,
   });
 
-  factory EbirdContextSource.fromJson(Map<String, dynamic> json) =>
-      EbirdContextSource(
-        name: _requiredString(json, 'name'),
-        endpoint: _requiredString(json, 'endpoint'),
-        fetchedAt: DateTime.parse(_requiredString(json, 'fetchedAt')).toUtc(),
-        recordCount: _requiredInt(json, 'recordCount'),
+  factory EbirdContextSource.fromJson(Map<String, dynamic> json) {
+    final dynamic endpointValue = json['endpoint'] ?? json['endpointTemplate'];
+    if (endpointValue is! String || endpointValue.trim().isEmpty) {
+      throw const FormatException(
+        'A source must include endpoint or endpointTemplate.',
       );
+    }
+    return EbirdContextSource(
+      name: _requiredString(json, 'name'),
+      endpoint: endpointValue,
+      fetchedAt: DateTime.parse(_requiredString(json, 'fetchedAt')).toUtc(),
+      recordCount: _requiredInt(json, 'recordCount'),
+    );
+  }
 
   final String name;
   final String endpoint;

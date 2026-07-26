@@ -20,6 +20,7 @@ class WavSpectrogram {
   static Future<List<List<double>>> analyze(
     String filePath, {
     int maxColumns = 180,
+    double? columnsPerSecond,
     int bins = 48,
   }) async {
     final Uint8List bytes = await File(filePath).readAsBytes();
@@ -32,7 +33,16 @@ class WavSpectrogram {
     final ByteData data = ByteData.sublistView(bytes);
     final int sampleCount = (bytes.length - dataOffset) ~/ 2;
     if (sampleCount < 512) return const <List<double>>[];
-    final int hop = math.max(256, sampleCount ~/ maxColumns);
+    final int sampleRate = bytes.length >= 28
+        ? data.getUint32(24, Endian.little)
+        : 48000;
+    final int requestedColumns = columnsPerSecond == null
+        ? maxColumns
+        : math.max(
+            maxColumns,
+            (sampleCount / math.max(sampleRate, 1) * columnsPerSecond).ceil(),
+          );
+    final int hop = math.max(256, sampleCount ~/ requestedColumns);
     final List<List<double>> columns = <List<double>>[];
     for (int start = 0; start + 512 <= sampleCount; start += hop) {
       final List<double> real = List<double>.filled(512, 0);
@@ -115,6 +125,7 @@ class AudioSpectrogram extends StatelessWidget {
     this.onSeek,
     this.height = 150,
     this.liveCenter = false,
+    this.width,
   });
 
   final List<List<double>> columns;
@@ -123,6 +134,7 @@ class AudioSpectrogram extends StatelessWidget {
   final ValueChanged<double>? onSeek;
   final double height;
   final bool liveCenter;
+  final double? width;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -133,7 +145,7 @@ class AudioSpectrogram extends StatelessWidget {
                 onSeek!((details.localPosition.dx / box.size.width).clamp(0, 1));
               },
         child: SizedBox(
-          width: double.infinity,
+          width: width ?? double.infinity,
           height: height,
           child: CustomPaint(
             painter: _SpectrogramPainter(
@@ -144,6 +156,52 @@ class AudioSpectrogram extends StatelessWidget {
             ),
           ),
         ),
+      );
+}
+
+/// Keeps each time slice at a readable width for completed recordings.
+/// Long recordings scroll horizontally instead of squeezing the waveform and
+/// bird markers into one screen width.
+class ScrollableAudioSpectrogram extends StatelessWidget {
+  const ScrollableAudioSpectrogram({
+    super.key,
+    required this.columns,
+    this.markers = const <SpectrogramMarker>[],
+    this.playbackPosition,
+    this.onSeek,
+    this.height = 150,
+    this.pixelsPerColumn = 2.5,
+  });
+
+  final List<List<double>> columns;
+  final List<SpectrogramMarker> markers;
+  final double? playbackPosition;
+  final ValueChanged<double>? onSeek;
+  final double height;
+  final double pixelsPerColumn;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double timelineWidth = math.max(
+            constraints.maxWidth,
+            columns.length * pixelsPerColumn,
+          );
+          return SizedBox(
+            height: height,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: AudioSpectrogram(
+                columns: columns,
+                markers: markers,
+                playbackPosition: playbackPosition,
+                onSeek: onSeek,
+                height: height,
+                width: timelineWidth,
+              ),
+            ),
+          );
+        },
       );
 }
 

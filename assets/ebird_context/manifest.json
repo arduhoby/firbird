@@ -1,0 +1,547 @@
+{
+    "schemaVersion":  1,
+    "packageId":  "turkey-ebird-context",
+    "version":  "2026.07.26",
+    "minimumAppVersion":  "0.5.0",
+    "regionCode":  "TR",
+    "coverageArea":  "Turkey",
+    "coverageRegions":  [
+                            {
+                                "code":  "TR-01",
+                                "name":  "Adana"
+                            },
+                            {
+                                "code":  "TR-02",
+                                "name":  "Adiyaman"
+                            },
+                            {
+                                "code":  "TR-03",
+                                "name":  "Afyonkarahisar"
+                            },
+                            {
+                                "code":  "TR-04",
+                                "name":  "Agri"
+                            },
+                            {
+                                "code":  "TR-05",
+                                "name":  "Amasya"
+                            },
+                            {
+                                "code":  "TR-06",
+                                "name":  "Ankara"
+                            },
+                            {
+                                "code":  "TR-07",
+                                "name":  "Antalya"
+                            },
+                            {
+                                "code":  "TR-08",
+                                "name":  "Artvin"
+                            },
+                            {
+                                "code":  "TR-09",
+                                "name":  "Aydin"
+                            },
+                            {
+                                "code":  "TR-10",
+                                "name":  "Balikesir"
+                            },
+                            {
+                                "code":  "TR-11",
+                                "name":  "Bilecik"
+                            },
+                            {
+                                "code":  "TR-12",
+                                "name":  "Bingol"
+                            },
+                            {
+                                "code":  "TR-13",
+                                "name":  "Bitlis"
+                            },
+                            {
+                                "code":  "TR-14",
+                                "name":  "Bolu"
+                            },
+                            {
+                                "code":  "TR-15",
+                                "name":  "Burdur"
+                            },
+                            {
+                                "code":  "TR-16",
+                                "name":  "Bursa"
+                            },
+                            {
+                                "code":  "TR-17",
+                                "name":  "Canakkale"
+                            },
+                            {
+                                "code":  "TR-18",
+                                "name":  "Cankiri"
+                            },
+                            {
+                                "code":  "TR-19",
+                                "name":  "Corum"
+                            },
+                            {
+                                "code":  "TR-20",
+                                "name":  "Denizli"
+                            },
+                            {
+                                "code":  "TR-21",
+                                "name":  "Diyarbakir"
+                            },
+                            {
+                                "code":  "TR-22",
+                                "name":  "Edirne"
+                            },
+                            {
+                                "code":  "TR-23",
+                                "name":  "Elazig"
+                            },
+                            {
+                                "code":  "TR-24",
+                                "name":  "Erzincan"
+                            },
+                            {
+                                "code":  "TR-25",
+                                "name":  "Erzurum"
+                            },
+                            {
+                                "code":  "TR-26",
+                                "name":  "Eskisehir"
+                            },
+                            {
+                                "code":  "TR-27",
+                                "name":  "Gaziantep"
+                            },
+                            {
+                                "code":  "TR-28",
+                                "name":  "Giresun"
+                            },
+                            {
+                                "code":  "TR-29",
+                                "name":  "Gumushane"
+                            },
+                            {
+                                "code":  "TR-30",
+                                "name":  "Hakkari"
+                            },
+                            {
+                                "code":  "TR-31",
+                                "name":  "Hatay"
+                            },
+                            {
+                                "code":  "TR-32",
+                                "name":  "Isparta"
+                            },
+                            {
+                                "code":  "TR-33",
+                                "name":  "Mersin"
+                            },
+                            {
+                                "code":  "TR-34",
+                                "name":  "Istanbul"
+                            },
+                            {
+                                "code":  "TR-35",
+                                "name":  "Izmir"
+                            },
+                            {
+                                "code":  "TR-36",
+                                "name":  "Kars"
+                            },
+                            {
+                                "code":  "TR-37",
+                                "name":  "Kastamonu"
+                            },
+                            {
+                                "code":  "TR-38",
+                                "name":  "Kayseri"
+                            },
+                            {
+                                "code":  "TR-39",
+                                "name":  "Kirklareli"
+                            },
+                            {
+                                "code":  "TR-40",
+                                "name":  "Kirsehir"
+                            },
+                            {
+                                "code":  "TR-41",
+                                "name":  "Kocaeli"
+                            },
+                            {
+                                "code":  "TR-42",
+                                "name":  "Konya"
+                            },
+                            {
+                                "code":  "TR-43",
+                                "name":  "Kutahya"
+                            },
+                            {
+                                "code":  "TR-44",
+                                "name":  "Malatya"
+                            },
+                            {
+                                "code":  "TR-45",
+                                "name":  "Manisa"
+                            },
+                            {
+                                "code":  "TR-46",
+                                "name":  "Kahramanmaras"
+                            },
+                            {
+                                "code":  "TR-47",
+                                "name":  "Mardin"
+                            },
+                            {
+                                "code":  "TR-48",
+                                "name":  "Mugla"
+                            },
+                            {
+                                "code":  "TR-49",
+                                "name":  "Mus"
+                            },
+                            {
+                                "code":  "TR-50",
+                                "name":  "Nevsehir"
+                            },
+                            {
+                                "code":  "TR-51",
+                                "name":  "Nigde"
+                            },
+                            {
+                                "code":  "TR-52",
+                                "name":  "Ordu"
+                            },
+                            {
+                                "code":  "TR-53",
+                                "name":  "Rize"
+                            },
+                            {
+                                "code":  "TR-54",
+                                "name":  "Sakarya"
+                            },
+                            {
+                                "code":  "TR-55",
+                                "name":  "Samsun"
+                            },
+                            {
+                                "code":  "TR-56",
+                                "name":  "Siirt"
+                            },
+                            {
+                                "code":  "TR-57",
+                                "name":  "Sinop"
+                            },
+                            {
+                                "code":  "TR-58",
+                                "name":  "Sivas"
+                            },
+                            {
+                                "code":  "TR-59",
+                                "name":  "Tekirdag"
+                            },
+                            {
+                                "code":  "TR-60",
+                                "name":  "Tokat"
+                            },
+                            {
+                                "code":  "TR-61",
+                                "name":  "Trabzon"
+                            },
+                            {
+                                "code":  "TR-62",
+                                "name":  "Tunceli"
+                            },
+                            {
+                                "code":  "TR-63",
+                                "name":  "Sanliurfa"
+                            },
+                            {
+                                "code":  "TR-64",
+                                "name":  "Usak"
+                            },
+                            {
+                                "code":  "TR-65",
+                                "name":  "Van"
+                            },
+                            {
+                                "code":  "TR-66",
+                                "name":  "Yozgat"
+                            },
+                            {
+                                "code":  "TR-67",
+                                "name":  "Zonguldak"
+                            },
+                            {
+                                "code":  "TR-68",
+                                "name":  "Aksaray"
+                            },
+                            {
+                                "code":  "TR-69",
+                                "name":  "Bayburt"
+                            },
+                            {
+                                "code":  "TR-70",
+                                "name":  "Karaman"
+                            },
+                            {
+                                "code":  "TR-71",
+                                "name":  "Kirikkale"
+                            },
+                            {
+                                "code":  "TR-72",
+                                "name":  "Batman"
+                            },
+                            {
+                                "code":  "TR-73",
+                                "name":  "Sirnak"
+                            },
+                            {
+                                "code":  "TR-74",
+                                "name":  "Bartin"
+                            },
+                            {
+                                "code":  "TR-75",
+                                "name":  "Ardahan"
+                            },
+                            {
+                                "code":  "TR-76",
+                                "name":  "Igdir"
+                            },
+                            {
+                                "code":  "TR-77",
+                                "name":  "Yalova"
+                            },
+                            {
+                                "code":  "TR-78",
+                                "name":  "Karabuk"
+                            },
+                            {
+                                "code":  "TR-79",
+                                "name":  "Kilis"
+                            },
+                            {
+                                "code":  "TR-80",
+                                "name":  "Osmaniye"
+                            },
+                            {
+                                "code":  "TR-81",
+                                "name":  "Duzce"
+                            }
+                        ],
+    "generatedAt":  "2026-07-26T13:54:25.6243339Z",
+    "lookbackDays":  30,
+    "counts":  {
+                   "coverageRegions":  81,
+                   "hotspots":  4857,
+                   "recentObservations":  4397
+               },
+    "sources":  [
+                    {
+                        "name":  "eBird Hotspot API",
+                        "endpointTemplate":  "https://api.ebird.org/v2/ref/hotspot/{regionCode}?fmt=json",
+                        "strategy":  "subnational1 fan-out",
+                        "requestCount":  81,
+                        "regions":  [
+                                        "TR-01",
+                                        "TR-02",
+                                        "TR-03",
+                                        "TR-04",
+                                        "TR-05",
+                                        "TR-06",
+                                        "TR-07",
+                                        "TR-08",
+                                        "TR-09",
+                                        "TR-10",
+                                        "TR-11",
+                                        "TR-12",
+                                        "TR-13",
+                                        "TR-14",
+                                        "TR-15",
+                                        "TR-16",
+                                        "TR-17",
+                                        "TR-18",
+                                        "TR-19",
+                                        "TR-20",
+                                        "TR-21",
+                                        "TR-22",
+                                        "TR-23",
+                                        "TR-24",
+                                        "TR-25",
+                                        "TR-26",
+                                        "TR-27",
+                                        "TR-28",
+                                        "TR-29",
+                                        "TR-30",
+                                        "TR-31",
+                                        "TR-32",
+                                        "TR-33",
+                                        "TR-34",
+                                        "TR-35",
+                                        "TR-36",
+                                        "TR-37",
+                                        "TR-38",
+                                        "TR-39",
+                                        "TR-40",
+                                        "TR-41",
+                                        "TR-42",
+                                        "TR-43",
+                                        "TR-44",
+                                        "TR-45",
+                                        "TR-46",
+                                        "TR-47",
+                                        "TR-48",
+                                        "TR-49",
+                                        "TR-50",
+                                        "TR-51",
+                                        "TR-52",
+                                        "TR-53",
+                                        "TR-54",
+                                        "TR-55",
+                                        "TR-56",
+                                        "TR-57",
+                                        "TR-58",
+                                        "TR-59",
+                                        "TR-60",
+                                        "TR-61",
+                                        "TR-62",
+                                        "TR-63",
+                                        "TR-64",
+                                        "TR-65",
+                                        "TR-66",
+                                        "TR-67",
+                                        "TR-68",
+                                        "TR-69",
+                                        "TR-70",
+                                        "TR-71",
+                                        "TR-72",
+                                        "TR-73",
+                                        "TR-74",
+                                        "TR-75",
+                                        "TR-76",
+                                        "TR-77",
+                                        "TR-78",
+                                        "TR-79",
+                                        "TR-80",
+                                        "TR-81"
+                                    ],
+                        "fetchedAt":  "2026-07-26T13:54:25.6243339Z",
+                        "recordCount":  4857
+                    },
+                    {
+                        "name":  "eBird Recent Observations API",
+                        "endpointTemplate":  "https://api.ebird.org/v2/data/obs/{regionCode}/recent?back=30\u0026hotspot=true\u0026includeProvisional=false\u0026maxResults=10000",
+                        "strategy":  "subnational1 fan-out",
+                        "requestCount":  81,
+                        "regions":  [
+                                        "TR-01",
+                                        "TR-02",
+                                        "TR-03",
+                                        "TR-04",
+                                        "TR-05",
+                                        "TR-06",
+                                        "TR-07",
+                                        "TR-08",
+                                        "TR-09",
+                                        "TR-10",
+                                        "TR-11",
+                                        "TR-12",
+                                        "TR-13",
+                                        "TR-14",
+                                        "TR-15",
+                                        "TR-16",
+                                        "TR-17",
+                                        "TR-18",
+                                        "TR-19",
+                                        "TR-20",
+                                        "TR-21",
+                                        "TR-22",
+                                        "TR-23",
+                                        "TR-24",
+                                        "TR-25",
+                                        "TR-26",
+                                        "TR-27",
+                                        "TR-28",
+                                        "TR-29",
+                                        "TR-30",
+                                        "TR-31",
+                                        "TR-32",
+                                        "TR-33",
+                                        "TR-34",
+                                        "TR-35",
+                                        "TR-36",
+                                        "TR-37",
+                                        "TR-38",
+                                        "TR-39",
+                                        "TR-40",
+                                        "TR-41",
+                                        "TR-42",
+                                        "TR-43",
+                                        "TR-44",
+                                        "TR-45",
+                                        "TR-46",
+                                        "TR-47",
+                                        "TR-48",
+                                        "TR-49",
+                                        "TR-50",
+                                        "TR-51",
+                                        "TR-52",
+                                        "TR-53",
+                                        "TR-54",
+                                        "TR-55",
+                                        "TR-56",
+                                        "TR-57",
+                                        "TR-58",
+                                        "TR-59",
+                                        "TR-60",
+                                        "TR-61",
+                                        "TR-62",
+                                        "TR-63",
+                                        "TR-64",
+                                        "TR-65",
+                                        "TR-66",
+                                        "TR-67",
+                                        "TR-68",
+                                        "TR-69",
+                                        "TR-70",
+                                        "TR-71",
+                                        "TR-72",
+                                        "TR-73",
+                                        "TR-74",
+                                        "TR-75",
+                                        "TR-76",
+                                        "TR-77",
+                                        "TR-78",
+                                        "TR-79",
+                                        "TR-80",
+                                        "TR-81"
+                                    ],
+                        "fetchedAt":  "2026-07-26T13:54:25.6243339Z",
+                        "recordCount":  4397,
+                        "parameters":  {
+                                           "back":  30,
+                                           "hotspot":  true,
+                                           "includeProvisional":  false,
+                                           "maxResultsPerRegion":  10000
+                                       }
+                    }
+                ],
+    "files":  {
+                  "hotspots":  {
+                                   "name":  "hotspots.json",
+                                   "sha256":  "19852c8aee8d775a1a079b94d43e36781aef2fb34d698799925e8f71730d089a"
+                               },
+                  "recentObservations":  {
+                                             "name":  "recent_observations.json",
+                                             "sha256":  "4bf9bc1a030fc50d2f3aec8e16fd69b3e044b4a2169f1a560250d9cdc15031f9"
+                                         }
+              },
+    "notices":  [
+                    "Coverage area: Turkey.",
+                    "Contains limited, recent and summary outputs from the eBird API.",
+                    "Absence of a recent record does not mean that a species is absent.",
+                    "The API token is not included in this package."
+                ]
+}

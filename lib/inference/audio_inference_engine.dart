@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
 import 'bird_inference_engine.dart';
+import 'model_coverage.dart';
 import 'onnx_bird_inference_engine.dart';
 import 'sex_age_estimator.dart';
 import 'species_sex_age_policy.dart';
@@ -37,7 +38,9 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   static const int chunkSize = sampleRate * chunkDurationSeconds; // 144,000 samples
 
   @override
-  List<SpeciesPrediction> get candidateSpecies => []; // Populate later if needed
+  List<SpeciesPrediction> get candidateSpecies =>
+      _candidatesByScientificName?.values.toList(growable: false) ??
+      const <SpeciesPrediction>[];
 
   @override
   Future<void> warmUp() async {
@@ -217,15 +220,13 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         
         final String label = index < _labels.length ? _labels[index] : 'Unknown-$index';
         
-        // BirdNET labels format: "Scientific_Name_Common_Name" or "Scientific Name_Common Name"
+        // BirdNET labels format: "Scientific_Name_Common_Name".
         final int underscoreIdx = label.indexOf('_');
-        String rawSciName = label;
+        final String rawSciName = birdNetScientificName(label);
         String rawEngName = label;
         if (underscoreIdx != -1) {
-          rawSciName = label.substring(0, underscoreIdx).trim().replaceAll('_', ' ');
           rawEngName = label.substring(underscoreIdx + 1).trim().replaceAll('_', ' ');
         } else {
-          rawSciName = label.replaceAll('_', ' ');
           rawEngName = rawSciName;
         }
 
@@ -261,24 +262,10 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           } else {
             predictions.add(matchedCandidate.copyWith(score: score));
           }
-        } else {
-          // Not in candidates.json at all — likely a non-Turkey or non-bird species
-          // Only include if it looks like a real bird (two-part scientific name)
-          final bool looksLikeBird = rawSciName.contains(' ') &&
-              !nonBirdKeywords.any((kw) => sciLower.contains(kw));
-          if (!looksLikeBird) continue;
-
-          predictions.add(
-            SpeciesPrediction(
-              speciesId: rawSciName.toLowerCase().replaceAll(' ', '-'),
-              turkishName: rawSciName, // show scientific name — no Turkish available
-              scientificName: rawSciName,
-              englishName: rawEngName,
-              score: score,
-              originLabel: 'Dünya Türü',
-            ),
-          );
         }
+        // Labels outside the installed Türkiye candidate package must not be
+        // emitted as detections. This prevents global BirdNET labels from
+        // appearing as impossible local birds.
       }
       
       SexAgePrediction? sexAge;

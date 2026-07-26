@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/firbird_app.dart';
@@ -759,6 +757,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _cropMode = 'auto';
   double _candidateThreshold = 0.05;
   double _liveMinScore = 0.0;
+  int _observationRadiusKm = 20;
 
   @override
   void initState() {
@@ -772,12 +771,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final String cropMode = await database.cropMode();
     final double threshold = await database.candidateThreshold();
     final double liveMin = await database.liveDetectionMinScore();
+    final int observationRadius = await database.observationContextRadiusKm();
     if (mounted) {
       setState(() {
         _historyEnabled = history;
         _cropMode = cropMode;
         _candidateThreshold = threshold;
         _liveMinScore = liveMin;
+        _observationRadiusKm = observationRadius;
       });
     }
   }
@@ -875,6 +876,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChanged: (double value) => setState(() => _liveMinScore = value),
             onChangeEnd: (double value) =>
                 ref.read(appDatabaseProvider).setLiveDetectionMinScore(value),
+          ),
+          const Divider(height: 32),
+          const ListTile(
+            leading: Icon(Icons.radar_outlined),
+            title: Text('Gözlem bağlamı'),
+            subtitle: Text(
+              'Canlı tespitleri çevrimdışı eBird paketiyle bulunduğun konuma göre destekler.',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<int>(
+              segments: const <ButtonSegment<int>>[
+                ButtonSegment<int>(value: 20, label: Text('20 km')),
+                ButtonSegment<int>(value: 50, label: Text('50 km')),
+              ],
+              selected: <int>{_observationRadiusKm},
+              onSelectionChanged: (Set<int> selection) async {
+                final int radius = selection.first;
+                await ref
+                    .read(appDatabaseProvider)
+                    .setObservationContextRadiusKm(radius);
+                if (mounted) {
+                  setState(() => _observationRadiusKm = radius);
+                }
+              },
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text(
+              'Hotspot, mesafe ve güncel gözlem desteği cihazda hesaplanır. Harita zemini bu pakete dahil değildir.',
+            ),
           ),
           ListTile(
             title: Text(l10n.activePackage),

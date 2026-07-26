@@ -3,6 +3,11 @@ package org.firbird3.app
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -10,6 +15,7 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.metadata.MetadataExtractor
 import java.io.FileInputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -78,6 +84,36 @@ class MainActivity : FlutterActivity() {
                 result.error("media_failed", exception.message, null)
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.firbird3.app/screen").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setKeepScreenOn" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    if (enabled) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.firbird3.app/downloads").setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "publishWav" -> {
+                        val sourcePath = call.argument<String>("sourcePath")
+                            ?: throw IllegalArgumentException("Missing source path")
+                        val displayName = call.argument<String>("displayName")
+                            ?: throw IllegalArgumentException("Missing display name")
+                        result.success(publishWavToDownloads(sourcePath, displayName))
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (exception: Exception) {
+                result.error("download_failed", exception.message, null)
+            }
+        }
     }
 
     private fun ensureModel() {
@@ -134,6 +170,43 @@ class MainActivity : FlutterActivity() {
         mediaPlayer = null
     }
 
+    private fun publishWavToDownloads(sourcePath: String, displayName: String): String {
+        require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            "Public Downloads export requires Android 10 or newer."
+        }
+        val source = File(sourcePath)
+        require(source.exists()) { "Recording file does not exist." }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "audio/wav")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                "${Environment.DIRECTORY_DOWNLOADS}/FirBird",
+            )
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Could not create the Downloads file.")
+        try {
+            resolver.openOutputStream(uri)?.use { output ->
+                source.inputStream().use { input -> input.copyTo(output) }
+            } ?: throw IllegalStateException("Could not open the Downloads file.")
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        } catch (exception: Exception) {
+            resolver.delete(uri, null, null)
+            throw exception
+        }
+        return uri.toString()
+    }
+
     override fun onPause() { stopMedia(); super.onPause() }
-    override fun onDestroy() { stopMedia(); interpreter?.close(); super.onDestroy() }
+    override fun onDestroy() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        stopMedia()
+        interpreter?.close()
+        super.onDestroy()
+    }
 }

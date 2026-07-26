@@ -54,12 +54,15 @@ class AppDrawer extends StatelessWidget {
                             letterSpacing: 0.5,
                           ),
                         ),
-                        Text(
-                          AppConfig.fullVersion,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        FutureBuilder<String>(
+                          future: AppConfig.fullVersion,
+                          builder: (BuildContext context, AsyncSnapshot<String> snapshot) => Text(
+                            snapshot.data ?? 'v…',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],

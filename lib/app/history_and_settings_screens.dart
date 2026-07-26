@@ -950,9 +950,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const ListTile(
-            title: Text('Uygulama sürümü'),
-            subtitle: Text(AppConfig.appVersion),
+          FutureBuilder<String>(
+            future: AppConfig.appVersion,
+            builder: (BuildContext context, AsyncSnapshot<String> snapshot) =>
+                ListTile(
+                  title: const Text('Uygulama sürümü'),
+                  subtitle: Text(snapshot.data ?? '…'),
+                ),
           ),
           ListTile(
             title: Text(l10n.privacy),

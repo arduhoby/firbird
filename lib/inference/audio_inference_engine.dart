@@ -5,12 +5,10 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_decoder/audio_decoder.dart';
-import 'package:path/path.dart' as path;
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
 import 'bird_inference_engine.dart';
 import 'model_coverage.dart';
-import 'onnx_bird_inference_engine.dart';
 import 'sex_age_estimator.dart';
 import 'species_sex_age_policy.dart';
 
@@ -31,7 +29,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   
   final OnnxRuntime _runtime = OnnxRuntime();
   OrtSession? _session;
-  bool _isWarmedUp = false;
+  Future<void>? _warmUpFuture;
   
   static const int sampleRate = 48000;
   static const int chunkDurationSeconds = 3;
@@ -43,8 +41,9 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       const <SpeciesPrediction>[];
 
   @override
-  Future<void> warmUp() async {
-    if (_isWarmedUp) return;
+  Future<void> warmUp() => _warmUpFuture ??= _warmUp();
+
+  Future<void> _warmUp() async {
     
     final File modelFile = File(modelPath);
     if (!await modelFile.exists()) {
@@ -82,44 +81,46 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
     // Load regional candidates mapping for Turkish names, origin labels, thumbnail URLs
     try {
-      final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
-      final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
-      if (await candidatesFile.exists()) {
-        final String content = (await candidatesFile.readAsString()).replaceAll('\uFEFF', '');
-        final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
-        final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
-        _candidatesByScientificName = {};
-        for (final item in jsonList) {
-          final candidateMap = item as Map<String, dynamic>;
-          final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
-          final String turkishName = candidateMap['turkishName'] as String? ?? '';
-          final String englishName = candidateMap['englishName'] as String? ?? '';
-          final String occurrence = candidateMap['occurrence'] as String? ?? '';
-          final String? imageUrl = candidateMap['imageUrl'] as String?;
-          final String? ornitoId = candidateMap['ornitoId'] as String?;
-          final String sciNameOriginal = candidateMap['scientificName'] as String;
+      final String content = (await rootBundle
+              .loadString('tools/model_staging/turkey_0.1.0/candidates.json'))
+          .replaceAll('\uFEFF', '');
+      final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
+      final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
+      _candidatesByScientificName = {};
+      for (final item in jsonList) {
+        final candidateMap = item as Map<String, dynamic>;
+        final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
+        final String turkishName = candidateMap['turkishName'] as String? ?? '';
+        final String englishName = candidateMap['englishName'] as String? ?? '';
+        final String occurrence = candidateMap['occurrence'] as String? ?? '';
+        final String? imageUrl = candidateMap['imageUrl'] as String?;
+        final String? ornitoId = candidateMap['ornitoId'] as String?;
+        final String sciNameOriginal = candidateMap['scientificName'] as String;
 
-          final String originLabel = switch (occurrence) {
-            'accidental' => 'Türkiye · nadir kayıt',
-            'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
-            'resident' => 'Türkiye · yerleşik',
-            'balkans' => 'Balkanlar kapsamı',
-            _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
-          };
+        final String originLabel = switch (occurrence) {
+          'accidental' => 'Türkiye · nadir kayıt',
+          'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
+          'resident' => 'Türkiye · yerleşik',
+          'balkans' => 'Balkanlar kapsamı',
+          _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
+        };
 
-          _candidatesByScientificName![sciName] = SpeciesPrediction(
-            speciesId: sciName.replaceAll(' ', '-'),
-            turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
-            scientificName: sciNameOriginal,
-            englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
-            score: 0.0,
-            thumbnailUrl: imageUrl,
-            ornitoId: ornitoId,
-            originLabel: originLabel,
-          );
-        }
+        _candidatesByScientificName![sciName] = SpeciesPrediction(
+          speciesId: sciName.replaceAll(' ', '-'),
+          turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
+          scientificName: sciNameOriginal,
+          englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
+          score: 0.0,
+          thumbnailUrl: imageUrl,
+          ornitoId: ornitoId,
+          originLabel: originLabel,
+        );
       }
+      debugPrint(
+        'BirdNET candidate map loaded: ${_candidatesByScientificName!.length} species.',
+      );
     } catch (e) {
+      _candidatesByScientificName = <String, SpeciesPrediction>{};
       debugPrint('Could not load candidates.json for AudioInferenceEngine: $e');
     }
 
@@ -129,7 +130,6 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       debugPrint('Could not load policy store for AudioInferenceEngine: $e');
     }
     
-    _isWarmedUp = true;
   }
   
   @override

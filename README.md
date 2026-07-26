@@ -1,81 +1,77 @@
-# FirBird 3 (v0.4.0)
+# FirBird 3
 
-FirBird 3, kuş fotoğraflarını ve ses kayıtlarını **tamamen cihaz üzerinde (çevrimdışı)** tanımlamaya odaklanan açık kaynaklı bir Android uygulamasıdır. Fotoğraf, ses ve konum bilgileri tanımlama için hiçbir sunucuya gönderilmez. Çevrimiçi harita yalnızca kullanıcı o oturum için açmayı seçerse OpenStreetMap görüntülerini yükler.
+FirBird 3, kuş fotoğraflarını ve ortam seslerini cihaz üzerinde analiz eden,
+offline-first bir Android kuş gözlem uygulamasıdır. Fotoğraf, ses kaydı ve GPS
+konumu tanımlama amacıyla sunucuya gönderilmez.
 
-> Proje aktif geliştirme aşamasındadır (Güncel Sürüm: **v0.4.0**). Sonuçlar bir öneridir; özellikle nadir türlerde saha rehberleri ve güvenilir kaynaklarla doğrulanmalıdır.
+> Güncel sürüm: **v0.5.0 (build 50)**. Tanımlar birer öneridir; özellikle nadir
+> türler sahada güvenilir kaynaklarla doğrulanmalıdır.
 
----
+## Öne çıkan özellikler
 
-## 🚀 Öne Çıkan Özellikler ve Yetenekler
+- **Görsel kuş tanımlama:** Kamera veya galeriden seçilen fotoğraflarda cihaz
+  içindeki modelle tür adayları üretir.
+- **Canlı ses dinleme:** BirdNET tabanlı analizle ortam sesini işler; tespitler
+  canlı spektrogram üzerinde zaman damgası ile görünür.
+- **Kayıt ve tek oynatıcı:** Canlı oturum WAV olarak kaydedilir. Kayıt bitince
+  aynı ekran spektrogram, süre çubuğu, oynat/durdur düğmesi ve tespit çizgileri
+  ile oynatıcıya dönüşür. Tespit kartından ilgili ana atlanabilir.
+- **Tespit geri bildirimi:** Canlı tespitler doğru veya yanlış olarak
+  işaretlenebilir; yanlış işaretlenen tür listeden kaldırılır.
+- **Yanlış pozitif filtresi:** Sürekli ağustos böceği gibi kuş dışı seslerin
+  kuş olarak gösterilmesini azaltmak için filtreleme uygulanır.
+- **Bölgesel durum:** Yerleşik, düzenli/göçmen, nadir ve bölge dışı türler
+  ayrı biçimde gösterilir.
 
-- 📸 **Görsel Kuş Tanımlama**: Galeriden veya kameradan yüklenen fotoğraflarla BioCLIP-2 yapay zeka modeli kullanılarak yüksek doğrulukla tür tahmini.
-- 🎙️ **Canlı Ses Tespit Modu**: Dahili BirdNET ONNX modeliyle her 3 saniyede bir ortam sesini analiz eder; sonuçları mobil uyumlu tespit kartları olarak gösterir.
-- 🎨 **Tür Durumuna Göre Renkli Çerçeveler**:
-  - 🟢 **Yeşil Çerçeve**: Yerel ve Göçmen Kuşlar (Türkiye yerleşik ve düzenli göçmen türleri)
-  - 🔴 **Kırmızı Çerçeve**: Nadir Kuşlar (Türkiye'de nadir kaydı bulunan türler)
-  - ⚪ **Gri Çerçeve**: Bölge Dışı / Olması Zor Kuşlar (Dünya türleri veya liste dışı kayıtlar)
-- 📍 **Konum Bağlamı ve İzni**: GPS çevrimdışı kullanılabilir; çevrimiçi harita yalnızca kullanıcı o oturum için izin verirse açılır.
-- 📜 **Akıllı Tanımlama Geçmişi**: Canlı ses oturumlarını tek bir özet kart olarak gruplama, modal detay tablosu ve WAV ses kaydına erişim.
-- ☰ **Merkezi Navigasyon (AppDrawer)**: Ana Sayfa, Canlı Ses Tespiti, Son Tanımlamalar, Bölge Paketleri, Yakınımdaki Kuşlar ve Ayarlar sayfalarına her ekrandan erişim.
-- 🎵 **Dahili Ses Oynatıcı**: Telefondan seçilen bir ses dosyasını FirBird 3 içinde döngüde oynatır; uygulama arka plana geçtiğinde otomatik durur.
-- 💯 **Çevrimdışı Tanımlama**: 503 kuş türü, Türkçe ve bilimsel isimler, görsel ve işitsel yapay zeka modelleri APK paketine dahildir. Tanımlama için internet gerekmez.
+## v0.5.0: offline eBird gözlem bağlamı
 
----
+Uygulama, canlı dinlemede çıkan bir türün bulunduğunuz konumda yakın zamanda
+raporlanıp raporlanmadığını çevrimdışı olarak gösterir.
 
-## 📱 Uygulama Ekran Görüntüleri
+- Türkiye'nin **81 ili** için hazırlanmış **4.857 eBird hotspot** ve **4.397
+  son gözlem** özeti APK ile birlikte gelir.
+- GPS konumu kullanılarak ayarlardan seçilen **20 km** veya **50 km** yarıçapta
+  yakın hotspotlar ve ilgili türün son kayıtları değerlendirilir.
+- Tespit kartına dokunulduğunda model skoru, bölgesel destek seviyesi, gözlem
+  tarihi, konum adı ve veri kaynağı gösterilir.
+- Bu bilgi modeli destekler; **yakın kaydın olmaması, türün bölgede olmadığı
+  anlamına gelmez.**
+- eBird API anahtarı uygulamada yer almaz ve canlı dinleme sırasında eBird'e
+  ağ isteği yapılmaz.
 
-> Ekran görüntüleri v0.3.x arayüzünü göstermektedir. v0.4.0; yenilenmiş ana ekran, kompakt eylem kartları, sonuç kartları ve canlı ses tespit kartlarını içerir.
+Paket verisini yenilemek için geliştirici ortamında:
 
-|<img src="assets/screenshot/Screenshot_20260723_103359_org.firbird.app.jpg" width="220" alt="Ana Sayfa" />|<img src="assets/screenshot/Screenshot_20260723_103548_org.firbird.app.jpg" width="220" alt="Canlı Ses Tespit Modu" />|<img src="assets/screenshot/Screenshot_20260723_103712_org.firbird.app.jpg" width="220" alt="Tanımlama Sonucu" />|<img src="assets/screenshot/Screenshot_20260723_103835_org.firbird.app.jpg" width="220" alt="Ayarlar ve Tema" />|
-|:---:|:---:|:---:|:---:|
-| **Ana Sayfa** | **Canlı Ses Tespiti** | **Tanımlama Sonucu** | **Ayarlar & Tema** |
+```powershell
+.\tools\download_ebird_context_package.ps1
+```
 
----
+Bu araç veriyi il bazında indirir, kaynak zamanını ve SHA-256 bütünlük
+hash'lerini `assets/ebird_context/manifest.json` dosyasına kaydeder.
 
-## 📊 Kapsam ve Kuş Sayıları
+## Gizlilik ve ağ kullanımı
 
-- **Toplam Desteklenen Kuş Türü**: **503 Tür** (Türkiye kuş faunası)
-  - **Düzenli ve Göçmen Türler**: **421 Tür**
-  - **Nadir Kayıtlar (Accidental)**: **82 Tür**
-- **Ses Tanıma Destekli Türler**: BirdNET ONNX kütüphanesi kapsamında 6000+ dünya kuş sesi arasından Türkiye ve dünya kuşlarını anlık ayırt edebilme.
+- Tanımlama, ses analizi, kayıtlar ve bölgesel eBird bağlamı cihazda çalışır.
+- eBird bağlam paketi indirildikten sonra kullanım için internet gerekmez.
+- Harita zemini yalnızca kullanıcı o oturum için çevrimiçi haritayı açarsa
+  OpenStreetMap'ten yüklenir.
+- Kayıtlar ve kullanıcı tarafından verilen adlar cihazın yerel depolamasında
+  saklanır.
 
-Her tanımlama sonucunda türün bölgesel kökeni açıkça gösterilir:
-- `Türkiye · yerleşik`
-- `Türkiye · düzenli / göçmen`
-- `Türkiye · nadir kayıt`
-- `Dünya Türü`
-
----
-
-## 🛡️ Gizlilik
-
-FirBird, tanımlama için fotoğrafları, ses kayıtlarını, EXIF verilerini veya konumu hiçbir sunucuya yüklemez. Geçmiş kayıtlar ve ses dosyaları yalnızca cihazınızın yerel hafızasında saklanır.
-
-OpenStreetMap harita görüntüleri, yalnızca kullanıcı "Bu oturumda haritayı aç" seçeneğini onayladığında yüklenir. Harita kullanımı fotoğraf, ses veya tanımlama sonucunu üçüncü taraflara göndermez.
-
----
-
-## 🛠️ Geliştirme ve Derleme
-
-Flutter SDK ve Android SDK kurulduktan sonra:
+## Geliştirme ve derleme
 
 ```powershell
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --release --target-platform android-arm64 --split-per-abi
+flutter build apk --release --target-platform android-arm64
 ```
 
-Bağlı Android cihazda çalıştırmak ve kurmak için:
+ARM64 Android cihazlar için APK çıktısı:
 
-```powershell
-flutter run
+```text
+build/app/outputs/flutter-apk/app-release.apk
 ```
 
-VOG-L29 gibi ARM64 cihazlar için çıktı: `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
+## Lisans
 
----
-
-## 📜 Lisans
-
-FirBird kaynak kodu [Apache License 2.0](LICENSE) ile lisanslanmıştır. Ticari kullanım, değiştirme, yeniden dağıtım ve satış lisans koşullarına tabi olarak serbesttir.
+FirBird kaynak kodu [Apache License 2.0](LICENSE) ile lisanslanmıştır.

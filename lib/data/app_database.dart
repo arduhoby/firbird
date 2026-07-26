@@ -131,9 +131,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> deleteLiveSession(String sessionId) {
-    return (delete(
-      identificationRecords,
-    )..where((IdentificationRecords table) => table.packageId.equals(sessionId))).go();
+    return (delete(identificationRecords)..where(
+          (IdentificationRecords table) => table.packageId.equals(sessionId),
+        ))
+        .go();
   }
 
   /// Kullanıcı tahmini onayladıktan veya düzelttikten sonra ilgili alanları günceller.
@@ -149,17 +150,17 @@ class AppDatabase extends _$AppDatabase {
     required bool approved,
   }) {
     final String method = approved ? 'userApproved' : 'userValidated';
-    return (update(identificationRecords)
-          ..where((IdentificationRecords table) => table.id.equals(id)))
-        .write(
-          IdentificationRecordsCompanion(
-            userCorrectedSex: Value<String?>(correctedSex),
-            userCorrectedAge: Value<String?>(correctedAge),
-            userCorrectedSpeciesId: Value<String?>(correctedSpeciesId),
-            userCorrectedTurkishName: Value<String?>(correctedTurkishName),
-            predictionMethod: Value<String?>(method),
-          ),
-        );
+    return (update(
+      identificationRecords,
+    )..where((IdentificationRecords table) => table.id.equals(id))).write(
+      IdentificationRecordsCompanion(
+        userCorrectedSex: Value<String?>(correctedSex),
+        userCorrectedAge: Value<String?>(correctedAge),
+        userCorrectedSpeciesId: Value<String?>(correctedSpeciesId),
+        userCorrectedTurkishName: Value<String?>(correctedTurkishName),
+        predictionMethod: Value<String?>(method),
+      ),
+    );
   }
 
   Future<void> clearHistory() => delete(identificationRecords).go();
@@ -218,39 +219,52 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<String> cropMode() async {
+  Future<int> observationContextRadiusKm() async {
     final AppSetting? setting =
         await (select(appSettings)..where(
-              (AppSettings table) => table.key.equals('cropMode'),
+              (AppSettings table) =>
+                  table.key.equals('observationContextRadiusKm'),
             ))
+            .getSingleOrNull();
+    final int radius = int.tryParse(setting?.value ?? '') ?? 20;
+    return radius.clamp(1, 50);
+  }
+
+  Future<void> setObservationContextRadiusKm(int radiusKm) {
+    final int safeRadius = radiusKm.clamp(1, 50);
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'observationContextRadiusKm',
+        value: safeRadius.toString(),
+      ),
+    );
+  }
+
+  Future<String> cropMode() async {
+    final AppSetting? setting =
+        await (select(appSettings)
+              ..where((AppSettings table) => table.key.equals('cropMode')))
             .getSingleOrNull();
     return setting?.value ?? 'auto'; // 'off', 'auto', 'manual'
   }
 
   Future<void> setCropMode(String mode) {
     return into(appSettings).insertOnConflictUpdate(
-      AppSettingsCompanion.insert(
-        key: 'cropMode',
-        value: mode,
-      ),
+      AppSettingsCompanion.insert(key: 'cropMode', value: mode),
     );
   }
 
   Future<String> themeMode() async {
     final AppSetting? setting =
-        await (select(appSettings)..where(
-              (AppSettings table) => table.key.equals('themeMode'),
-            ))
+        await (select(appSettings)
+              ..where((AppSettings table) => table.key.equals('themeMode')))
             .getSingleOrNull();
     return setting?.value ?? 'system'; // 'light', 'dark', 'system'
   }
 
   Future<void> setThemeMode(String mode) {
     return into(appSettings).insertOnConflictUpdate(
-      AppSettingsCompanion.insert(
-        key: 'themeMode',
-        value: mode,
-      ),
+      AppSettingsCompanion.insert(key: 'themeMode', value: mode),
     );
   }
 

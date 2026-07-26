@@ -5,11 +5,10 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_decoder/audio_decoder.dart';
-import 'package:path/path.dart' as path;
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
 import 'bird_inference_engine.dart';
-import 'onnx_bird_inference_engine.dart';
+import 'model_coverage.dart';
 import 'sex_age_estimator.dart';
 import 'species_sex_age_policy.dart';
 
@@ -25,23 +24,26 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   final String labelsPath;
   List<String> _labels = [];
   Map<String, SpeciesPrediction>? _candidatesByScientificName;
+  final List<SpeciesPrediction> _turkeyCandidates = <SpeciesPrediction>[];
   SpeciesSexAgePolicyStore? _policyStore;
   final SexAgeEstimator _sexAgeEstimator = const PlaceholderSexAgeEstimator();
   
   final OnnxRuntime _runtime = OnnxRuntime();
   OrtSession? _session;
-  bool _isWarmedUp = false;
+  Future<void>? _warmUpFuture;
   
   static const int sampleRate = 48000;
   static const int chunkDurationSeconds = 3;
   static const int chunkSize = sampleRate * chunkDurationSeconds; // 144,000 samples
 
   @override
-  List<SpeciesPrediction> get candidateSpecies => []; // Populate later if needed
+  List<SpeciesPrediction> get candidateSpecies =>
+      List<SpeciesPrediction>.unmodifiable(_turkeyCandidates);
 
   @override
-  Future<void> warmUp() async {
-    if (_isWarmedUp) return;
+  Future<void> warmUp() => _warmUpFuture ??= _warmUp();
+
+  Future<void> _warmUp() async {
     
     final File modelFile = File(modelPath);
     if (!await modelFile.exists()) {
@@ -79,44 +81,50 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
     // Load regional candidates mapping for Turkish names, origin labels, thumbnail URLs
     try {
-      final Directory directory = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
-      final File candidatesFile = File(path.join(directory.path, 'candidates.json'));
-      if (await candidatesFile.exists()) {
-        final String content = (await candidatesFile.readAsString()).replaceAll('\uFEFF', '');
-        final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
-        final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
-        _candidatesByScientificName = {};
-        for (final item in jsonList) {
-          final candidateMap = item as Map<String, dynamic>;
-          final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
-          final String turkishName = candidateMap['turkishName'] as String? ?? '';
-          final String englishName = candidateMap['englishName'] as String? ?? '';
-          final String occurrence = candidateMap['occurrence'] as String? ?? '';
-          final String? imageUrl = candidateMap['imageUrl'] as String?;
-          final String? ornitoId = candidateMap['ornitoId'] as String?;
-          final String sciNameOriginal = candidateMap['scientificName'] as String;
+      final String content = (await rootBundle
+              .loadString('tools/model_staging/turkey_0.1.0/candidates.json'))
+          .replaceAll('\uFEFF', '');
+      final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
+      final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
+      _candidatesByScientificName = {};
+      _turkeyCandidates.clear();
+      for (final item in jsonList) {
+        final candidateMap = item as Map<String, dynamic>;
+        final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
+        final String turkishName = candidateMap['turkishName'] as String? ?? '';
+        final String englishName = candidateMap['englishName'] as String? ?? '';
+        final String occurrence = candidateMap['occurrence'] as String? ?? '';
+        final String? imageUrl = candidateMap['imageUrl'] as String?;
+        final String? ornitoId = candidateMap['ornitoId'] as String?;
+        final String sciNameOriginal = candidateMap['scientificName'] as String;
 
-          final String originLabel = switch (occurrence) {
-            'accidental' => 'Türkiye · nadir kayıt',
-            'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
-            'resident' => 'Türkiye · yerleşik',
-            'balkans' => 'Balkanlar kapsamı',
-            _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
-          };
+        final String originLabel = switch (occurrence) {
+          'accidental' => 'Türkiye · nadir kayıt',
+          'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
+          'resident' => 'Türkiye · yerleşik',
+          'balkans' => 'Balkanlar kapsamı',
+          _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
+        };
 
-          _candidatesByScientificName![sciName] = SpeciesPrediction(
-            speciesId: sciName.replaceAll(' ', '-'),
-            turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
-            scientificName: sciNameOriginal,
-            englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
-            score: 0.0,
-            thumbnailUrl: imageUrl,
-            ornitoId: ornitoId,
-            originLabel: originLabel,
-          );
-        }
+        final SpeciesPrediction candidate = SpeciesPrediction(
+          speciesId: sciName.replaceAll(' ', '-'),
+          turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
+          scientificName: sciNameOriginal,
+          englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
+          score: 0.0,
+          thumbnailUrl: imageUrl,
+          ornitoId: ornitoId,
+          originLabel: originLabel,
+        );
+        _candidatesByScientificName![_candidateKey(sciName)] = candidate;
+        _turkeyCandidates.add(candidate);
       }
+      debugPrint(
+        'BirdNET candidate map loaded: ${_candidatesByScientificName!.length} species.',
+      );
     } catch (e) {
+      _candidatesByScientificName = <String, SpeciesPrediction>{};
+      _turkeyCandidates.clear();
       debugPrint('Could not load candidates.json for AudioInferenceEngine: $e');
     }
 
@@ -126,8 +134,24 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       debugPrint('Could not load policy store for AudioInferenceEngine: $e');
     }
     
-    _isWarmedUp = true;
   }
+
+  SpeciesPrediction? _candidateForScientificName(String scientificName) {
+    final String lookupKey = _candidateKey(scientificName);
+    final SpeciesPrediction? direct =
+        _candidatesByScientificName?[lookupKey];
+    if (direct != null) return direct;
+
+    for (final SpeciesPrediction candidate in _turkeyCandidates) {
+      if (_candidateKey(candidate.scientificName) == lookupKey) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  String _candidateKey(String name) =>
+      name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   
   @override
   Future<InferenceResult> identify(
@@ -207,25 +231,33 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       // 5. Sort probabilities and map to SpeciesPrediction
       final List<MapEntry<int, double>> sortedProbs = maxProbabilities.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
+
+      final List<String> rawTopLabels = sortedProbs
+          .take(20)
+          .map((MapEntry<int, double> entry) {
+        final String label = entry.key < _labels.length
+            ? _labels[entry.key]
+            : 'Unknown-${entry.key}';
+        return '$label=${entry.value.toStringAsFixed(3)}';
+      }).toList(growable: false);
+      debugPrint('BirdNET raw top: ${rawTopLabels.join(', ')}');
         
       final List<SpeciesPrediction> predictions = [];
-      for (final entry in sortedProbs.take(5)) {
+      for (final entry in sortedProbs.take(20)) {
         final int index = entry.key;
         final double score = entry.value;
         
-        if (score < 0.05) continue; // Noise threshold
+        if (score < 0.03) continue; // Noise threshold
         
         final String label = index < _labels.length ? _labels[index] : 'Unknown-$index';
         
-        // BirdNET labels format: "Scientific_Name_Common_Name" or "Scientific Name_Common Name"
+        // BirdNET labels format: "Scientific_Name_Common_Name".
         final int underscoreIdx = label.indexOf('_');
-        String rawSciName = label;
+        final String rawSciName = birdNetScientificName(label);
         String rawEngName = label;
         if (underscoreIdx != -1) {
-          rawSciName = label.substring(0, underscoreIdx).trim().replaceAll('_', ' ');
           rawEngName = label.substring(underscoreIdx + 1).trim().replaceAll('_', ' ');
         } else {
-          rawSciName = label.replaceAll('_', ' ');
           rawEngName = rawSciName;
         }
 
@@ -244,7 +276,8 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         }
         // ────────────────────────────────────────────────────────────────────
 
-        final SpeciesPrediction? matchedCandidate = _candidatesByScientificName?[rawSciName.toLowerCase()];
+        final SpeciesPrediction? matchedCandidate =
+            _candidateForScientificName(rawSciName);
         if (matchedCandidate != null) {
           // Only include if we have a valid Turkish name (not just scientific/English fallback)
           final String trName = matchedCandidate.turkishName.trim();
@@ -261,24 +294,10 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           } else {
             predictions.add(matchedCandidate.copyWith(score: score));
           }
-        } else {
-          // Not in candidates.json at all — likely a non-Turkey or non-bird species
-          // Only include if it looks like a real bird (two-part scientific name)
-          final bool looksLikeBird = rawSciName.contains(' ') &&
-              !nonBirdKeywords.any((kw) => sciLower.contains(kw));
-          if (!looksLikeBird) continue;
-
-          predictions.add(
-            SpeciesPrediction(
-              speciesId: rawSciName.toLowerCase().replaceAll(' ', '-'),
-              turkishName: rawSciName, // show scientific name — no Turkish available
-              scientificName: rawSciName,
-              englishName: rawEngName,
-              score: score,
-              originLabel: 'Dünya Türü',
-            ),
-          );
         }
+        // Labels outside the installed Türkiye candidate package must not be
+        // emitted as detections. This prevents global BirdNET labels from
+        // appearing as impossible local birds.
       }
       
       SexAgePrediction? sexAge;
@@ -290,6 +309,10 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           policy: policy,
         );
       }
+
+      debugPrint(
+        'BirdNET Turkiye candidates: ${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(3)}').join(', ')}',
+      );
 
       return InferenceResult(
         predictions: predictions,

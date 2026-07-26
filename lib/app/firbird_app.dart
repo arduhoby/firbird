@@ -42,8 +42,10 @@ final GoRouter _router = GoRouter(
       path: '/crop',
       builder: (BuildContext context, GoRouterState state) =>
           state.extra is IdentificationRequest
-              ? CropConfirmationScreen(request: state.extra! as IdentificationRequest)
-              : const _MissingRouteDataScreen(),
+          ? CropConfirmationScreen(
+              request: state.extra! as IdentificationRequest,
+            )
+          : const _MissingRouteDataScreen(),
     ),
     GoRoute(
       path: '/onboarding',
@@ -60,7 +62,20 @@ final GoRouter _router = GoRouter(
       builder: (BuildContext context, GoRouterState state) =>
           const LiveAudioRecordingScreen(),
     ),
-    GoRoute(path: '/player', builder: (BuildContext context, GoRouterState state) => const MediaPlayerScreen()),
+    GoRoute(
+      path: '/player',
+      builder: (BuildContext context, GoRouterState state) {
+        final extra = state.extra;
+        final data = extra is Map ? extra : const <String, dynamic>{};
+        return MediaPlayerScreen(
+          initialPath: data['path'] as String?,
+          initialName: data['name'] as String?,
+          detections: data['detections'] is List<PlaybackDetection>
+              ? data['detections'] as List<PlaybackDetection>
+              : const <PlaybackDetection>[],
+        );
+      },
+    ),
     GoRoute(
       path: '/history',
       builder: (BuildContext context, GoRouterState state) =>
@@ -109,15 +124,15 @@ final GoRouter _router = GoRouter(
       path: '/analysis',
       builder: (BuildContext context, GoRouterState state) =>
           state.extra is IdentificationRequest
-              ? AnalysisScreen(request: state.extra! as IdentificationRequest)
-              : const _MissingRouteDataScreen(),
+          ? AnalysisScreen(request: state.extra! as IdentificationRequest)
+          : const _MissingRouteDataScreen(),
     ),
     GoRoute(
       path: '/result',
       builder: (BuildContext context, GoRouterState state) =>
           state.extra is InferenceResult
-              ? ResultsScreen(result: state.extra! as InferenceResult)
-              : const _MissingRouteDataScreen(),
+          ? ResultsScreen(result: state.extra! as InferenceResult)
+          : const _MissingRouteDataScreen(),
     ),
   ],
 );
@@ -156,25 +171,28 @@ class _MissingRouteDataScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Icon(Icons.route_outlined, size: 48),
-                const SizedBox(height: 16),
-                const Text('Bu ekran için gerekli tanımlama verisi bulunamadı.', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Ana sayfaya dön'),
-                ),
-              ],
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.route_outlined, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Bu ekran için gerekli tanımlama verisi bulunamadı.',
+              textAlign: TextAlign.center,
             ),
-          ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => context.go('/'),
+              child: const Text('Ana sayfaya dön'),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 final NotifierProvider<ThemeNotifier, ThemeMode> themeModeProvider =
@@ -276,23 +294,58 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: <Widget>[
-          Text(l10n.homeTagline, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          Text(
+            l10n.homeTagline,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 8),
-          Text(l10n.homePrivacy, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(
+            l10n.homePrivacy,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 24),
           _IdentificationHero(
             onTap: () => context.push('/photo', extra: 'gallery'),
           ),
           const SizedBox(height: 12),
-          Row(children: <Widget>[
-            Expanded(child: _QuickAction(icon: Icons.mic_none_rounded, title: 'Canlı dinle', onTap: () => context.push('/live_audio'))),
-            const SizedBox(width: 8),
-            Expanded(child: _QuickAction(icon: Icons.audio_file_outlined, title: 'Ses dosyası', onTap: () => context.push('/photo', extra: 'audio'))),
-            const SizedBox(width: 8),
-            Expanded(child: _QuickAction(icon: Icons.camera_alt_outlined, title: 'Kamera', onTap: () => context.push('/photo', extra: 'camera'))),
-          ]),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.mic_none_rounded,
+                  title: 'Canlı dinle',
+                  onTap: () => context.push('/live_audio'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.audio_file_outlined,
+                  title: 'Ses dosyası',
+                  onTap: () => context.push('/photo', extra: 'audio'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.camera_alt_outlined,
+                  title: 'Kamera',
+                  onTap: () => context.push('/photo', extra: 'camera'),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
-          Text(l10n.appAboutTitle, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          Text(
+            l10n.appAboutTitle,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 8),
           Card(
             child: Padding(
@@ -300,12 +353,19 @@ class HomeScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(Icons.shield_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'FirBird 3 v0.4.0, Türkiye’deki 503 kuş türünü fotoğraf ve ses kaydından cihaz üzerinde tanımlar. Fotoğraf, ses ve konum verileri tanımlama için cihazından ayrılmaz. Harita yalnızca sen açmayı seçersen internet kullanır.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.35, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        height: 1.35,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -327,10 +387,26 @@ class HomeScreen extends StatelessWidget {
           }
         },
         destinations: const <NavigationDestination>[
-          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'Tanımla'),
-          NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore), label: 'Yakınımda'),
-          NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Geçmiş'),
-          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label: 'Ayarlar'),
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome),
+            label: 'Tanımla',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
+            label: 'Yakınımda',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history_outlined),
+            selectedIcon: Icon(Icons.history),
+            label: 'Geçmiş',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.tune_outlined),
+            selectedIcon: Icon(Icons.tune),
+            label: 'Ayarlar',
+          ),
         ],
       ),
     );
@@ -343,44 +419,85 @@ class _IdentificationHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(28),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(28),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            child: Row(children: <Widget>[
-              Container(width: 48, height: 48, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.auto_awesome_rounded, color: Theme.of(context).colorScheme.onPrimary, size: 24)),
-              const SizedBox(width: 14),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[Text('Kuşu tanımla', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)), SizedBox(height: 4), Text('Bir fotoğraf seçerek başla')])) ,
-              const Icon(Icons.arrow_forward_rounded),
-            ]),
-          ),
+    color: Theme.of(context).colorScheme.primaryContainer,
+    borderRadius: BorderRadius.circular(28),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(28),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                color: Theme.of(context).colorScheme.onPrimary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Kuşu tanımla',
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 4),
+                  Text('Bir fotoğraf seçerek başla'),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.title, required this.onTap});
+  const _QuickAction({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
   final IconData icon;
   final String title;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Card(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-            child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
-              const SizedBox(height: 8),
-              Text(title, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
-            ]),
-          ),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class PhotoSelectionScreen extends ConsumerStatefulWidget {
@@ -389,7 +506,8 @@ class PhotoSelectionScreen extends ConsumerStatefulWidget {
   final String? initialMode;
 
   @override
-  ConsumerState<PhotoSelectionScreen> createState() => _PhotoSelectionScreenState();
+  ConsumerState<PhotoSelectionScreen> createState() =>
+      _PhotoSelectionScreenState();
 }
 
 class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
@@ -436,7 +554,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
 
     try {
       XFile? mediaFile;
-      
+
       if (mode == 'audio') {
         final FilePickerResult? result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
@@ -466,7 +584,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
       if (!isAudio) {
         metadata = await _readMetadata(mediaFile);
       }
-      
+
       if (!mounted) {
         return;
       }
@@ -569,8 +687,10 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _errorMessage =
-            'Konum alınamadı. Bölgeden seçebilir veya konumsuz devam edebilirsiniz.');
+        setState(
+          () => _errorMessage =
+              'Konum alınamadı. Bölgeden seçebilir veya konumsuz devam edebilirsiniz.',
+        );
       }
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -591,9 +711,14 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Çevrimiçi haritayı aç?', style: Theme.of(sheetContext).textTheme.titleLarge),
+            Text(
+              'Çevrimiçi haritayı aç?',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
+            ),
             const SizedBox(height: 10),
-            const Text('Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.'),
+            const Text(
+              'Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.',
+            ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () => Navigator.pop(sheetContext, true),
@@ -630,7 +755,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
         children: <Widget>[
           if (selectedMedia == null)
             _EmptyPhotoState(
-              isLoading: _isLoading, 
+              isLoading: _isLoading,
               onSelectGallery: () => _selectMedia(mode: 'gallery'),
               onSelectAudio: () => _selectMedia(mode: 'audio'),
               onSelectCamera: () => _selectMedia(mode: 'camera'),
@@ -664,7 +789,11 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : () => _selectMedia(mode: _isAudio ? 'audio' : 'gallery'),
+                    onPressed: _isLoading
+                        ? null
+                        : () => _selectMedia(
+                            mode: _isAudio ? 'audio' : 'gallery',
+                          ),
                     icon: const Icon(Icons.swap_horiz),
                     label: Text(_isAudio ? 'Farklı Ses/Video' : 'Galeri'),
                   ),
@@ -672,7 +801,9 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : () => _selectMedia(mode: 'camera'),
+                    onPressed: _isLoading
+                        ? null
+                        : () => _selectMedia(mode: 'camera'),
                     icon: const Icon(Icons.camera_alt_outlined),
                     label: const Text('Kamera'),
                   ),
@@ -794,7 +925,9 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () async {
-                final String mode = await ref.read(appDatabaseProvider).cropMode();
+                final String mode = await ref
+                    .read(appDatabaseProvider)
+                    .cropMode();
                 final request = IdentificationRequest(
                   image: ImageInput(uri: selectedMedia.path),
                   context: IdentificationContext(
@@ -983,9 +1116,7 @@ class TurkeyPackagesScreen extends StatelessWidget {
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-      actions: const [
-        BackToHomeButton(),
-      ],
+      actions: const [BackToHomeButton()],
     ),
     body: ListView(
       padding: const EdgeInsets.all(16),
@@ -995,9 +1126,7 @@ class TurkeyPackagesScreen extends StatelessWidget {
           child: const ListTile(
             leading: Icon(Icons.check_circle_outline),
             title: Text('Türkiye paketi'),
-            subtitle: Text(
-              'Sürüm 0.1.0 · Uygulamaya dahil · 503 tür kaydı',
-            ),
+            subtitle: Text('Sürüm 0.1.0 · Uygulamaya dahil · 503 tür kaydı'),
             trailing: Text('Hazır'),
           ),
         ),

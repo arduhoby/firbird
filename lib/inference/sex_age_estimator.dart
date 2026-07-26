@@ -56,34 +56,12 @@ class PlaceholderSexAgeEstimator implements SexAgeEstimator {
       age: age,
       isSexUnreliable: true,
     );
-
-  }
-
-
-  SexPrediction _estimateSex(math.Random rng, SpeciesSexAgePolicy policy) {
-    // Seasonsal türlerde belirsizlik daha yüksek
-    final double uncertainty =
-        policy.sexDiscrimination == SexDiscrimination.seasonalOrPlumage
-            ? 0.30
-            : 0.15;
-
-    final double femaleFraction = 0.45 + rng.nextDouble() * 0.30;
-    final double maleFraction = (1 - femaleFraction) * (1 - uncertainty);
-    final double unknownFraction = (1 - femaleFraction) * uncertainty;
-
-    return SexPrediction(
-      scores: {
-        SexCategory.female: femaleFraction,
-        SexCategory.male: maleFraction,
-        SexCategory.unknown: unknownFraction,
-      },
-      method: PredictionMethod.zeroShot,
-    );
   }
 
   AgePrediction _estimateAge(math.Random rng, SpeciesSexAgePolicy policy) {
-    final double adultBase =
-        policy.ageDiscrimination == AgeDiscrimination.hard ? 0.55 : 0.70;
+    final double adultBase = policy.ageDiscrimination == AgeDiscrimination.hard
+        ? 0.55
+        : 0.70;
     final double adult = adultBase + rng.nextDouble() * 0.15;
     final double remaining = 1 - adult;
     final double juvenile = remaining * 0.65;

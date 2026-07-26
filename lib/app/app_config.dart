@@ -1,10 +1,12 @@
+import 'package:package_info_plus/package_info_plus.dart';
+
 class AppConfig {
-  /// Application version number (Single Source of Truth)
-  static const String appVersion = '0.4.0';
+  /// Reads the version embedded in the installed APK, not a manually copied
+  /// value in source code.
+  static Future<String> get appVersion async {
+    final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    return packageInfo.version;
+  }
 
-  /// Application build number
-  static const String buildNumber = '40';
-
-  /// Formatted version string (e.g. 'v0.4.0')
-  static const String fullVersion = 'v$appVersion';
+  static Future<String> get fullVersion async => 'v${await appVersion}';
 }

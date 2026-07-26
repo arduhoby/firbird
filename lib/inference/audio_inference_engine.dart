@@ -210,13 +210,23 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       // 5. Sort probabilities and map to SpeciesPrediction
       final List<MapEntry<int, double>> sortedProbs = maxProbabilities.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
+
+      final List<String> rawTopLabels = sortedProbs
+          .take(20)
+          .map((MapEntry<int, double> entry) {
+        final String label = entry.key < _labels.length
+            ? _labels[entry.key]
+            : 'Unknown-${entry.key}';
+        return '$label=${entry.value.toStringAsFixed(3)}';
+      }).toList(growable: false);
+      debugPrint('BirdNET raw top: ${rawTopLabels.join(', ')}');
         
       final List<SpeciesPrediction> predictions = [];
-      for (final entry in sortedProbs.take(5)) {
+      for (final entry in sortedProbs.take(20)) {
         final int index = entry.key;
         final double score = entry.value;
         
-        if (score < 0.05) continue; // Noise threshold
+        if (score < 0.03) continue; // Noise threshold
         
         final String label = index < _labels.length ? _labels[index] : 'Unknown-$index';
         
@@ -277,6 +287,10 @@ class AudioInferenceEngine implements BirdInferenceEngine {
           policy: policy,
         );
       }
+
+      debugPrint(
+        'BirdNET Turkiye candidates: ${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(3)}').join(', ')}',
+      );
 
       return InferenceResult(
         predictions: predictions,

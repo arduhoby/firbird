@@ -634,8 +634,8 @@ class _LiveAudioRecordingScreenState
             ..sort((a, b) => b.score.compareTo(a.score));
 
       final List<SpeciesPrediction> candidates = regional
-          .take(3)
-          .where((pred) => pred.score >= 0.06)
+          .take(8)
+          .where((pred) => pred.score >= 0.03)
           .toList();
       final Set<String> windowKeys = candidates
           .map((pred) => pred.scientificName.toLowerCase())
@@ -646,9 +646,13 @@ class _LiveAudioRecordingScreenState
       }
 
       for (final SpeciesPrediction pred in candidates) {
-        final double threshold =
-            pred.statusCategory == SpeciesStatusCategory.rare ? 0.25 : 0.10;
-        final double effectiveThreshold = math.max(_liveMinScore, threshold);
+        final bool isRare = pred.statusCategory == SpeciesStatusCategory.rare;
+        final double baseThreshold = isRare ? 0.10 : 0.04;
+        final double instantThreshold = isRare ? 0.30 : 0.18;
+        final double effectiveThreshold = math.max(
+          _liveMinScore,
+          baseThreshold,
+        );
         final String candidateKey = pred.scientificName.toLowerCase();
         final int hits = _recentCandidateWindows
             .where((window) => window.contains(candidateKey))
@@ -657,7 +661,7 @@ class _LiveAudioRecordingScreenState
           'Live candidate: ${pred.turkishName} score=${pred.score.toStringAsFixed(3)} hits=$hits',
         );
         if (pred.score < effectiveThreshold ||
-            (hits < 2 && pred.score < 0.35)) {
+            (hits < 2 && pred.score < instantThreshold)) {
           continue;
         }
 

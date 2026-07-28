@@ -36,6 +36,30 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.firbird3.app/media_player").setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "play" -> {
+                        val path = call.argument<String>("path") ?: throw IllegalArgumentException("Missing audio path")
+                        stopMedia()
+                        mediaPlayer = MediaPlayer().apply {
+                            setDataSource(path)
+                            setOnCompletionListener { stopMedia() }
+                            prepare()
+                            start()
+                        }
+                        result.success(null)
+                    }
+                    "setVolume" -> {
+                        val volume = (call.argument<Double>("volume") ?: 1.0).toFloat()
+                        mediaPlayer?.setVolume(volume, volume)
+                        result.success(null)
+                    }
+                    "pause" -> { mediaPlayer?.pause(); result.success(null) }
+                    "resume" -> { mediaPlayer?.start(); result.success(null) }
+                    "seekTo" -> { mediaPlayer?.seekTo(call.argument<Int>("positionMs") ?: 0); result.success(null) }
+                    "position" -> result.success(mapOf(
+                        "positionMs" to (mediaPlayer?.currentPosition ?: 0),
+                        "durationMs" to (mediaPlayer?.duration ?: 0),
+                        "isPlaying" to (mediaPlayer?.isPlaying == true),
+                    ))
                     "playLooping" -> {
                         val path = call.argument<String>("path") ?: throw IllegalArgumentException("Missing audio path")
                         stopMedia()

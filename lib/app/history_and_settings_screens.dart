@@ -9,6 +9,7 @@ import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as path;
 
 class HistoryScreen extends ConsumerWidget {
@@ -31,216 +32,264 @@ class HistoryScreen extends ConsumerWidget {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        actions: const [
-          BackToHomeButton(),
-        ],
+        actions: const [BackToHomeButton()],
       ),
       body: StreamBuilder<List<IdentificationRecord>>(
         stream: database.watchHistory(),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<IdentificationRecord>> snapshot,
-        ) {
-          final List<IdentificationRecord> records =
-              snapshot.data ?? <IdentificationRecord>[];
-          if (records.isEmpty) {
-            return Center(child: Text(l10n.historyEmpty));
-          }
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<IdentificationRecord>> snapshot,
+            ) {
+              final List<IdentificationRecord> records =
+                  snapshot.data ?? <IdentificationRecord>[];
+              if (records.isEmpty) {
+                return Center(child: Text(l10n.historyEmpty));
+              }
 
-          // Group live session records (packageId starting with 'live_')
-          final List<_HistoryListItem> items = [];
-          final Map<String, List<IdentificationRecord>> liveSessionGroups = {};
+              // Group live session records (packageId starting with 'live_')
+              final List<_HistoryListItem> items = [];
+              final Map<String, List<IdentificationRecord>> liveSessionGroups =
+                  {};
 
-          for (final record in records) {
-            final String? packageId = record.packageId;
-            final bool isLive = packageId != null && packageId.startsWith('live_');
+              for (final record in records) {
+                final String? packageId = record.packageId;
+                final bool isLive =
+                    packageId != null && packageId.startsWith('live_');
 
-            if (isLive) {
-              liveSessionGroups.putIfAbsent(packageId, () => []).add(record);
-            } else {
-              items.add(_HistoryListItem.singleRecord(record));
-            }
-          }
+                if (isLive) {
+                  liveSessionGroups
+                      .putIfAbsent(packageId, () => [])
+                      .add(record);
+                } else {
+                  items.add(_HistoryListItem.singleRecord(record));
+                }
+              }
 
-          // Convert live session groups to single summary items
-          for (final entry in liveSessionGroups.entries) {
-            final groupRecords = entry.value;
-            items.add(_HistoryListItem.liveSessionGroup(
-              sessionId: entry.key,
-              records: groupRecords,
-              createdAt: groupRecords.first.createdAt,
-            ));
-          }
-
-          // Sort items by creation date (newest first)
-          items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: items.length,
-            itemBuilder: (BuildContext context, int index) {
-              final _HistoryListItem item = items[index];
-
-              if (item.isSessionGroup) {
-                final groupRecords = item.groupRecords!;
-                final int count = groupRecords.length;
-                final List<String> topNames = groupRecords
-                    .take(3)
-                    .map((r) => r.turkishName)
-                    .toList();
-                final String namesSummary = topNames.join(', ') + (count > 3 ? '...' : '');
-
-                // Format session label
-                final String dateStr =
-                    '${item.createdAt.day.toString().padLeft(2, '0')}.${item.createdAt.month.toString().padLeft(2, '0')}.${item.createdAt.year} ${item.createdAt.hour.toString().padLeft(2, '0')}:${item.createdAt.minute.toString().padLeft(2, '0')}';
-
-                return Dismissible(
-                  key: ValueKey<String>('session_${item.sessionId}'),
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete_outline, color: Colors.white),
-                  ),
-                  onDismissed: (_) => database.deleteLiveSession(item.sessionId!),
-                  child: Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    elevation: 0.5,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: CircleAvatar(
-                        radius: 22,
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Icon(
-                          Icons.mic,
-                          color: theme.colorScheme.primary,
-                          size: 22,
-                        ),
-                      ),
-                      title: Row(
-                        children: [
-                          Text(
-                            'Canlı Oturum',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '$count Tür',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              dateStr,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              namesSummary,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      onTap: () => _showLiveSessionDetails(context, dateStr, groupRecords),
-                    ),
+              // Convert live session groups to single summary items
+              for (final entry in liveSessionGroups.entries) {
+                final groupRecords = entry.value;
+                items.add(
+                  _HistoryListItem.liveSessionGroup(
+                    sessionId: entry.key,
+                    records: groupRecords,
+                    createdAt: groupRecords.first.createdAt,
                   ),
                 );
               }
 
-              // Single regular record (photo / file identification)
-              final IdentificationRecord record = item.singleRecord!;
-              return Dismissible(
-                key: ValueKey<int>(record.id),
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete_outline, color: Colors.white),
-                ),
-                onDismissed: (_) => database.deleteIdentification(record.id),
-                child: Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  elevation: 0,
-                  color: theme.colorScheme.surfaceContainerLowest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: theme.colorScheme.secondaryContainer,
-                      child: Icon(
-                        Icons.flutter_dash,
-                        size: 20,
-                        color: theme.colorScheme.onSecondaryContainer,
+              // Sort items by creation date (newest first)
+              items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: items.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final _HistoryListItem item = items[index];
+
+                  if (item.isSessionGroup) {
+                    final groupRecords = item.groupRecords!;
+                    final int count = groupRecords.length;
+                    final List<String> topNames = groupRecords
+                        .take(3)
+                        .map((r) => r.turkishName)
+                        .toList();
+                    final String namesSummary =
+                        topNames.join(', ') + (count > 3 ? '...' : '');
+
+                    // Format session label
+                    final String dateStr =
+                        '${item.createdAt.day.toString().padLeft(2, '0')}.${item.createdAt.month.toString().padLeft(2, '0')}.${item.createdAt.year} ${item.createdAt.hour.toString().padLeft(2, '0')}:${item.createdAt.minute.toString().padLeft(2, '0')}';
+
+                    return Dismissible(
+                      key: ValueKey<String>('session_${item.sessionId}'),
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                      ),
+                      onDismissed: (_) =>
+                          database.deleteLiveSession(item.sessionId!),
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: theme.colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                        ),
+                        elevation: 0.5,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          leading: CircleAvatar(
+                            radius: 22,
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(
+                              Icons.mic,
+                              color: theme.colorScheme.primary,
+                              size: 22,
+                            ),
+                          ),
+                          title: Row(
+                            children: [
+                              Text(
+                                'Canlı Oturum',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withValues(
+                                    alpha: 0.12,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$count Tür',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  dateStr,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  namesSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          onTap: () => _showLiveSessionDetails(
+                            context,
+                            dateStr,
+                            groupRecords,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Single regular record (photo / file identification)
+                  final IdentificationRecord record = item.singleRecord!;
+                  return Dismissible(
+                    key: ValueKey<int>(record.id),
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.white,
                       ),
                     ),
-                    title: Text(
-                      record.turkishName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      record.scientificName,
-                      style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(8),
+                    onDismissed: (_) =>
+                        database.deleteIdentification(record.id),
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
                       ),
-                      child: Text(
-                        record.confidence,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                          fontSize: 12,
+                      elevation: 0,
+                      color: theme.colorScheme.surfaceContainerLowest,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.4,
+                          ),
+                        ),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        leading: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: theme.colorScheme.secondaryContainer,
+                          child: Icon(
+                            Icons.flutter_dash,
+                            size: 20,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                        title: Text(
+                          record.turkishName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          record.scientificName,
+                          style: const TextStyle(
+                            fontStyle: FontStyle.italic,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            record.confidence,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
               );
             },
-          );
-        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => database.clearHistory(),
@@ -298,7 +347,11 @@ class HistoryScreen extends ConsumerWidget {
                       CircleAvatar(
                         backgroundColor: theme.colorScheme.primaryContainer,
                         radius: 20,
-                        child: Icon(Icons.mic, color: theme.colorScheme.primary, size: 22),
+                        child: Icon(
+                          Icons.mic,
+                          color: theme.colorScheme.primary,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -328,27 +381,42 @@ class HistoryScreen extends ConsumerWidget {
                     ],
                   ),
 
-                  if (audioPath != null && File(audioPath).existsSync()) ...[
+                  if (audioPath != null) ...[
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
+                    InkWell(
+                      onTap: () => context.push(
+                        '/player',
+                        extra: <String, dynamic>{
+                          'path': audioPath,
+                          'name': path.basename(audioPath),
+                        },
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.audio_file_outlined, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              path.basename(audioPath),
-                              style: theme.textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.audio_file_outlined, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                path.basename(audioPath),
+                                style: theme.textTheme.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                            const Icon(Icons.play_circle_fill, size: 30),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -372,9 +440,14 @@ class HistoryScreen extends ConsumerWidget {
                         Container(
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primaryContainer,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
@@ -417,13 +490,18 @@ class HistoryScreen extends ConsumerWidget {
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
-                              border: Border.all(color: theme.colorScheme.outlineVariant),
-                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                              borderRadius: const BorderRadius.vertical(
+                                bottom: Radius.circular(12),
+                              ),
                             ),
                             child: ListView.separated(
                               controller: scrollController,
                               itemCount: records.length,
-                              separatorBuilder: (context, _) => const SizedBox(height: 2),
+                              separatorBuilder: (context, _) =>
+                                  const SizedBox(height: 2),
                               itemBuilder: (context, index) {
                                 final record = records[index];
                                 // Parse confidence format "%89 · 01:00 – 01:35"
@@ -435,56 +513,84 @@ class HistoryScreen extends ConsumerWidget {
                                   timeRange = parts.last.trim();
                                 }
 
-                                final int pct = int.tryParse(pctStr.replaceAll('%', '').trim()) ?? 0;
+                                final int pct =
+                                    int.tryParse(
+                                      pctStr.replaceAll('%', '').trim(),
+                                    ) ??
+                                    0;
                                 final Color pctColor = pct >= 70
                                     ? Colors.green
                                     : pct >= 40
-                                        ? Colors.orange
-                                        : Colors.red;
+                                    ? Colors.orange
+                                    : Colors.red;
 
                                 // Parse count from predictionMethod if available e.g. "count:3"
                                 int count = 1;
-                                if (record.predictionMethod?.startsWith('count:') == true) {
-                                  count = int.tryParse(record.predictionMethod!.replaceAll('count:', '')) ?? 1;
+                                if (record.predictionMethod?.startsWith(
+                                      'count:',
+                                    ) ==
+                                    true) {
+                                  count =
+                                      int.tryParse(
+                                        record.predictionMethod!.replaceAll(
+                                          'count:',
+                                          '',
+                                        ),
+                                      ) ??
+                                      1;
                                 }
 
-                                final statusCat = SpeciesStatusHelper.getCategory(
-                                  scientificName: record.scientificName,
-                                );
+                                final statusCat =
+                                    SpeciesStatusHelper.getCategory(
+                                      scientificName: record.scientificName,
+                                    );
                                 final Color borderColor = statusCat.borderColor;
 
                                 return Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 2,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: index.isEven
                                         ? theme.colorScheme.surface
-                                        : theme.colorScheme.surfaceContainerLowest,
+                                        : theme
+                                              .colorScheme
+                                              .surfaceContainerLowest,
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
                                       color: borderColor,
                                       width: 1.8,
                                     ),
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   child: Row(
                                     children: [
                                       Expanded(
                                         flex: 3,
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               record.turkishName,
-                                              style: theme.textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                              style: theme.textTheme.bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                             ),
                                             Text(
                                               record.scientificName,
-                                              style: theme.textTheme.labelSmall?.copyWith(
-                                                color: theme.colorScheme.onSurfaceVariant,
-                                                fontStyle: FontStyle.italic,
-                                              ),
+                                              style: theme.textTheme.labelSmall
+                                                  ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
                                             ),
                                             if (count > 1)
                                               Text(
@@ -502,18 +608,28 @@ class HistoryScreen extends ConsumerWidget {
                                         flex: 3,
                                         child: Text(
                                           timeRange,
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            fontFeatures: [const FontFeature.tabularFigures()],
-                                          ),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                fontFeatures: [
+                                                  const FontFeature.tabularFigures(),
+                                                ],
+                                              ),
                                         ),
                                       ),
                                       SizedBox(
                                         width: 72,
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: pctColor.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(8),
+                                            color: pctColor.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Text(
                                             '%$pct',
@@ -537,20 +653,37 @@ class HistoryScreen extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.only(top: 8, bottom: 4),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.35),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                color: theme.colorScheme.outlineVariant
+                                    .withValues(alpha: 0.5),
                               ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                _buildModalLegendNoteItem(context, Colors.green, 'Yerel / Göçmen'),
-                                _buildModalLegendNoteItem(context, Colors.red, 'Nadir Tür'),
-                                _buildModalLegendNoteItem(context, Colors.grey, 'Bölge Dışı / Zor'),
+                                _buildModalLegendNoteItem(
+                                  context,
+                                  Colors.green,
+                                  'Yerel / Göçmen',
+                                ),
+                                _buildModalLegendNoteItem(
+                                  context,
+                                  Colors.red,
+                                  'Nadir Tür',
+                                ),
+                                _buildModalLegendNoteItem(
+                                  context,
+                                  Colors.grey,
+                                  'Bölge Dışı / Zor',
+                                ),
                               ],
                             ),
                           ),
@@ -583,18 +716,18 @@ class HistoryScreen extends ConsumerWidget {
 
 class _HistoryListItem {
   _HistoryListItem.singleRecord(this.singleRecord)
-      : isSessionGroup = false,
-        sessionId = null,
-        groupRecords = null,
-        createdAt = singleRecord!.createdAt;
+    : isSessionGroup = false,
+      sessionId = null,
+      groupRecords = null,
+      createdAt = singleRecord!.createdAt;
 
   _HistoryListItem.liveSessionGroup({
     required this.sessionId,
     required List<IdentificationRecord> records,
     required this.createdAt,
-  })  : isSessionGroup = true,
-        singleRecord = null,
-        groupRecords = records;
+  }) : isSessionGroup = true,
+       singleRecord = null,
+       groupRecords = records;
 
   final bool isSessionGroup;
   final String? sessionId;
@@ -653,9 +786,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        actions: const [
-          BackToHomeButton(),
-        ],
+        actions: const [BackToHomeButton()],
       ),
       body: ListView(
         children: <Widget>[
@@ -678,18 +809,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: SegmentedButton<String>(
               segments: const <ButtonSegment<String>>[
-                ButtonSegment<String>(
-                  value: 'off',
-                  label: Text('Kapalı'),
-                ),
+                ButtonSegment<String>(value: 'off', label: Text('Kapalı')),
                 ButtonSegment<String>(
                   value: 'manual',
                   label: Text('Manuel (Sor)'),
                 ),
-                ButtonSegment<String>(
-                  value: 'auto',
-                  label: Text('Otomatik'),
-                ),
+                ButtonSegment<String>(value: 'auto', label: Text('Otomatik')),
               ],
               selected: <String>{_cropMode},
               onSelectionChanged: (Set<String> newSelection) async {
@@ -736,8 +861,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             label: _liveMinScore == 0.0
                 ? 'Hepsi'
                 : '%${(_liveMinScore * 100).round()}',
-            onChanged: (double value) =>
-                setState(() => _liveMinScore = value),
+            onChanged: (double value) => setState(() => _liveMinScore = value),
             onChangeEnd: (double value) =>
                 ref.read(appDatabaseProvider).setLiveDetectionMinScore(value),
           ),
@@ -773,7 +897,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               selected: <ThemeMode>{ref.watch(themeModeProvider)},
               onSelectionChanged: (Set<ThemeMode> newSelection) {
                 if (newSelection.isNotEmpty) {
-                  ref.read(themeModeProvider.notifier).setThemeMode(newSelection.first);
+                  ref
+                      .read(themeModeProvider.notifier)
+                      .setThemeMode(newSelection.first);
                 }
               },
             ),
@@ -793,7 +919,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
-Widget _buildModalLegendNoteItem(BuildContext context, Color color, String label) {
+Widget _buildModalLegendNoteItem(
+  BuildContext context,
+  Color color,
+  String label,
+) {
   return Row(
     mainAxisSize: MainAxisSize.min,
     children: [

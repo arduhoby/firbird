@@ -36,6 +36,46 @@ class WavSpectrogram {
     final int sampleRate = bytes.length >= 28
         ? data.getUint32(24, Endian.little)
         : 48000;
+    return _analyzeSamples(
+      data,
+      dataOffset: dataOffset,
+      sampleCount: sampleCount,
+      sampleRate: sampleRate,
+      maxColumns: maxColumns,
+      columnsPerSecond: columnsPerSecond,
+      bins: bins,
+    );
+  }
+
+  static List<List<double>> analyzePcm16(
+    Uint8List pcmBytes, {
+    int sampleRate = 48000,
+    int maxColumns = 180,
+    double? columnsPerSecond,
+    int bins = 48,
+  }) {
+    final int sampleCount = pcmBytes.length ~/ 2;
+    if (sampleCount < 512) return const <List<double>>[];
+    return _analyzeSamples(
+      ByteData.sublistView(pcmBytes),
+      dataOffset: 0,
+      sampleCount: sampleCount,
+      sampleRate: sampleRate,
+      maxColumns: maxColumns,
+      columnsPerSecond: columnsPerSecond,
+      bins: bins,
+    );
+  }
+
+  static List<List<double>> _analyzeSamples(
+    ByteData data, {
+    required int dataOffset,
+    required int sampleCount,
+    required int sampleRate,
+    required int maxColumns,
+    required double? columnsPerSecond,
+    required int bins,
+  }) {
     final int requestedColumns = columnsPerSecond == null
         ? maxColumns
         : math.max(
@@ -49,18 +89,30 @@ class WavSpectrogram {
       final List<double> imag = List<double>.filled(512, 0);
       for (int i = 0; i < 512; i++) {
         final double window = 0.5 - 0.5 * math.cos(2 * math.pi * i / 511);
-        real[i] = data.getInt16(dataOffset + (start + i) * 2, Endian.little) / 32768 * window;
+        real[i] =
+            data.getInt16(dataOffset + (start + i) * 2, Endian.little) /
+            32768 *
+            window;
       }
       _fft(real, imag);
       final List<double> column = List<double>.filled(bins, 0);
       for (int bin = 0; bin < bins; bin++) {
         final int from = 1 + (math.pow(bin / bins, 1.7) * 254).floor();
-        final int to = math.max(from + 1, 1 + (math.pow((bin + 1) / bins, 1.7) * 254).floor());
+        final int to = math.max(
+          from + 1,
+          1 + (math.pow((bin + 1) / bins, 1.7) * 254).floor(),
+        );
         double peak = 0;
         for (int k = from; k < math.min(to, 256); k++) {
-          peak = math.max(peak, math.sqrt(real[k] * real[k] + imag[k] * imag[k]));
+          peak = math.max(
+            peak,
+            math.sqrt(real[k] * real[k] + imag[k] * imag[k]),
+          );
         }
-        column[bin] = ((math.log(1 + peak * 28) / math.log(29))).clamp(0.0, 1.0);
+        column[bin] = ((math.log(1 + peak * 28) / math.log(29))).clamp(
+          0.0,
+          1.0,
+        );
       }
       columns.add(column);
       if (columns.length >= maxColumns) break;
@@ -70,7 +122,10 @@ class WavSpectrogram {
 
   static int _findDataOffset(Uint8List bytes) {
     for (int i = 12; i + 8 < bytes.length; i++) {
-      if (bytes[i] == 100 && bytes[i + 1] == 97 && bytes[i + 2] == 116 && bytes[i + 3] == 97) {
+      if (bytes[i] == 100 &&
+          bytes[i + 1] == 97 &&
+          bytes[i + 2] == 116 &&
+          bytes[i + 3] == 97) {
         return i + 8;
       }
     }
@@ -88,7 +143,9 @@ class WavSpectrogram {
       }
       j ^= bit;
       if (i < j) {
-        final double tr = real[i]; real[i] = real[j]; real[j] = tr;
+        final double tr = real[i];
+        real[i] = real[j];
+        real[j] = tr;
       }
     }
     for (int len = 2; len <= n; len <<= 1) {
@@ -105,8 +162,10 @@ class WavSpectrogram {
           final double vi = real[odd] * wi + imag[odd] * wr;
           final double ur = real[even];
           final double ui = imag[even];
-          real[even] = ur + vr; imag[even] = ui + vi;
-          real[odd] = ur - vr; imag[odd] = ui - vi;
+          real[even] = ur + vr;
+          imag[even] = ui + vi;
+          real[odd] = ur - vr;
+          imag[odd] = ui - vi;
           final double nextWr = wr * wLenR - wi * wLenI;
           wi = wr * wLenI + wi * wLenR;
           wr = nextWr;
@@ -138,25 +197,25 @@ class AudioSpectrogram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTapDown: onSeek == null
-            ? null
-            : (details) {
-                final RenderBox box = context.findRenderObject()! as RenderBox;
-                onSeek!((details.localPosition.dx / box.size.width).clamp(0, 1));
-              },
-        child: SizedBox(
-          width: width ?? double.infinity,
-          height: height,
-          child: CustomPaint(
-            painter: _SpectrogramPainter(
-              columns: columns,
-              markers: markers,
-              playbackPosition: playbackPosition,
-              liveCenter: liveCenter,
-            ),
-          ),
+    onTapDown: onSeek == null
+        ? null
+        : (details) {
+            final RenderBox box = context.findRenderObject()! as RenderBox;
+            onSeek!((details.localPosition.dx / box.size.width).clamp(0, 1));
+          },
+    child: SizedBox(
+      width: width ?? double.infinity,
+      height: height,
+      child: CustomPaint(
+        painter: _SpectrogramPainter(
+          columns: columns,
+          markers: markers,
+          playbackPosition: playbackPosition,
+          liveCenter: liveCenter,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 /// Keeps each time slice at a readable width for completed recordings.
@@ -169,8 +228,8 @@ class ScrollableAudioSpectrogram extends StatelessWidget {
     this.markers = const <SpectrogramMarker>[],
     this.playbackPosition,
     this.onSeek,
-    this.height = 150,
-    this.pixelsPerColumn = 2.5,
+    this.height = 200,
+    this.pixelsPerColumn = 4.0,
   });
 
   final List<List<double>> columns;
@@ -182,31 +241,36 @@ class ScrollableAudioSpectrogram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double timelineWidth = math.max(
-            constraints.maxWidth,
-            columns.length * pixelsPerColumn,
-          );
-          return SizedBox(
-            height: height,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: AudioSpectrogram(
-                columns: columns,
-                markers: markers,
-                playbackPosition: playbackPosition,
-                onSeek: onSeek,
-                height: height,
-                width: timelineWidth,
-              ),
-            ),
-          );
-        },
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final double timelineWidth = math.max(
+        constraints.maxWidth,
+        columns.length * pixelsPerColumn,
       );
+      return SizedBox(
+        height: height,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: AudioSpectrogram(
+            columns: columns,
+            markers: markers,
+            playbackPosition: playbackPosition,
+            onSeek: onSeek,
+            height: height,
+            width: timelineWidth,
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _SpectrogramPainter extends CustomPainter {
-  const _SpectrogramPainter({required this.columns, required this.markers, this.playbackPosition, required this.liveCenter});
+  const _SpectrogramPainter({
+    required this.columns,
+    required this.markers,
+    this.playbackPosition,
+    required this.liveCenter,
+  });
   final List<List<double>> columns;
   final List<SpectrogramMarker> markers;
   final double? playbackPosition;
@@ -215,7 +279,10 @@ class _SpectrogramPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint background = Paint()..color = const Color(0xFF071A24);
-    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16)), background);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16)),
+      background,
+    );
     if (columns.isNotEmpty) {
       // Live mode is a rolling timeline: new audio is appended on the right
       // and older columns naturally move toward the left edge. The center
@@ -227,31 +294,70 @@ class _SpectrogramPainter extends CustomPainter {
         for (int y = 0; y < bins.length; y++) {
           final double value = bins[y];
           if (value < 0.06) continue;
-          final Color color = Color.lerp(const Color(0xFF0B3B46), const Color(0xFFFFD54F), value)!;
-          canvas.drawRect(Rect.fromLTWH(x * cw, size.height - (y + 1) * bh, cw + 0.5, bh + 0.5), Paint()..color = color);
+          final Color color = Color.lerp(
+            const Color(0xFF0B3B46),
+            const Color(0xFFFFD54F),
+            value,
+          )!;
+          canvas.drawRect(
+            Rect.fromLTWH(
+              x * cw,
+              size.height - (y + 1) * bh,
+              cw + 0.5,
+              bh + 0.5,
+            ),
+            Paint()..color = color,
+          );
         }
       }
     }
     if (liveCenter) {
-      canvas.drawLine(Offset(size.width / 2, 0), Offset(size.width / 2, size.height), Paint()..color = Colors.white.withValues(alpha: 0.9)..strokeWidth = 2);
+      canvas.drawLine(
+        Offset(size.width / 2, 0),
+        Offset(size.width / 2, size.height),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.9)
+          ..strokeWidth = 2,
+      );
     }
     for (final SpectrogramMarker marker in markers) {
       final double x = marker.position.clamp(0, 1) * size.width;
-      final Paint p = Paint()..color = marker.confirmed ? Colors.greenAccent : Colors.orangeAccent..strokeWidth = 2;
+      final Paint p = Paint()
+        ..color = marker.confirmed ? Colors.greenAccent : Colors.orangeAccent
+        ..strokeWidth = 2;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
       final TextPainter text = TextPainter(
-        text: TextSpan(text: marker.label, style: TextStyle(color: p.color, fontSize: 10, fontWeight: FontWeight.bold)),
+        text: TextSpan(
+          text: marker.label,
+          style: TextStyle(
+            color: p.color,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 100);
-      text.paint(canvas, Offset((x + 3).clamp(3, size.width - text.width - 3), 5));
+      text.paint(
+        canvas,
+        Offset((x + 3).clamp(3, size.width - text.width - 3), 5),
+      );
     }
     if (playbackPosition != null) {
       final double x = playbackPosition!.clamp(0, 1) * size.width;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), Paint()..color = Colors.white..strokeWidth = 2.5);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = 2.5,
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _SpectrogramPainter oldDelegate) =>
-      oldDelegate.columns != columns || oldDelegate.markers != markers || oldDelegate.playbackPosition != playbackPosition || oldDelegate.liveCenter != liveCenter;
+      oldDelegate.columns != columns ||
+      oldDelegate.markers != markers ||
+      oldDelegate.playbackPosition != playbackPosition ||
+      oldDelegate.liveCenter != liveCenter;
 }

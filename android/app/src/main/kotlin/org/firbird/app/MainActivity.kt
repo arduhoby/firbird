@@ -3,6 +3,7 @@ package org.firbird3.app
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.media.audiofx.LoudnessEnhancer
 import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
@@ -18,12 +19,16 @@ import java.io.FileInputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.log10
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
     private val channelName = "org.firbird3.app/inference"
     private var interpreter: Interpreter? = null
     private var labels: List<String> = emptyList()
     private var mediaPlayer: MediaPlayer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    private var playbackGain = 1.0f
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -51,11 +56,14 @@ class MainActivity : FlutterActivity() {
                             prepare()
                             start()
                         }
+                        applyPlaybackGain()
                         result.success(null)
                     }
                     "setVolume" -> {
-                        val volume = (call.argument<Double>("volume") ?: 1.0).toFloat()
-                        mediaPlayer?.setVolume(volume, volume)
+                        playbackGain = (call.argument<Double>("volume") ?: 1.0)
+                            .toFloat()
+                            .coerceIn(0.5f, 4.0f)
+                        applyPlaybackGain()
                         result.success(null)
                     }
                     "pause" -> { mediaPlayer?.pause(); result.success(null) }
@@ -75,6 +83,7 @@ class MainActivity : FlutterActivity() {
                             prepare()
                             start()
                         }
+                        applyPlaybackGain()
                         result.success(null)
                     }
                     "stop" -> { stopMedia(); result.success(null) }
@@ -162,12 +171,34 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun stopMedia() {
+        loudnessEnhancer?.runCatching {
+            enabled = false
+            release()
+        }
+        loudnessEnhancer = null
         mediaPlayer?.run {
             if (isPlaying) stop()
             reset()
             release()
         }
         mediaPlayer = null
+    }
+
+    private fun applyPlaybackGain() {
+        val player = mediaPlayer ?: return
+        player.setVolume(playbackGain.coerceAtMost(1.0f), playbackGain.coerceAtMost(1.0f))
+        if (loudnessEnhancer == null) {
+            loudnessEnhancer = LoudnessEnhancer(player.audioSessionId)
+        }
+        val boostMillibels = if (playbackGain <= 1.0f) {
+            0
+        } else {
+            (2000.0 * log10(playbackGain.toDouble())).roundToInt().coerceAtMost(1200)
+        }
+        loudnessEnhancer?.apply {
+            setTargetGain(boostMillibels)
+            enabled = boostMillibels > 0
+        }
     }
 
     private fun publishWavToDownloads(sourcePath: String, displayName: String): String {

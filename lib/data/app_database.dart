@@ -41,6 +41,20 @@ class AppSettings extends Table {
   Set<Column<Object>> get primaryKey => <Column<Object>>{key};
 }
 
+class LiveDetectionEvents extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get sessionId => text()();
+  TextColumn get speciesId => text()();
+  TextColumn get turkishName => text()();
+  TextColumn get scientificName => text()();
+  RealColumn get confidence => real()();
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+  TextColumn get regionalSupport => text().nullable()();
+  TextColumn get temporalContext => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+}
+
 class InstalledPackages extends Table {
   TextColumn get packageId => text()();
   TextColumn get version => text()();
@@ -52,13 +66,19 @@ class InstalledPackages extends Table {
 }
 
 @DriftDatabase(
-  tables: <Type>[IdentificationRecords, AppSettings, InstalledPackages],
+  tables: <Type>[
+    IdentificationRecords,
+    LiveDetectionEvents,
+    AppSettings,
+    InstalledPackages,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+  AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -75,6 +95,19 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(
             identificationRecords,
             identificationRecords.userCorrectedTurkishName,
+          );
+        }
+        if (from < 3) {
+          // Live sessions before schema 3 only stored one aggregate row per
+          // species and cannot recreate the real event timeline. Start the
+          // unified player history with complete sessions only.
+          await delete(identificationRecords).go();
+          await m.createTable(liveDetectionEvents);
+        }
+        if (from >= 3 && from < 4) {
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.temporalContext,
           );
         }
       },
@@ -131,10 +164,54 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> deleteLiveSession(String sessionId) {
-    return (delete(identificationRecords)..where(
-          (IdentificationRecords table) => table.packageId.equals(sessionId),
-        ))
-        .go();
+    return transaction(() async {
+      await (delete(identificationRecords)..where(
+            (IdentificationRecords table) => table.packageId.equals(sessionId),
+          ))
+          .go();
+      await (delete(liveDetectionEvents)..where(
+            (LiveDetectionEvents table) => table.sessionId.equals(sessionId),
+          ))
+          .go();
+    });
+  }
+
+  Future<int> addLiveDetectionEvent({
+    required String sessionId,
+    required String speciesId,
+    required String turkishName,
+    required String scientificName,
+    required double confidence,
+    required int startMs,
+    required int endMs,
+    String? regionalSupport,
+    String? temporalContext,
+  }) {
+    return into(liveDetectionEvents).insert(
+      LiveDetectionEventsCompanion.insert(
+        sessionId: sessionId,
+        speciesId: speciesId,
+        turkishName: turkishName,
+        scientificName: scientificName,
+        confidence: confidence,
+        startMs: startMs,
+        endMs: endMs,
+        regionalSupport: Value<String?>(regionalSupport),
+        temporalContext: Value<String?>(temporalContext),
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<List<LiveDetectionEvent>> eventsForLiveSession(String sessionId) {
+    return (select(liveDetectionEvents)
+          ..where(
+            (LiveDetectionEvents table) => table.sessionId.equals(sessionId),
+          )
+          ..orderBy(<OrderingTerm Function(LiveDetectionEvents)>[
+            (LiveDetectionEvents table) => OrderingTerm.asc(table.startMs),
+          ]))
+        .get();
   }
 
   /// Kullanıcı tahmini onayladıktan veya düzelttikten sonra ilgili alanları günceller.
@@ -163,7 +240,12 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<void> clearHistory() => delete(identificationRecords).go();
+  Future<void> clearHistory() {
+    return transaction(() async {
+      await delete(identificationRecords).go();
+      await delete(liveDetectionEvents).go();
+    });
+  }
 
   Future<bool> isHistoryEnabled() async {
     final AppSetting? setting =
@@ -238,6 +320,32 @@ class AppDatabase extends _$AppDatabase {
         value: safeRadius.toString(),
       ),
     );
+  }
+
+  Future<DateTime?> eBirdApiKeyLastVerifiedAt() async {
+    final AppSetting? setting =
+        await (select(appSettings)..where(
+              (AppSettings table) =>
+                  table.key.equals('eBirdApiKeyLastVerifiedAt'),
+            ))
+            .getSingleOrNull();
+    return DateTime.tryParse(setting?.value ?? '');
+  }
+
+  Future<void> setEBirdApiKeyLastVerifiedAt(DateTime value) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'eBirdApiKeyLastVerifiedAt',
+        value: value.toUtc().toIso8601String(),
+      ),
+    );
+  }
+
+  Future<void> clearEBirdApiKeyLastVerifiedAt() {
+    return (delete(appSettings)..where(
+          (AppSettings table) => table.key.equals('eBirdApiKeyLastVerifiedAt'),
+        ))
+        .go();
   }
 
   Future<String> cropMode() async {

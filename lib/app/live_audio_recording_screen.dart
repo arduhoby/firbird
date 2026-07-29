@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,11 +12,15 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'package:firbird/audio/pcm16_wav.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
+import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/inference/live_detection_policy.dart';
+import 'package:firbird/inference/temporal_detection_context.dart';
 import 'package:firbird/observation_context/ebird_context_package.dart';
 import 'package:firbird/observation_context/regional_observation_context.dart';
 
@@ -28,6 +31,8 @@ class LiveDetectionEntry {
     required this.lastDetectedAt,
     this.detectionCount = 1,
     this.regionalContext,
+    this.temporalContext,
+    this.isProvisional = false,
   });
 
   final SpeciesPrediction prediction;
@@ -35,13 +40,20 @@ class LiveDetectionEntry {
   DateTime lastDetectedAt;
   int detectionCount;
   RegionalSpeciesContext? regionalContext;
+  TemporalDetectionContext? temporalContext;
+  bool isProvisional;
 }
 
 class _DetectionMoment {
-  const _DetectionMoment({required this.prediction, required this.detectedAt});
+  _DetectionMoment({
+    required this.prediction,
+    required this.startedAt,
+    required this.endedAt,
+  });
 
   final SpeciesPrediction prediction;
-  final DateTime detectedAt;
+  final DateTime startedAt;
+  DateTime endedAt;
 }
 
 class LiveAudioRecordingScreen extends ConsumerStatefulWidget {
@@ -58,16 +70,32 @@ class _LiveAudioRecordingScreenState
   AudioInferenceEngine? _audioEngine;
 
   bool _isRecording = false;
-  bool _isSegmentRecording = false;
+  bool _isStoppingSession = false;
   bool _isEngineReady = false;
   bool _isSessionEnded = false;
   String _statusText = 'Model yükleniyor...';
   int _secondsRecorded = 0;
   bool _tenMinuteCheckShown = false;
-  int _segmentCount = 0;
   Timer? _clockTimer;
-  Timer? _segmentTimer;
   StreamSubscription<Amplitude>? _amplitudeSubscription;
+  StreamSubscription<Uint8List>? _audioStreamSubscription;
+  Completer<void>? _audioStreamDone;
+  IOSink? _sessionPcmSink;
+  String? _sessionPcmPath;
+  Future<void>? _analysisTask;
+  bool _analysisPending = false;
+  int _pendingWindowEndByte = 0;
+  int _capturedPcmBytes = 0;
+  int _nextAnalysisAtByte = _analysisWindowBytes;
+  int _ringWriteOffset = 0;
+  int _ringLength = 0;
+  int _analysisWindowCount = 0;
+  static const int _sampleRate = 48000;
+  static const int _bytesPerSample = 2;
+  static const int _bytesPerSecond = _sampleRate * _bytesPerSample;
+  static const int _analysisWindowBytes = _bytesPerSecond * 3;
+  static const int _analysisHopBytes = _bytesPerSecond;
+  final Uint8List _pcmRingBuffer = Uint8List(_analysisWindowBytes);
   String? _savedFilePath;
   DateTime? _sessionStartTime;
   Position? _sessionPosition;
@@ -75,9 +103,9 @@ class _LiveAudioRecordingScreenState
   int _observationRadiusKm = 20;
   String? _observationContextMessage;
 
-  // The analyzed microphone segments are retained and merged into one WAV.
-  // This avoids opening two simultaneous Android microphone recorders.
-  final List<String> _sessionSegmentPaths = <String>[];
+  // A single PCM microphone stream feeds both the saved recording and the
+  // rolling BirdNET analysis window. The recorder is never stopped between
+  // model windows.
   static const MethodChannel _mediaChannel = MethodChannel(
     'org.firbird3.app/media_player',
   );
@@ -119,8 +147,9 @@ class _LiveAudioRecordingScreenState
     // live screen goes away, including an interrupted session.
     _setKeepScreenOn(false);
     _clockTimer?.cancel();
-    _segmentTimer?.cancel();
     _amplitudeSubscription?.cancel();
+    _audioStreamSubscription?.cancel();
+    _sessionPcmSink?.close();
     _audioRecorder.dispose();
     _playbackTimer?.cancel();
     _highlightTimer?.cancel();
@@ -160,9 +189,12 @@ class _LiveAudioRecordingScreenState
   ) {
     final String key = prediction.scientificName.toLowerCase();
     _detectionMoments.add(
-      _DetectionMoment(prediction: prediction, detectedAt: detectedAt),
+      _DetectionMoment(
+        prediction: prediction,
+        startedAt: detectedAt,
+        endedAt: detectedAt.add(const Duration(seconds: 3)),
+      ),
     );
-    if (_detectionMoments.length > 24) _detectionMoments.removeAt(0);
     _highlightTimer?.cancel();
     _highlightedSpeciesKey = key;
     _highlightTimer = Timer(const Duration(seconds: 4), () {
@@ -170,6 +202,19 @@ class _LiveAudioRecordingScreenState
         setState(() => _highlightedSpeciesKey = null);
       }
     });
+  }
+
+  void _extendLatestDetectionMoment(
+    SpeciesPrediction prediction,
+    DateTime detectedAt,
+  ) {
+    final String key = prediction.scientificName.toLowerCase();
+    for (final _DetectionMoment moment in _detectionMoments.reversed) {
+      if (moment.prediction.scientificName.toLowerCase() == key) {
+        moment.endedAt = detectedAt.add(const Duration(seconds: 3));
+        return;
+      }
+    }
   }
 
   Future<void> _stopPlayback() async {
@@ -182,7 +227,32 @@ class _LiveAudioRecordingScreenState
         _isPlaybackActive = false;
         _isPlaybackPaused = false;
         _playbackPositionMs = 0;
+        _highlightedSpeciesKey = null;
       });
+    }
+  }
+
+  /// Replay sırasında playback pozisyonu bir detection moment'inin
+  /// zaman aralığına girince o kuşu listede vurgular (canlı dinlemedeki gibi).
+  void _updateReplayHighlight() {
+    if (!_isSessionEnded || !_isPlaybackActive || _playbackDurationMs <= 0) {
+      return;
+    }
+    final DateTime? start = _sessionStartTime;
+    if (start == null) return;
+    final int posMs = _playbackPositionMs;
+    String? newHighlight;
+    for (final _DetectionMoment moment in _detectionMoments) {
+      final int startMs = moment.startedAt.difference(start).inMilliseconds;
+      final int endMs = moment.endedAt.difference(start).inMilliseconds;
+      // 1 saniyelik tolerans ile marker aralığı içinde mi?
+      if (posMs >= startMs - 1000 && posMs <= endMs + 1000) {
+        newHighlight = moment.prediction.scientificName.toLowerCase();
+        break;
+      }
+    }
+    if (newHighlight != _highlightedSpeciesKey) {
+      setState(() => _highlightedSpeciesKey = newHighlight);
     }
   }
 
@@ -200,6 +270,8 @@ class _LiveAudioRecordingScreenState
           _playbackPositionMs = position;
           _playbackDurationMs = duration;
         });
+        // Replay kuş vurgusu güncelleniyor
+        _updateReplayHighlight();
         // Android can briefly report isPlaying=false while preparing. Keep
         // the player alive until the actual recording duration is reached.
         if (_isPlaybackActive &&
@@ -448,7 +520,7 @@ class _LiveAudioRecordingScreenState
         if (!mounted) return;
         bool showTenMinuteCheck = false;
         setState(() {
-          _secondsRecorded++;
+          _secondsRecorded = _capturedPcmBytes ~/ _bytesPerSecond;
           if (!_tenMinuteCheckShown && _secondsRecorded >= 10 * 60) {
             _tenMinuteCheckShown = true;
             showTenMinuteCheck = true;
@@ -457,9 +529,11 @@ class _LiveAudioRecordingScreenState
         if (showTenMinuteCheck) unawaited(_showTenMinuteCheck());
       });
 
-      // Start first segment
-      _startNextSegment();
+      await _startContinuousRecording();
     } catch (e) {
+      _clockTimer?.cancel();
+      _isRecording = false;
+      await _setKeepScreenOn(false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Canlı kayıt başlatılamadı: $e')),
@@ -509,100 +583,145 @@ class _LiveAudioRecordingScreenState
     if (selection == false) await _stopSession();
   }
 
-  /// Segment-based recording: record 3s → stop → analyze → repeat
-  Future<void> _startNextSegment() async {
-    if (!_isRecording || !mounted) return;
+  Future<void> _startContinuousRecording() async {
+    final Directory tempDirectory = await getTemporaryDirectory();
+    _sessionPcmPath = path.join(
+      tempDirectory.path,
+      'firbird_live_${DateTime.now().millisecondsSinceEpoch}.pcm',
+    );
+    _sessionPcmSink = File(_sessionPcmPath!).openWrite();
+    final Stream<Uint8List> stream = await _audioRecorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: _sampleRate,
+        numChannels: 1,
+      ),
+    );
+    _audioStreamDone = Completer<void>();
+    _audioStreamSubscription = stream.listen(
+      _handlePcmChunk,
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('Continuous audio stream error: $error');
+        if (!_audioStreamDone!.isCompleted) {
+          _audioStreamDone!.completeError(error, stackTrace);
+        }
+      },
+      onDone: () {
+        if (!_audioStreamDone!.isCompleted) _audioStreamDone!.complete();
+      },
+      cancelOnError: false,
+    );
+    if (mounted) setState(() => _statusText = 'Dinleniyor...');
+  }
 
-    try {
-      final Directory tempDir = await getTemporaryDirectory();
-      _segmentCount++;
-      final String segPath = path.join(
-        tempDir.path,
-        'seg_${_segmentCount}_${DateTime.now().millisecondsSinceEpoch}.wav',
+  void _handlePcmChunk(Uint8List chunk) {
+    if (!_isRecording || chunk.length < _bytesPerSample) return;
+    final int byteLength = chunk.length - (chunk.length % _bytesPerSample);
+    final Uint8List pcm = byteLength == chunk.length
+        ? chunk
+        : Uint8List.sublistView(chunk, 0, byteLength);
+    _sessionPcmSink?.add(pcm);
+    _capturedPcmBytes += pcm.length;
+
+    int sourceOffset = 0;
+    while (sourceOffset < pcm.length) {
+      final int copyLength = math.min(
+        pcm.length - sourceOffset,
+        _analysisWindowBytes - _ringWriteOffset,
       );
-
-      await _audioRecorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 48000,
-          numChannels: 1,
-        ),
-        path: segPath,
+      _pcmRingBuffer.setRange(
+        _ringWriteOffset,
+        _ringWriteOffset + copyLength,
+        pcm,
+        sourceOffset,
       );
-      _isSegmentRecording = true;
+      _ringWriteOffset = (_ringWriteOffset + copyLength) % _analysisWindowBytes;
+      _ringLength = math.min(_analysisWindowBytes, _ringLength + copyLength);
+      sourceOffset += copyLength;
+    }
 
-      if (mounted) setState(() => _statusText = 'Dinleniyor...');
-
-      // After 3 seconds, stop segment, analyze, then restart
-      _segmentTimer = Timer(const Duration(seconds: 3), () async {
-        if (!_isRecording || !mounted) return;
-        await _stopAndAnalyzeSegment(segPath);
-      });
-    } catch (e) {
-      debugPrint('Segment start error: $e');
-      // Retry after a short delay
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      _startNextSegment();
+    if (_ringLength == _analysisWindowBytes &&
+        _capturedPcmBytes >= _nextAnalysisAtByte) {
+      while (_nextAnalysisAtByte <= _capturedPcmBytes) {
+        _nextAnalysisAtByte += _analysisHopBytes;
+      }
+      _pendingWindowEndByte = _capturedPcmBytes;
+      _analysisPending = true;
+      _analysisTask ??= _drainAnalysisWindows();
     }
   }
 
-  Future<void> _stopAndAnalyzeSegment(String segPath) async {
+  Future<void> _drainAnalysisWindows() async {
     try {
-      final String? stoppedPath = await _audioRecorder.stop();
-      _isSegmentRecording = false;
-      final String filePath = stoppedPath ?? segPath;
-      if (await File(filePath).exists()) _sessionSegmentPaths.add(filePath);
-
-      // Immediately start next segment (parallel to analysis)
-      if (_isRecording && mounted) {
-        _startNextSegment();
+      while (_analysisPending && _ringLength == _analysisWindowBytes) {
+        _analysisPending = false;
+        final int windowEndByte = _pendingWindowEndByte;
+        final Uint8List pcmWindow = _snapshotPcmRing();
+        final int windowStartByte = math.max(
+          0,
+          windowEndByte - _analysisWindowBytes,
+        );
+        await _analyzePcmWindow(
+          pcmWindow,
+          windowStart: Duration(
+            microseconds:
+                windowStartByte *
+                Duration.microsecondsPerSecond ~/
+                _bytesPerSecond,
+          ),
+        );
       }
-
-      final List<List<double>> spectrum = await WavSpectrogram.analyze(
-        filePath,
-        maxColumns: 24,
-      );
-      if (mounted && spectrum.isNotEmpty) {
-        setState(() {
-          _spectrogramColumns.addAll(spectrum);
-          if (_spectrogramColumns.length > 180) {
-            _spectrogramColumns.removeRange(
-              0,
-              _spectrogramColumns.length - 180,
-            );
-          }
-        });
+    } finally {
+      _analysisTask = null;
+      if (_analysisPending && _isRecording) {
+        _analysisTask = _drainAnalysisWindows();
       }
-
-      // Analyze the completed segment
-      await _analyzeSegment(filePath, spectrum: spectrum);
-
-      // Segment files are removed after the final session WAV is merged.
-    } catch (e) {
-      debugPrint('Segment stop/analyze error: $e');
-      _isSegmentRecording = false;
-      if (_isRecording && mounted) _startNextSegment();
     }
   }
 
-  Future<void> _analyzeSegment(
-    String filePath, {
-    List<List<double>> spectrum = const <List<double>>[],
+  Uint8List _snapshotPcmRing() {
+    final Uint8List snapshot = Uint8List(_analysisWindowBytes);
+    final int tailLength = _analysisWindowBytes - _ringWriteOffset;
+    snapshot.setRange(0, tailLength, _pcmRingBuffer, _ringWriteOffset);
+    if (_ringWriteOffset > 0) {
+      snapshot.setRange(tailLength, _analysisWindowBytes, _pcmRingBuffer, 0);
+    }
+    return snapshot;
+  }
+
+  Future<void> _analyzePcmWindow(
+    Uint8List pcmWindow, {
+    required Duration windowStart,
   }) async {
     if (_audioEngine == null || !_isEngineReady) return;
+    if (pcmWindow.length < _analysisWindowBytes) return;
 
-    final File segFile = File(filePath);
-    final int fileSize = await segFile.exists() ? await segFile.length() : 0;
-    if (fileSize < 10000) {
-      debugPrint('Segment too small ($fileSize bytes), skipping');
-      return;
+    final List<List<double>> spectrum = WavSpectrogram.analyzePcm16(
+      pcmWindow,
+      sampleRate: _sampleRate,
+      maxColumns: 24,
+    );
+    if (mounted && spectrum.isNotEmpty) {
+      final bool firstWindow = _analysisWindowCount++ == 0;
+      final int newColumnCount = firstWindow
+          ? spectrum.length
+          : math.min(8, spectrum.length);
+      final List<List<double>> newColumns = spectrum.sublist(
+        spectrum.length - newColumnCount,
+      );
+      setState(() {
+        _spectrogramColumns.addAll(newColumns);
+        if (_spectrogramColumns.length > 180) {
+          _spectrogramColumns.removeRange(0, _spectrogramColumns.length - 180);
+        }
+      });
     }
 
     if (mounted) setState(() => _statusText = 'Analiz ediliyor...');
 
     try {
-      final InferenceResult result = await _audioEngine!.identify(
-        ImageInput(uri: filePath),
+      final InferenceResult result = await _audioEngine!.identifyPcm16(
+        pcmWindow,
         IdentificationContext(
           countryCode: 'TR',
           observationDate: DateTime.now(),
@@ -611,7 +730,9 @@ class _LiveAudioRecordingScreenState
 
       if (!mounted) return;
 
-      final DateTime now = DateTime.now();
+      final DateTime now = (_sessionStartTime ?? DateTime.now()).add(
+        windowStart,
+      );
       bool listChanged = false;
       final bool cicadaLike = _isCicadaLike(spectrum);
 
@@ -647,27 +768,39 @@ class _LiveAudioRecordingScreenState
 
       for (final SpeciesPrediction pred in candidates) {
         final bool isRare = pred.statusCategory == SpeciesStatusCategory.rare;
-        final double baseThreshold = isRare ? 0.10 : 0.04;
-        // A single 3-second window can contain playback artefacts or a brief
-        // background sound. Only show one-window results when the model is
-        // very certain; all other candidates need confirmation in a second
-        // adjacent window.
-        final double instantThreshold = isRare ? 0.80 : 0.70;
-        final double effectiveThreshold = math.max(
-          _liveMinScore,
-          baseThreshold,
-        );
         final String candidateKey = pred.scientificName.toLowerCase();
         final int hits = _recentCandidateWindows
             .where((window) => window.contains(candidateKey))
             .length;
-        debugPrint(
-          'Live candidate: ${pred.turkishName} score=${pred.score.toStringAsFixed(3)} hits=$hits',
+        final RegionalSpeciesContext? regionalContext = _regionalContextFor(
+          pred,
         );
-        if (pred.score < effectiveThreshold ||
-            (hits < 2 && pred.score < instantThreshold)) {
-          continue;
-        }
+        final TemporalDetectionContext temporalContext =
+            temporalContextForSpecies(
+              scientificName: pred.scientificName,
+              moment: now,
+              latitude: _sessionPosition?.latitude,
+              longitude: _sessionPosition?.longitude,
+            );
+        final LiveDetectionDecision decision = evaluateLiveDetection(
+          score: pred.score,
+          hits: hits,
+          isRare: isRare,
+          regionalSupport: regionalContext?.supportLevel,
+          configuredMinimum: _liveMinScore,
+          temporalMultiplier: temporalContext.confidenceMultiplier,
+        );
+        debugPrint(
+          'Live candidate: ${pred.turkishName} score=${pred.score.toStringAsFixed(3)} '
+          'hits=$hits required=${decision.requiredHits} '
+          'min=${decision.minimumScore.toStringAsFixed(3)} '
+          'temporal=${decision.temporalScore.toStringAsFixed(3)} '
+          'regional=${regionalContext?.supportLevel.name ?? 'unknown'} '
+          'provisional=${decision.isProvisional} '
+          'time=${temporalContext.displayLabel} '
+          'accepted=${decision.accepted}',
+        );
+        if (!decision.accepted) continue;
 
         final int existingIdx = _detectedSpeciesList.indexWhere(
           (item) =>
@@ -681,11 +814,20 @@ class _LiveAudioRecordingScreenState
           final LiveDetectionEntry existing = _detectedSpeciesList.removeAt(
             existingIdx,
           );
+          final bool sameAcousticEvent =
+              now.difference(existing.lastDetectedAt).abs() <=
+              const Duration(seconds: 3);
           existing.lastDetectedAt = now;
-          existing.detectionCount++;
-          existing.regionalContext = _regionalContextFor(pred);
+          if (sameAcousticEvent) {
+            _extendLatestDetectionMoment(pred, now);
+          } else {
+            existing.detectionCount++;
+          }
+          existing.regionalContext = regionalContext;
+          existing.temporalContext = temporalContext;
+          existing.isProvisional = decision.isProvisional;
           _detectedSpeciesList.insert(0, existing);
-          _markDetectionFeedback(pred, now);
+          if (!sameAcousticEvent) _markDetectionFeedback(pred, now);
           listChanged = true;
         } else {
           // New species — insert at top
@@ -695,7 +837,9 @@ class _LiveAudioRecordingScreenState
               prediction: pred,
               firstDetectedAt: now,
               lastDetectedAt: now,
-              regionalContext: _regionalContextFor(pred),
+              regionalContext: regionalContext,
+              temporalContext: temporalContext,
+              isProvisional: decision.isProvisional,
             ),
           );
           _markDetectionFeedback(pred, now);
@@ -705,7 +849,7 @@ class _LiveAudioRecordingScreenState
 
       if (listChanged && mounted) setState(() {});
     } catch (e) {
-      debugPrint('Segment inference error: $e');
+      debugPrint('Continuous window inference error: $e');
     } finally {
       if (mounted) {
         final bool hasSound = _currentDb > -45.0;
@@ -772,26 +916,37 @@ class _LiveAudioRecordingScreenState
   }
 
   Future<void> _stopSession() async {
+    if (_isStoppingSession) return;
+    _isStoppingSession = true;
     _clockTimer?.cancel();
-    _segmentTimer?.cancel();
     _amplitudeSubscription?.cancel();
     await _setKeepScreenOn(false);
 
     setState(() {
-      _isRecording = false;
       _statusText = 'Oturum kaydediliyor...';
     });
 
     try {
-      // Stop segment recorder if active
-      if (_isSegmentRecording) {
-        try {
-          await _audioRecorder.stop();
-        } catch (_) {}
-        _isSegmentRecording = false;
+      try {
+        await _audioRecorder.stop();
+        await _audioStreamDone?.future.timeout(const Duration(seconds: 5));
+      } catch (error) {
+        debugPrint('Continuous audio stop warning: $error');
       }
+      _isRecording = false;
+      await _audioStreamSubscription?.cancel();
+      _audioStreamSubscription = null;
+      await _sessionPcmSink?.flush();
+      await _sessionPcmSink?.close();
+      _sessionPcmSink = null;
+      await _analysisTask;
 
-      if (_sessionSegmentPaths.isEmpty || !mounted) {
+      final String? pcmPath = _sessionPcmPath;
+      final File? pcmFile = pcmPath == null ? null : File(pcmPath);
+      final int pcmLength = pcmFile != null && await pcmFile.exists()
+          ? await pcmFile.length()
+          : 0;
+      if (pcmFile == null || pcmLength < _bytesPerSample || !mounted) {
         setState(() => _isSessionEnded = true);
         return;
       }
@@ -814,7 +969,11 @@ class _LiveAudioRecordingScreenState
 
       final Directory appDocs = await getApplicationDocumentsDirectory();
       final String destPath = path.join(appDocs.path, newFileName);
-      await _mergeWavSegments(_sessionSegmentPaths, destPath);
+      await _writePcmFileAsWav(
+        pcmFile: pcmFile,
+        pcmLength: pcmLength,
+        destination: destPath,
+      );
       final List<List<double>> completedSpectrum = await WavSpectrogram.analyze(
         destPath,
         maxColumns: 240,
@@ -839,28 +998,59 @@ class _LiveAudioRecordingScreenState
             .read(appDatabaseProvider)
             .isHistoryEnabled();
         if (historyEnabled) {
-          // Use session start timestamp as shared group key
+          final AppDatabase database = ref.read(appDatabaseProvider);
+          final DateTime sessionStart = _sessionStartTime ?? DateTime.now();
           final String sessionId =
-              'live_${(_sessionStartTime ?? DateTime.now()).millisecondsSinceEpoch}';
+              'live_${sessionStart.millisecondsSinceEpoch}';
           final String sessionLabel = DateFormat(
             'dd.MM.yyyy HH:mm',
             'tr_TR',
-          ).format(_sessionStartTime ?? DateTime.now());
+          ).format(sessionStart);
           for (final entry in _detectedSpeciesList) {
             final String timeRange = _relativeTimeRange(entry);
-            await ref
-                .read(appDatabaseProvider)
-                .addIdentification(
-                  speciesId: entry.prediction.speciesId,
-                  turkishName: entry.prediction.turkishName,
-                  scientificName: entry.prediction.scientificName,
-                  confidence:
-                      '%${(entry.prediction.score * 100).round()} · $timeRange',
-                  modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
-                  imageUri: destPath,
-                  packageId: sessionId,
-                  predictionMethod: 'count:${entry.detectionCount}',
-                );
+            await database.addIdentification(
+              speciesId: entry.prediction.speciesId,
+              turkishName: entry.prediction.turkishName,
+              scientificName: entry.prediction.scientificName,
+              confidence:
+                  '%${(entry.prediction.score * 100).round()} · $timeRange',
+              modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
+              imageUri: destPath,
+              packageId: sessionId,
+              predictionMethod: 'timeline-v1',
+            );
+          }
+
+          final int recordingDurationMs =
+              _capturedPcmBytes * 1000 ~/ _bytesPerSecond;
+          for (final _DetectionMoment moment in _detectionMoments) {
+            final int startMs = moment.startedAt
+                .difference(sessionStart)
+                .inMilliseconds
+                .clamp(0, recordingDurationMs);
+            final int endMs = moment.endedAt
+                .difference(sessionStart)
+                .inMilliseconds
+                .clamp(startMs, recordingDurationMs);
+            LiveDetectionEntry? speciesEntry;
+            for (final LiveDetectionEntry entry in _detectedSpeciesList) {
+              if (entry.prediction.scientificName.toLowerCase() ==
+                  moment.prediction.scientificName.toLowerCase()) {
+                speciesEntry = entry;
+                break;
+              }
+            }
+            await database.addLiveDetectionEvent(
+              sessionId: sessionId,
+              speciesId: moment.prediction.speciesId,
+              turkishName: moment.prediction.turkishName,
+              scientificName: moment.prediction.scientificName,
+              confidence: moment.prediction.score,
+              startMs: startMs,
+              endMs: endMs,
+              regionalSupport: speciesEntry?.regionalContext?.supportLevel.name,
+              temporalContext: speciesEntry?.temporalContext?.displayLabel,
+            );
           }
         }
       }
@@ -883,44 +1073,37 @@ class _LiveAudioRecordingScreenState
           ),
         );
       }
+      try {
+        await pcmFile.delete();
+      } catch (_) {}
     } catch (e) {
+      _isRecording = false;
       if (mounted) {
         setState(() => _isSessionEnded = true);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Kayıt hatası: $e')));
       }
+    } finally {
+      _isStoppingSession = false;
     }
   }
 
-  Future<void> _mergeWavSegments(
-    List<String> segmentPaths,
-    String destination,
-  ) async {
-    final BytesBuilder pcm = BytesBuilder(copy: false);
-    Uint8List? header;
-    for (final segmentPath in segmentPaths) {
-      final file = File(segmentPath);
-      if (!await file.exists()) continue;
-      final bytes = await file.readAsBytes();
-      if (bytes.length <= 44) continue;
-      header ??= Uint8List.fromList(bytes.sublist(0, 44));
-      pcm.add(bytes.sublist(44));
-    }
-    if (header == null) throw StateError('Geçerli ses parçası bulunamadı.');
-    final audio = pcm.takeBytes();
-    final data = ByteData.sublistView(header);
-    data.setUint32(4, 36 + audio.length, Endian.little);
-    data.setUint32(40, audio.length, Endian.little);
-    final output = BytesBuilder(copy: false)
-      ..add(header)
-      ..add(audio);
-    await File(destination).writeAsBytes(output.takeBytes(), flush: true);
-    for (final segmentPath in segmentPaths) {
-      try {
-        await File(segmentPath).delete();
-      } catch (_) {}
-    }
+  Future<void> _writePcmFileAsWav({
+    required File pcmFile,
+    required int pcmLength,
+    required String destination,
+  }) async {
+    final IOSink output = File(destination).openWrite();
+    output.add(
+      pcm16WavHeader(
+        pcmByteLength: pcmLength,
+        sampleRate: _sampleRate,
+        channels: 1,
+      ),
+    );
+    await output.addStream(pcmFile.openRead());
+    await output.close();
   }
 
   String _relativeTime(DateTime dt) {
@@ -940,7 +1123,20 @@ class _LiveAudioRecordingScreenState
   String _formatDuration(int seconds) {
     final int mins = seconds ~/ 60;
     final int secs = seconds % 60;
-    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    return '${mins.toString().padLeft(2, '0')}:${(secs).toString().padLeft(2, '0')}';
+  }
+
+  /// Kayıt tamamlandıktan sonra gösterilen okunabilir toplam süre.
+  /// 60 dk altı → "12 dk 34 sn", 60 dk ve üzeri → "1 sa 12 dk"
+  String _formatTotalDuration(int seconds) {
+    if (seconds < 3600) {
+      final int m = seconds ~/ 60;
+      final int s = seconds % 60;
+      return '$m dk ${s.toString().padLeft(2, '0')} sn';
+    }
+    final int h = seconds ~/ 3600;
+    final int m = (seconds % 3600) ~/ 60;
+    return '$h sa $m dk';
   }
 
   String _sessionLocationText() {
@@ -993,7 +1189,7 @@ class _LiveAudioRecordingScreenState
         .map((moment) {
           final String key = moment.prediction.scientificName.toLowerCase();
           final double second =
-              moment.detectedAt.difference(start).inMilliseconds / 1000;
+              moment.startedAt.difference(start).inMilliseconds / 1000;
           return SpectrogramMarker(
             position: (second - visibleStart) / math.max(visibleSpan, 1),
             label: moment.prediction.turkishName,
@@ -1251,6 +1447,17 @@ class _LiveAudioRecordingScreenState
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: _isRecording
+                ? 'Harita (canlı dinleme devam eder)'
+                : 'Yakındaki gözlem noktaları',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => showNearbyHotspotMapSheet(
+              context,
+              latitude: _sessionPosition?.latitude,
+              longitude: _sessionPosition?.longitude,
+            ),
+          ),
           if (_detectedSpeciesList.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 16),
@@ -1292,7 +1499,8 @@ class _LiveAudioRecordingScreenState
                                     (_playbackDurationMs * fraction).round(),
                                   )
                                 : null,
-                            height: 180,
+                            height: 220,
+                            pixelsPerColumn: 4.0,
                           )
                         : AudioSpectrogram(
                             columns: _spectrogramColumns,
@@ -1301,17 +1509,32 @@ class _LiveAudioRecordingScreenState
                             height: 128,
                           ),
                     if (_isSessionEnded && _savedFilePath != null)
-                      IconButton.filled(
-                        tooltip: _isPlaybackActive && !_isPlaybackPaused
-                            ? 'Duraklat'
-                            : 'Oynat',
-                        onPressed: _togglePause,
-                        iconSize: 38,
-                        icon: Icon(
-                          _isPlaybackActive && !_isPlaybackPaused
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          IconButton.filledTonal(
+                            tooltip: 'Önceki kuş sesi',
+                            onPressed: () => _jumpToDetection(next: false),
+                            icon: const Icon(Icons.skip_previous_rounded),
+                          ),
+                          IconButton.filled(
+                            tooltip: _isPlaybackActive && !_isPlaybackPaused
+                                ? 'Duraklat'
+                                : 'Oynat',
+                            onPressed: _togglePause,
+                            iconSize: 38,
+                            icon: Icon(
+                              _isPlaybackActive && !_isPlaybackPaused
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'Sonraki kuş sesi',
+                            onPressed: () => _jumpToDetection(next: true),
+                            icon: const Icon(Icons.skip_next_rounded),
+                          ),
+                        ],
                       ),
                     if (!_isSessionEnded)
                       Positioned(
@@ -1368,6 +1591,39 @@ class _LiveAudioRecordingScreenState
                   ),
                   textAlign: TextAlign.center,
                 ),
+                if (_isSessionEnded) ...<Widget>[
+                  Row(
+                    children: <Widget>[
+                      const Icon(Icons.volume_down_rounded, size: 18),
+                      Expanded(
+                        child: Slider(
+                          min: 0.5,
+                          max: 4.0,
+                          divisions: 14,
+                          value: _playbackGain,
+                          label: '%${(_playbackGain * 100).round()}',
+                          onChanged: (double value) async {
+                            setState(() => _playbackGain = value);
+                            if (_isPlaybackActive) {
+                              await _mediaChannel.invokeMethod<void>(
+                                'setVolume',
+                                <String, dynamic>{'volume': value},
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      SizedBox(
+                        width: 54,
+                        child: Text(
+                          '%${(_playbackGain * 100).round()}',
+                          textAlign: TextAlign.end,
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -1389,7 +1645,9 @@ class _LiveAudioRecordingScreenState
                   ),
                 ),
                 Text(
-                  '${_detectedSpeciesList.length} Kuş · ${_formatDuration(_secondsRecorded)}',
+                  _isSessionEnded
+                      ? '${_detectedSpeciesList.length} Kuş · ${_formatTotalDuration(_secondsRecorded)}'
+                      : '${_detectedSpeciesList.length} Kuş · ${_formatDuration(_secondsRecorded)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -1432,7 +1690,7 @@ class _LiveAudioRecordingScreenState
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
-                                'Her 3 saniyede bir analiz yapılıyor.',
+                                'Kesintisiz ses, her saniye son 3 saniyelik pencerede analiz ediliyor.',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
@@ -1586,6 +1844,16 @@ class _LiveAudioRecordingScreenState
                                                           FontWeight.bold,
                                                     ),
                                                   ),
+                                                if (item.isProvisional)
+                                                  const Text(
+                                                    'Ön tespit · doğrulanıyor',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.orange,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
                                                 const SizedBox(height: 4),
                                                 _RegionalSupportBadge(
                                                   level: item
@@ -1596,6 +1864,16 @@ class _LiveAudioRecordingScreenState
                                                           null &&
                                                       _sessionPosition != null,
                                                 ),
+                                                if (item
+                                                        .temporalContext
+                                                        ?.hasSpeciesProfile ??
+                                                    false) ...<Widget>[
+                                                  const SizedBox(height: 3),
+                                                  _TemporalContextBadge(
+                                                    context:
+                                                        item.temporalContext!,
+                                                  ),
+                                                ],
                                               ],
                                             ),
                                           ),
@@ -2000,6 +2278,11 @@ class _RegionalSupportBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (String label, Color color, IconData icon) =
+        _regionalBadgePresentation(level, contextAvailable);
+    /* Legacy encoded literals are retained only in this source comment so
+       source history remains readable; the active labels come from the
+       Unicode-safe presentation helper below.
     final (String label, Color color, IconData icon) = !contextAvailable
         ? ('Bağlam yok', Colors.grey, Icons.location_off_outlined)
         : switch (level) {
@@ -2021,6 +2304,7 @@ class _RegionalSupportBadge extends StatelessWidget {
             RegionalSupportLevel.none ||
             null => ('Güncel kayıt yok', Colors.grey, Icons.help_outline),
           };
+    */
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -2033,6 +2317,74 @@ class _RegionalSupportBadge extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+(String, Color, IconData) _regionalBadgePresentation(
+  RegionalSupportLevel? level,
+  bool contextAvailable,
+) {
+  if (!contextAvailable) {
+    return ('Konum yok', Colors.grey, Icons.location_off_outlined);
+  }
+  return switch (level) {
+    RegionalSupportLevel.strong => (
+      'Konum: g\u00FC\u00E7l\u00FC',
+      Colors.green,
+      Icons.verified_outlined,
+    ),
+    RegionalSupportLevel.moderate => (
+      'Konum: orta',
+      Colors.blue,
+      Icons.location_on_outlined,
+    ),
+    RegionalSupportLevel.weak => (
+      'Konum: zay\u0131f',
+      Colors.orange,
+      Icons.location_on_outlined,
+    ),
+    RegionalSupportLevel.none ||
+    null => ('Konum kayd\u0131 yok', Colors.grey, Icons.help_outline),
+  };
+}
+
+class _TemporalContextBadge extends StatelessWidget {
+  const _TemporalContextBadge({required this.context});
+
+  final TemporalDetectionContext context;
+
+  @override
+  Widget build(BuildContext buildContext) {
+    final (IconData icon, Color color) = switch (context.phase) {
+      SolarPhase.daylight => (Icons.wb_sunny_outlined, Colors.amber.shade800),
+      SolarPhase.night => (Icons.nightlight_round, Colors.indigo),
+      SolarPhase.civilTwilight ||
+      SolarPhase.nauticalTwilight ||
+      SolarPhase.astronomicalTwilight => (
+        Icons.wb_twilight_outlined,
+        Colors.deepOrange,
+      ),
+      SolarPhase.unavailable => (Icons.schedule_outlined, Colors.grey),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.max,
+      children: <Widget>[
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            context.activityLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 10.5,
               fontWeight: FontWeight.w700,
             ),
           ),

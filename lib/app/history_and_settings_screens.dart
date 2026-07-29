@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/firbird_app.dart';
@@ -5,11 +8,14 @@ import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
+import 'package:firbird/observation_context/ebird_live_observation_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as path;
+import 'package:url_launcher/url_launcher.dart';
 
 class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
@@ -203,6 +209,7 @@ class HistoryScreen extends ConsumerWidget {
                             context,
                             dateStr,
                             groupRecords,
+                            database,
                           ),
                         ),
                       ),
@@ -303,6 +310,7 @@ class HistoryScreen extends ConsumerWidget {
     BuildContext context,
     String dateStr,
     List<IdentificationRecord> records,
+    AppDatabase database,
   ) {
     final theme = Theme.of(context);
     final String? audioPath = records.first.imageUri;
@@ -383,23 +391,75 @@ class HistoryScreen extends ConsumerWidget {
                   if (audioPath != null) ...[
                     const SizedBox(height: 12),
                     InkWell(
-                      onTap: () => context.push(
-                        '/player',
-                        extra: <String, dynamic>{
-                          'path': audioPath,
-                          'name': path.basename(audioPath),
-                          'detections': records
-                              .map(
-                                (record) => PlaybackDetection.fromHistory(
-                                  turkishName: record.turkishName,
-                                  scientificName: record.scientificName,
-                                  confidenceText: record.confidence,
-                                  predictionMethod: record.predictionMethod,
-                                ),
-                              )
-                              .toList(),
-                        },
-                      ),
+                      onTap: () async {
+                        final String sessionId = records.first.packageId!;
+                        final List<LiveDetectionEvent> events = await database
+                            .eventsForLiveSession(sessionId);
+                        if (!context.mounted) return;
+                        if (events.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Bu oturumda oynatılabilir tespit olayı yok.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // candidates.json'dan speciesId → imageUrl lookup tablosu
+                        Map<String, String> thumbMap = const <String, String>{};
+                        try {
+                          final Directory external =
+                              await OnnxBirdInferenceEngine
+                                  .ensureTurkeyPackageInstalled();
+                          final File candidatesFile = File(
+                            path.join(external.path, 'candidates.json'),
+                          );
+                          if (await candidatesFile.exists()) {
+                            final Map<String, dynamic> json =
+                                jsonDecode(
+                                      await candidatesFile.readAsString(),
+                                    )
+                                    as Map<String, dynamic>;
+                            final List<dynamic> candidates =
+                                json['candidates'] as List<dynamic>? ??
+                                    const <dynamic>[];
+                            thumbMap = <String, String>{
+                              for (final dynamic c in candidates)
+                                if (c is Map<String, dynamic> &&
+                                    c['speciesId'] is String &&
+                                    c['imageUrl'] is String)
+                                  c['speciesId'] as String:
+                                      c['imageUrl'] as String,
+                            };
+                          }
+                        } catch (_) {}
+                        if (!context.mounted) return;
+                        context.push(
+                          '/player',
+                          extra: <String, dynamic>{
+                            'path': audioPath,
+                            'name': path.basename(audioPath),
+                            'detections': events
+                                .map(
+                                  (LiveDetectionEvent event) =>
+                                      PlaybackDetection(
+                                        turkishName: event.turkishName,
+                                        scientificName: event.scientificName,
+                                        startMs: event.startMs,
+                                        endMs: event.endMs,
+                                        confidence: (event.confidence * 100)
+                                            .round(),
+                                        regionalSupport: event.regionalSupport,
+                                        temporalContext: event.temporalContext,
+                                        thumbnailUrl:
+                                            thumbMap[event.speciesId],
+                                      ),
+                                )
+                                .toList(growable: false),
+                          },
+                        );
+                      },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -758,6 +818,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   double _candidateThreshold = 0.05;
   double _liveMinScore = 0.0;
   int _observationRadiusKm = 20;
+  bool _hasEbirdApiKey = false;
+  DateTime? _eBirdApiKeyVerifiedAt;
+  final EbirdLiveObservationService _ebirdLiveService =
+      EbirdLiveObservationService();
 
   @override
   void initState() {
@@ -772,6 +836,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final double threshold = await database.candidateThreshold();
     final double liveMin = await database.liveDetectionMinScore();
     final int observationRadius = await database.observationContextRadiusKm();
+    final bool hasEbirdApiKey = await _ebirdLiveService.hasApiKey();
+    final DateTime? eBirdApiKeyVerifiedAt =
+        await database.eBirdApiKeyLastVerifiedAt();
     if (mounted) {
       setState(() {
         _historyEnabled = history;
@@ -779,7 +846,113 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _candidateThreshold = threshold;
         _liveMinScore = liveMin;
         _observationRadiusKm = observationRadius;
+        _hasEbirdApiKey = hasEbirdApiKey;
+        _eBirdApiKeyVerifiedAt = eBirdApiKeyVerifiedAt;
       });
+    }
+  }
+
+  Future<void> _editEbirdApiKey() async {
+    final TextEditingController controller = TextEditingController();
+    bool testing = false;
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext dialogContext, StateSetter setDialogState) => AlertDialog(
+        title: const Text('eBird API anahtarı'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'Kişisel API anahtarı',
+                helperText: 'Anahtar yalnızca bu cihazın güvenli deposunda saklanır.',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () => launchUrl(
+                Uri.parse('https://ebird.org/api/keygen'),
+                mode: LaunchMode.externalApplication,
+              ),
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('eBird’den kişisel API anahtarı al'),
+            ),
+            if (testing) ...<Widget>[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 6),
+              const Text('Anahtar eBird ile doğrulanıyor…'),
+            ],
+          ],
+        ),
+        actions: <Widget>[
+          if (_hasEbirdApiKey)
+            TextButton(
+              onPressed: () async {
+                await _ebirdLiveService.clearApiKey();
+                if (dialogContext.mounted) Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Anahtarı sil'),
+            ),
+          TextButton(
+            onPressed: testing ? null : () => Navigator.pop(dialogContext),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: testing ? null : () async {
+              setDialogState(() => testing = true);
+              try {
+                await _ebirdLiveService.testApiKey(controller.text);
+                await _ebirdLiveService.saveApiKey(controller.text);
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } on FormatException catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text(error.message)),
+                  );
+                }
+              } on EbirdLiveDataException catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text(error.message)),
+                  );
+                }
+              } finally {
+                if (dialogContext.mounted) {
+                  setDialogState(() => testing = false);
+                }
+              }
+            },
+            child: const Text('Test et ve kaydet'),
+          ),
+        ],
+      ),
+      ),
+    );
+    controller.dispose();
+    if (saved == true) {
+      final DateTime now = DateTime.now();
+      await ref.read(appDatabaseProvider).setEBirdApiKeyLastVerifiedAt(now);
+      if (mounted) {
+        setState(() {
+          _hasEbirdApiKey = true;
+          _eBirdApiKeyVerifiedAt = now;
+        });
+      }
+    } else if (saved == false) {
+      await ref.read(appDatabaseProvider).clearEBirdApiKeyLastVerifiedAt();
+      if (mounted) {
+        setState(() {
+          _hasEbirdApiKey = false;
+          _eBirdApiKeyVerifiedAt = null;
+        });
+      }
     }
   }
 
@@ -878,6 +1051,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ref.read(appDatabaseProvider).setLiveDetectionMinScore(value),
           ),
           const Divider(height: 32),
+          ListTile(
+            leading: Icon(
+              _hasEbirdApiKey ? Icons.verified_rounded : Icons.key_outlined,
+              color: _hasEbirdApiKey ? Colors.green : null,
+            ),
+            title: const Text('eBird canlı veri anahtarı'),
+            subtitle: Text(
+              _hasEbirdApiKey
+                  ? 'Doğrulandı · ${_eBirdApiKeyVerifiedAt == null ? 'şimdi' : '${_eBirdApiKeyVerifiedAt!.day.toString().padLeft(2, '0')}.${_eBirdApiKeyVerifiedAt!.month.toString().padLeft(2, '0')}.${_eBirdApiKeyVerifiedAt!.year}'} · güvenli depoda.'
+                  : 'Hotspotlarda son verileri yenilemek için kendi anahtarını ekle.',
+            ),
+            trailing: FilledButton.tonal(
+              onPressed: _editEbirdApiKey,
+              child: Text(_hasEbirdApiKey ? 'Doğrulandı' : 'Anahtar ekle'),
+            ),
+            onTap: _editEbirdApiKey,
+          ),
+          const Divider(height: 32),
           const ListTile(
             leading: Icon(Icons.radar_outlined),
             title: Text('Gözlem bağlamı'),
@@ -917,7 +1108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 8),
           const ListTile(
             title: Text('Uygulama Teması'),
-            subtitle: Text('Açık, Koyu veya Otomatik sistem temasını seçin'),
+            subtitle: Text('Açık, koyu veya cihaz saatine göre otomatik tema'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -935,11 +1126,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 ButtonSegment<ThemeMode>(
                   value: ThemeMode.system,
-                  label: Text('Sistem'),
-                  icon: Icon(Icons.brightness_auto_outlined),
+                  label: Text('Otomatik'),
+                  icon: Icon(Icons.wb_twilight_outlined),
                 ),
               ],
-              selected: <ThemeMode>{ref.watch(themeModeProvider)},
+              selected: <ThemeMode>{ref.watch(themeSelectionProvider)},
               onSelectionChanged: (Set<ThemeMode> newSelection) {
                 if (newSelection.isNotEmpty) {
                   ref

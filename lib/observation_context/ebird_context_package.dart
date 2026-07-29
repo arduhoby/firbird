@@ -216,6 +216,7 @@ class EbirdRecentObservation {
     required this.speciesCode,
     required this.scientificName,
     required this.commonName,
+    this.turkishName,
     required this.locationId,
     required this.locationName,
     required this.observedAt,
@@ -223,6 +224,10 @@ class EbirdRecentObservation {
     required this.longitude,
     this.count,
     required this.reviewed,
+    this.submissionId,
+    this.observerName,
+    this.isLive = false,
+    this.observerIdentityFromArchive = false,
   });
 
   factory EbirdRecentObservation.fromJson(Map<String, dynamic> json) {
@@ -233,6 +238,7 @@ class EbirdRecentObservation {
       speciesCode: _requiredString(json, 'speciesCode'),
       scientificName: _requiredString(json, 'scientificName'),
       commonName: _requiredString(json, 'commonName'),
+      turkishName: json['turkishName'] as String?,
       locationId: _requiredString(json, 'locationId'),
       locationName: _requiredString(json, 'locationName'),
       observedAt: DateTime.parse(_requiredString(json, 'observedAt')),
@@ -240,12 +246,18 @@ class EbirdRecentObservation {
       longitude: longitude,
       count: (json['count'] as num?)?.toInt(),
       reviewed: json['reviewed'] as bool? ?? false,
+      submissionId: json['submissionId'] as String?,
+      observerName: json['observerName'] as String?,
+      isLive: json['isLive'] as bool? ?? false,
+      observerIdentityFromArchive:
+          json['observerIdentityFromArchive'] as bool? ?? false,
     );
   }
 
   final String speciesCode;
   final String scientificName;
   final String commonName;
+  final String? turkishName;
   final String locationId;
   final String locationName;
   final DateTime observedAt;
@@ -253,6 +265,32 @@ class EbirdRecentObservation {
   final double longitude;
   final int? count;
   final bool reviewed;
+  final String? submissionId;
+  final String? observerName;
+  final bool isLive;
+  final bool observerIdentityFromArchive;
+
+  EbirdRecentObservation copyWith({
+    String? observerName,
+    bool? observerIdentityFromArchive,
+  }) => EbirdRecentObservation(
+    speciesCode: speciesCode,
+    scientificName: scientificName,
+    commonName: commonName,
+    turkishName: turkishName,
+    locationId: locationId,
+    locationName: locationName,
+    observedAt: observedAt,
+    latitude: latitude,
+    longitude: longitude,
+    count: count,
+    reviewed: reviewed,
+    submissionId: submissionId,
+    observerName: observerName ?? this.observerName,
+    isLive: isLive,
+    observerIdentityFromArchive:
+        observerIdentityFromArchive ?? this.observerIdentityFromArchive,
+  );
 }
 
 Future<Map<String, dynamic>> _readObject(File file) async =>

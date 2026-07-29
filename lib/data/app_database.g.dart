@@ -1148,6 +1148,679 @@ class IdentificationRecordsCompanion
   }
 }
 
+class $LiveDetectionEventsTable extends LiveDetectionEvents
+    with TableInfo<$LiveDetectionEventsTable, LiveDetectionEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LiveDetectionEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
+    'speciesId',
+  );
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+    'species_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _turkishNameMeta = const VerificationMeta(
+    'turkishName',
+  );
+  @override
+  late final GeneratedColumn<String> turkishName = GeneratedColumn<String>(
+    'turkish_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scientificNameMeta = const VerificationMeta(
+    'scientificName',
+  );
+  @override
+  late final GeneratedColumn<String> scientificName = GeneratedColumn<String>(
+    'scientific_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _regionalSupportMeta = const VerificationMeta(
+    'regionalSupport',
+  );
+  @override
+  late final GeneratedColumn<String> regionalSupport = GeneratedColumn<String>(
+    'regional_support',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _temporalContextMeta = const VerificationMeta(
+    'temporalContext',
+  );
+  @override
+  late final GeneratedColumn<String> temporalContext = GeneratedColumn<String>(
+    'temporal_context',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sessionId,
+    speciesId,
+    turkishName,
+    scientificName,
+    confidence,
+    startMs,
+    endMs,
+    regionalSupport,
+    temporalContext,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'live_detection_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LiveDetectionEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('species_id')) {
+      context.handle(
+        _speciesIdMeta,
+        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    if (data.containsKey('turkish_name')) {
+      context.handle(
+        _turkishNameMeta,
+        turkishName.isAcceptableOrUnknown(
+          data['turkish_name']!,
+          _turkishNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_turkishNameMeta);
+    }
+    if (data.containsKey('scientific_name')) {
+      context.handle(
+        _scientificNameMeta,
+        scientificName.isAcceptableOrUnknown(
+          data['scientific_name']!,
+          _scientificNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scientificNameMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_confidenceMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('regional_support')) {
+      context.handle(
+        _regionalSupportMeta,
+        regionalSupport.isAcceptableOrUnknown(
+          data['regional_support']!,
+          _regionalSupportMeta,
+        ),
+      );
+    }
+    if (data.containsKey('temporal_context')) {
+      context.handle(
+        _temporalContextMeta,
+        temporalContext.isAcceptableOrUnknown(
+          data['temporal_context']!,
+          _temporalContextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LiveDetectionEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LiveDetectionEvent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      speciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_id'],
+      )!,
+      turkishName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}turkish_name'],
+      )!,
+      scientificName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scientific_name'],
+      )!,
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      regionalSupport: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}regional_support'],
+      ),
+      temporalContext: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}temporal_context'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LiveDetectionEventsTable createAlias(String alias) {
+    return $LiveDetectionEventsTable(attachedDatabase, alias);
+  }
+}
+
+class LiveDetectionEvent extends DataClass
+    implements Insertable<LiveDetectionEvent> {
+  final int id;
+  final String sessionId;
+  final String speciesId;
+  final String turkishName;
+  final String scientificName;
+  final double confidence;
+  final int startMs;
+  final int endMs;
+  final String? regionalSupport;
+  final String? temporalContext;
+  final DateTime createdAt;
+  const LiveDetectionEvent({
+    required this.id,
+    required this.sessionId,
+    required this.speciesId,
+    required this.turkishName,
+    required this.scientificName,
+    required this.confidence,
+    required this.startMs,
+    required this.endMs,
+    this.regionalSupport,
+    this.temporalContext,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['species_id'] = Variable<String>(speciesId);
+    map['turkish_name'] = Variable<String>(turkishName);
+    map['scientific_name'] = Variable<String>(scientificName);
+    map['confidence'] = Variable<double>(confidence);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    if (!nullToAbsent || regionalSupport != null) {
+      map['regional_support'] = Variable<String>(regionalSupport);
+    }
+    if (!nullToAbsent || temporalContext != null) {
+      map['temporal_context'] = Variable<String>(temporalContext);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  LiveDetectionEventsCompanion toCompanion(bool nullToAbsent) {
+    return LiveDetectionEventsCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      speciesId: Value(speciesId),
+      turkishName: Value(turkishName),
+      scientificName: Value(scientificName),
+      confidence: Value(confidence),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      regionalSupport: regionalSupport == null && nullToAbsent
+          ? const Value.absent()
+          : Value(regionalSupport),
+      temporalContext: temporalContext == null && nullToAbsent
+          ? const Value.absent()
+          : Value(temporalContext),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory LiveDetectionEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LiveDetectionEvent(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+      turkishName: serializer.fromJson<String>(json['turkishName']),
+      scientificName: serializer.fromJson<String>(json['scientificName']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      regionalSupport: serializer.fromJson<String?>(json['regionalSupport']),
+      temporalContext: serializer.fromJson<String?>(json['temporalContext']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'speciesId': serializer.toJson<String>(speciesId),
+      'turkishName': serializer.toJson<String>(turkishName),
+      'scientificName': serializer.toJson<String>(scientificName),
+      'confidence': serializer.toJson<double>(confidence),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'regionalSupport': serializer.toJson<String?>(regionalSupport),
+      'temporalContext': serializer.toJson<String?>(temporalContext),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  LiveDetectionEvent copyWith({
+    int? id,
+    String? sessionId,
+    String? speciesId,
+    String? turkishName,
+    String? scientificName,
+    double? confidence,
+    int? startMs,
+    int? endMs,
+    Value<String?> regionalSupport = const Value.absent(),
+    Value<String?> temporalContext = const Value.absent(),
+    DateTime? createdAt,
+  }) => LiveDetectionEvent(
+    id: id ?? this.id,
+    sessionId: sessionId ?? this.sessionId,
+    speciesId: speciesId ?? this.speciesId,
+    turkishName: turkishName ?? this.turkishName,
+    scientificName: scientificName ?? this.scientificName,
+    confidence: confidence ?? this.confidence,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    regionalSupport: regionalSupport.present
+        ? regionalSupport.value
+        : this.regionalSupport,
+    temporalContext: temporalContext.present
+        ? temporalContext.value
+        : this.temporalContext,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  LiveDetectionEvent copyWithCompanion(LiveDetectionEventsCompanion data) {
+    return LiveDetectionEvent(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      turkishName: data.turkishName.present
+          ? data.turkishName.value
+          : this.turkishName,
+      scientificName: data.scientificName.present
+          ? data.scientificName.value
+          : this.scientificName,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      regionalSupport: data.regionalSupport.present
+          ? data.regionalSupport.value
+          : this.regionalSupport,
+      temporalContext: data.temporalContext.present
+          ? data.temporalContext.value
+          : this.temporalContext,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LiveDetectionEvent(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('turkishName: $turkishName, ')
+          ..write('scientificName: $scientificName, ')
+          ..write('confidence: $confidence, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('regionalSupport: $regionalSupport, ')
+          ..write('temporalContext: $temporalContext, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    speciesId,
+    turkishName,
+    scientificName,
+    confidence,
+    startMs,
+    endMs,
+    regionalSupport,
+    temporalContext,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LiveDetectionEvent &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.speciesId == this.speciesId &&
+          other.turkishName == this.turkishName &&
+          other.scientificName == this.scientificName &&
+          other.confidence == this.confidence &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.regionalSupport == this.regionalSupport &&
+          other.temporalContext == this.temporalContext &&
+          other.createdAt == this.createdAt);
+}
+
+class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
+  final Value<int> id;
+  final Value<String> sessionId;
+  final Value<String> speciesId;
+  final Value<String> turkishName;
+  final Value<String> scientificName;
+  final Value<double> confidence;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String?> regionalSupport;
+  final Value<String?> temporalContext;
+  final Value<DateTime> createdAt;
+  const LiveDetectionEventsCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.turkishName = const Value.absent(),
+    this.scientificName = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.regionalSupport = const Value.absent(),
+    this.temporalContext = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  LiveDetectionEventsCompanion.insert({
+    this.id = const Value.absent(),
+    required String sessionId,
+    required String speciesId,
+    required String turkishName,
+    required String scientificName,
+    required double confidence,
+    required int startMs,
+    required int endMs,
+    this.regionalSupport = const Value.absent(),
+    this.temporalContext = const Value.absent(),
+    required DateTime createdAt,
+  }) : sessionId = Value(sessionId),
+       speciesId = Value(speciesId),
+       turkishName = Value(turkishName),
+       scientificName = Value(scientificName),
+       confidence = Value(confidence),
+       startMs = Value(startMs),
+       endMs = Value(endMs),
+       createdAt = Value(createdAt);
+  static Insertable<LiveDetectionEvent> custom({
+    Expression<int>? id,
+    Expression<String>? sessionId,
+    Expression<String>? speciesId,
+    Expression<String>? turkishName,
+    Expression<String>? scientificName,
+    Expression<double>? confidence,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? regionalSupport,
+    Expression<String>? temporalContext,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (speciesId != null) 'species_id': speciesId,
+      if (turkishName != null) 'turkish_name': turkishName,
+      if (scientificName != null) 'scientific_name': scientificName,
+      if (confidence != null) 'confidence': confidence,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (regionalSupport != null) 'regional_support': regionalSupport,
+      if (temporalContext != null) 'temporal_context': temporalContext,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  LiveDetectionEventsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? sessionId,
+    Value<String>? speciesId,
+    Value<String>? turkishName,
+    Value<String>? scientificName,
+    Value<double>? confidence,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String?>? regionalSupport,
+    Value<String?>? temporalContext,
+    Value<DateTime>? createdAt,
+  }) {
+    return LiveDetectionEventsCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      speciesId: speciesId ?? this.speciesId,
+      turkishName: turkishName ?? this.turkishName,
+      scientificName: scientificName ?? this.scientificName,
+      confidence: confidence ?? this.confidence,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      regionalSupport: regionalSupport ?? this.regionalSupport,
+      temporalContext: temporalContext ?? this.temporalContext,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (turkishName.present) {
+      map['turkish_name'] = Variable<String>(turkishName.value);
+    }
+    if (scientificName.present) {
+      map['scientific_name'] = Variable<String>(scientificName.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (regionalSupport.present) {
+      map['regional_support'] = Variable<String>(regionalSupport.value);
+    }
+    if (temporalContext.present) {
+      map['temporal_context'] = Variable<String>(temporalContext.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LiveDetectionEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('turkishName: $turkishName, ')
+          ..write('scientificName: $scientificName, ')
+          ..write('confidence: $confidence, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('regionalSupport: $regionalSupport, ')
+          ..write('temporalContext: $temporalContext, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AppSettingsTable extends AppSettings
     with TableInfo<$AppSettingsTable, AppSetting> {
   @override
@@ -1688,6 +2361,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $IdentificationRecordsTable identificationRecords =
       $IdentificationRecordsTable(this);
+  late final $LiveDetectionEventsTable liveDetectionEvents =
+      $LiveDetectionEventsTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $InstalledPackagesTable installedPackages =
       $InstalledPackagesTable(this);
@@ -1697,6 +2372,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     identificationRecords,
+    liveDetectionEvents,
     appSettings,
     installedPackages,
   ];
@@ -2209,6 +2885,340 @@ typedef $$IdentificationRecordsTableProcessedTableManager =
       IdentificationRecord,
       PrefetchHooks Function()
     >;
+typedef $$LiveDetectionEventsTableCreateCompanionBuilder =
+    LiveDetectionEventsCompanion Function({
+      Value<int> id,
+      required String sessionId,
+      required String speciesId,
+      required String turkishName,
+      required String scientificName,
+      required double confidence,
+      required int startMs,
+      required int endMs,
+      Value<String?> regionalSupport,
+      Value<String?> temporalContext,
+      required DateTime createdAt,
+    });
+typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
+    LiveDetectionEventsCompanion Function({
+      Value<int> id,
+      Value<String> sessionId,
+      Value<String> speciesId,
+      Value<String> turkishName,
+      Value<String> scientificName,
+      Value<double> confidence,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<String?> regionalSupport,
+      Value<String?> temporalContext,
+      Value<DateTime> createdAt,
+    });
+
+class $$LiveDetectionEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $LiveDetectionEventsTable> {
+  $$LiveDetectionEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get turkishName => $composableBuilder(
+    column: $table.turkishName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scientificName => $composableBuilder(
+    column: $table.scientificName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get regionalSupport => $composableBuilder(
+    column: $table.regionalSupport,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get temporalContext => $composableBuilder(
+    column: $table.temporalContext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LiveDetectionEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LiveDetectionEventsTable> {
+  $$LiveDetectionEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get turkishName => $composableBuilder(
+    column: $table.turkishName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scientificName => $composableBuilder(
+    column: $table.scientificName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get regionalSupport => $composableBuilder(
+    column: $table.regionalSupport,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get temporalContext => $composableBuilder(
+    column: $table.temporalContext,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LiveDetectionEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LiveDetectionEventsTable> {
+  $$LiveDetectionEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<String> get turkishName => $composableBuilder(
+    column: $table.turkishName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scientificName => $composableBuilder(
+    column: $table.scientificName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get regionalSupport => $composableBuilder(
+    column: $table.regionalSupport,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get temporalContext => $composableBuilder(
+    column: $table.temporalContext,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$LiveDetectionEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LiveDetectionEventsTable,
+          LiveDetectionEvent,
+          $$LiveDetectionEventsTableFilterComposer,
+          $$LiveDetectionEventsTableOrderingComposer,
+          $$LiveDetectionEventsTableAnnotationComposer,
+          $$LiveDetectionEventsTableCreateCompanionBuilder,
+          $$LiveDetectionEventsTableUpdateCompanionBuilder,
+          (
+            LiveDetectionEvent,
+            BaseReferences<
+              _$AppDatabase,
+              $LiveDetectionEventsTable,
+              LiveDetectionEvent
+            >,
+          ),
+          LiveDetectionEvent,
+          PrefetchHooks Function()
+        > {
+  $$LiveDetectionEventsTableTableManager(
+    _$AppDatabase db,
+    $LiveDetectionEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LiveDetectionEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LiveDetectionEventsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LiveDetectionEventsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
+                Value<String> speciesId = const Value.absent(),
+                Value<String> turkishName = const Value.absent(),
+                Value<String> scientificName = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String?> regionalSupport = const Value.absent(),
+                Value<String?> temporalContext = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => LiveDetectionEventsCompanion(
+                id: id,
+                sessionId: sessionId,
+                speciesId: speciesId,
+                turkishName: turkishName,
+                scientificName: scientificName,
+                confidence: confidence,
+                startMs: startMs,
+                endMs: endMs,
+                regionalSupport: regionalSupport,
+                temporalContext: temporalContext,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String sessionId,
+                required String speciesId,
+                required String turkishName,
+                required String scientificName,
+                required double confidence,
+                required int startMs,
+                required int endMs,
+                Value<String?> regionalSupport = const Value.absent(),
+                Value<String?> temporalContext = const Value.absent(),
+                required DateTime createdAt,
+              }) => LiveDetectionEventsCompanion.insert(
+                id: id,
+                sessionId: sessionId,
+                speciesId: speciesId,
+                turkishName: turkishName,
+                scientificName: scientificName,
+                confidence: confidence,
+                startMs: startMs,
+                endMs: endMs,
+                regionalSupport: regionalSupport,
+                temporalContext: temporalContext,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LiveDetectionEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LiveDetectionEventsTable,
+      LiveDetectionEvent,
+      $$LiveDetectionEventsTableFilterComposer,
+      $$LiveDetectionEventsTableOrderingComposer,
+      $$LiveDetectionEventsTableAnnotationComposer,
+      $$LiveDetectionEventsTableCreateCompanionBuilder,
+      $$LiveDetectionEventsTableUpdateCompanionBuilder,
+      (
+        LiveDetectionEvent,
+        BaseReferences<
+          _$AppDatabase,
+          $LiveDetectionEventsTable,
+          LiveDetectionEvent
+        >,
+      ),
+      LiveDetectionEvent,
+      PrefetchHooks Function()
+    >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
     AppSettingsCompanion Function({
       required String key,
@@ -2550,6 +3560,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$IdentificationRecordsTableTableManager get identificationRecords =>
       $$IdentificationRecordsTableTableManager(_db, _db.identificationRecords);
+  $$LiveDetectionEventsTableTableManager get liveDetectionEvents =>
+      $$LiveDetectionEventsTableTableManager(_db, _db.liveDetectionEvents);
   $$AppSettingsTableTableManager get appSettings =>
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$InstalledPackagesTableTableManager get installedPackages =>

@@ -9,42 +9,22 @@ class PlaybackDetection {
   const PlaybackDetection({
     required this.turkishName,
     required this.scientificName,
-    required this.startSeconds,
+    required this.startMs,
+    required this.endMs,
     required this.confidence,
-    this.count = 1,
+    this.regionalSupport,
+    this.temporalContext,
+    this.thumbnailUrl,
   });
 
   final String turkishName;
   final String scientificName;
-  final int startSeconds;
+  final int startMs;
+  final int endMs;
   final int confidence;
-  final int count;
-
-  factory PlaybackDetection.fromHistory({
-    required String turkishName,
-    required String scientificName,
-    required String confidenceText,
-    String? predictionMethod,
-  }) {
-    final List<String> parts = confidenceText.split('·');
-    final int confidence =
-        int.tryParse(parts.first.replaceAll('%', '').trim()) ?? 0;
-    final RegExpMatch? time = RegExp(
-      r'(\d+):(\d+)',
-    ).firstMatch(parts.length > 1 ? parts.last : '');
-    final int seconds = time == null
-        ? 0
-        : (int.parse(time.group(1)!) * 60 + int.parse(time.group(2)!));
-    final int count =
-        int.tryParse((predictionMethod ?? '').replaceFirst('count:', '')) ?? 1;
-    return PlaybackDetection(
-      turkishName: turkishName,
-      scientificName: scientificName,
-      startSeconds: seconds,
-      confidence: confidence,
-      count: count,
-    );
-  }
+  final String? regionalSupport;
+  final String? temporalContext;
+  final String? thumbnailUrl;
 }
 
 class MediaPlayerScreen extends StatefulWidget {
@@ -75,9 +55,21 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
   bool _paused = false;
   int _positionMs = 0;
   int _durationMs = 0;
-  final double _gain = 1.0;
+  double _gain = 1.0;
   String? _error;
   List<List<double>> _spectrogram = const <List<double>>[];
+
+  /// Şu an oynatma pozisyonuna denk gelen detection indexi
+  int? get _highlightedIndex {
+    if (!_isPlaying || _paused || widget.detections.isEmpty) return null;
+    for (int i = 0; i < widget.detections.length; i++) {
+      final PlaybackDetection d = widget.detections[i];
+      if (_positionMs >= d.startMs - 800 && _positionMs <= d.endMs + 800) {
+        return i;
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -171,6 +163,36 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     if (mounted) setState(() => _positionMs = positionMs);
   }
 
+  Future<void> _setGain(double value) async {
+    setState(() => _gain = value);
+    if (_isPlaying) {
+      await _channel.invokeMethod<void>('setVolume', <String, dynamic>{
+        'volume': value,
+      });
+    }
+  }
+
+  Future<void> _jumpToDetection({required bool next}) async {
+    if (widget.detections.isEmpty) return;
+    final List<int> points =
+        widget.detections
+            .map((PlaybackDetection item) => item.startMs)
+            .toSet()
+            .toList()
+          ..sort();
+    final int target = next
+        ? points.firstWhere(
+            (int point) => point > _positionMs + 500,
+            orElse: () => points.first,
+          )
+        : points.lastWhere(
+            (int point) => point < _positionMs - 500,
+            orElse: () => points.first,
+          );
+    if (!_isPlaying) await _togglePlayback();
+    await _seek(target);
+  }
+
   String _time(int ms) {
     final int seconds = ms ~/ 1000;
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
@@ -191,31 +213,32 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final markers = widget.detections
+    final ThemeData theme = Theme.of(context);
+    final int? highlightedIdx = _highlightedIndex;
+    final List<SpectrogramMarker> markers = widget.detections
         .map(
-          (item) => SpectrogramMarker(
-            position: _durationMs > 0
-                ? item.startSeconds * 1000 / _durationMs
-                : 0,
+          (PlaybackDetection item) => SpectrogramMarker(
+            position: _durationMs > 0 ? item.startMs / _durationMs : 0,
             label: item.turkishName,
           ),
         )
         .toList();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Canlı oturum kaydı')),
       body: Column(
-        children: [
+        children: <Widget>[
+          // ── Spektrogram + Kontroller ───────────────────────────────
           Container(
             padding: const EdgeInsets.all(16),
             color: theme.colorScheme.surfaceContainerHighest.withValues(
               alpha: 0.55,
             ),
             child: Column(
-              children: [
+              children: <Widget>[
                 Stack(
                   alignment: Alignment.center,
-                  children: [
+                  children: <Widget>[
                     ScrollableAudioSpectrogram(
                       columns: _spectrogram,
                       markers: markers,
@@ -225,23 +248,43 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                       onSeek: _durationMs == 0
                           ? null
                           : (value) => _seek((_durationMs * value).round()),
-                      height: 180,
+                      height: 220,
+                      pixelsPerColumn: 4.0,
                     ),
                     if (_filePath != null)
-                      IconButton.filled(
-                        onPressed: _togglePlayback,
-                        iconSize: 38,
-                        icon: Icon(
-                          _isPlaying && !_paused
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          IconButton.filledTonal(
+                            tooltip: 'Önceki kuş sesi',
+                            onPressed: widget.detections.isEmpty
+                                ? null
+                                : () => _jumpToDetection(next: false),
+                            icon: const Icon(Icons.skip_previous_rounded),
+                          ),
+                          IconButton.filled(
+                            onPressed: _togglePlayback,
+                            iconSize: 38,
+                            icon: Icon(
+                              _isPlaying && !_paused
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'Sonraki kuş sesi',
+                            onPressed: widget.detections.isEmpty
+                                ? null
+                                : () => _jumpToDetection(next: true),
+                            icon: const Icon(Icons.skip_next_rounded),
+                          ),
+                        ],
                       ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Row(
-                  children: [
+                  children: <Widget>[
                     Text(_time(_positionMs), style: theme.textTheme.labelSmall),
                     const Spacer(),
                     Text(
@@ -253,11 +296,37 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                     Text(_time(_durationMs), style: theme.textTheme.labelSmall),
                   ],
                 ),
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.volume_down_rounded, size: 18),
+                    Expanded(
+                      child: Slider(
+                        min: 0.5,
+                        max: 4.0,
+                        divisions: 14,
+                        value: _gain,
+                        label: '%${(_gain * 100).round()}',
+                        onChanged: _setGain,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 54,
+                      child: Text(
+                        '%${(_gain * 100).round()}',
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+
           if (_error != null)
             Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+
+          // ── Kuş Listesi ───────────────────────────────────────────
           if (widget.detections.isEmpty)
             Expanded(
               child: Center(
@@ -271,62 +340,18 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
           else
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                 itemCount: widget.detections.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final item = widget.detections[index];
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => _seek(item.startSeconds * 1000),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.45,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.graphic_eq,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.turkishName,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  item.scientificName,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                                if (item.count > 1)
-                                  Text(
-                                    '${item.count}× duyuldu',
-                                    style: theme.textTheme.labelSmall,
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${(item.startSeconds ~/ 60).toString().padLeft(2, '0')}:${(item.startSeconds % 60).toString().padLeft(2, '0')}',
-                            style: theme.textTheme.labelLarge,
-                          ),
-                        ],
-                      ),
-                    ),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                itemBuilder: (BuildContext context, int index) {
+                  final PlaybackDetection item = widget.detections[index];
+                  final bool isHighlighted = highlightedIdx == index;
+                  return _PlaybackDetectionTile(
+                    item: item,
+                    isHighlighted: isHighlighted,
+                    onTap: () => _seek(item.startMs),
+                    timeLabel:
+                        '${_time(item.startMs)}–${_time(item.endMs)}',
                   );
                 },
               ),
@@ -335,4 +360,194 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
       ),
     );
   }
+}
+
+// ── Kuş Kartı — LiveAudioRecordingScreen ile aynı görünüm ────────────────────
+
+class _PlaybackDetectionTile extends StatelessWidget {
+  const _PlaybackDetectionTile({
+    required this.item,
+    required this.isHighlighted,
+    required this.onTap,
+    required this.timeLabel,
+  });
+
+  final PlaybackDetection item;
+  final bool isHighlighted;
+  final VoidCallback onTap;
+  final String timeLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color borderColor = isHighlighted
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.5);
+    final Color bgColor = isHighlighted
+        ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+        : theme.colorScheme.surface;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: borderColor,
+          width: isHighlighted ? 2.0 : 1.0,
+        ),
+        boxShadow: isHighlighted
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.18),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: <Widget>[
+              // Thumbnail
+              _PlayerThumbnail(url: item.thumbnailUrl),
+              const SizedBox(width: 12),
+              // Bilgiler
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.turkishName,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isHighlighted
+                            ? theme.colorScheme.primary
+                            : null,
+                      ),
+                    ),
+                    Text(
+                      item.scientificName,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: <Widget>[
+                        _SmallBadge(
+                          label: '%${item.confidence}',
+                          color: _confidenceColor(item.confidence, theme),
+                        ),
+                        if (item.regionalSupport != null)
+                          _SmallBadge(
+                            label: item.regionalSupport!,
+                            color: theme.colorScheme.secondary,
+                          ),
+                        if (item.temporalContext != null)
+                          _SmallBadge(
+                            label: item.temporalContext!,
+                            color: theme.colorScheme.tertiary,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Zaman aralığı + atla
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Text(
+                    timeLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Icon(
+                    Icons.play_circle_outline,
+                    size: 20,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _confidenceColor(int confidence, ThemeData theme) {
+    if (confidence >= 75) return Colors.green.shade600;
+    if (confidence >= 50) return Colors.orange.shade700;
+    return Colors.red.shade600;
+  }
+}
+
+class _PlayerThumbnail extends StatelessWidget {
+  const _PlayerThumbnail({this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget fallback = Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.flutter_dash_outlined, size: 24),
+    );
+    if (url == null || url!.isEmpty) {
+      return ClipRRect(borderRadius: BorderRadius.circular(10), child: fallback);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        url!,
+        width: 52,
+        height: 52,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      ),
+    );
+  }
+}
+
+class _SmallBadge extends StatelessWidget {
+  const _SmallBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: color.withValues(alpha: 0.35)),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 9.5,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    ),
+  );
 }

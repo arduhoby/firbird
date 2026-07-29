@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:exif/exif.dart';
@@ -15,6 +16,7 @@ import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
+import 'package:firbird/inference/temporal_detection_context.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -138,8 +140,15 @@ final GoRouter _router = GoRouter(
 );
 
 class ThemeNotifier extends Notifier<ThemeMode> {
+  Timer? _automaticThemeTimer;
+  Position? _automaticThemePosition;
+  ThemeMode _selectedMode = ThemeMode.system;
+
+  ThemeMode get selectedMode => _selectedMode;
+
   @override
   ThemeMode build() {
+    ref.onDispose(() => _automaticThemeTimer?.cancel());
     _load();
     return ThemeMode.system;
   }
@@ -147,15 +156,24 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   Future<void> _load() async {
     final AppDatabase db = ref.read(appDatabaseProvider);
     final String modeStr = await db.themeMode();
-    state = switch (modeStr) {
-      'light' => ThemeMode.light,
-      'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
-    };
+    if (modeStr == 'light' || modeStr == 'dark') {
+      _selectedMode = modeStr == 'light' ? ThemeMode.light : ThemeMode.dark;
+      _automaticThemeTimer?.cancel();
+      state = _selectedMode;
+      return;
+    }
+    _selectedMode = ThemeMode.system;
+    _startAutomaticTheme();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
-    state = mode;
+    _selectedMode = mode;
+    if (mode == ThemeMode.system) {
+      _startAutomaticTheme();
+    } else {
+      _automaticThemeTimer?.cancel();
+      state = mode;
+    }
     final AppDatabase db = ref.read(appDatabaseProvider);
     final String modeStr = switch (mode) {
       ThemeMode.light => 'light',
@@ -163,6 +181,56 @@ class ThemeNotifier extends Notifier<ThemeMode> {
       ThemeMode.system => 'system',
     };
     await db.setThemeMode(modeStr);
+  }
+
+  void _startAutomaticTheme() {
+    _automaticThemeTimer?.cancel();
+    unawaited(_refreshAutomaticThemeLocation());
+    _automaticThemeTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _applyAutomaticTheme();
+      if (DateTime.now().minute % 15 == 0) {
+        unawaited(_refreshAutomaticThemeLocation());
+      }
+    });
+  }
+
+  Future<void> _refreshAutomaticThemeLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        _applyAutomaticTheme();
+        return;
+      }
+      final LocationPermission permission = await Geolocator.checkPermission();
+      if (permission != LocationPermission.whileInUse &&
+          permission != LocationPermission.always) {
+        _applyAutomaticTheme();
+        return;
+      }
+      _automaticThemePosition =
+          await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              timeLimit: Duration(seconds: 8),
+            ),
+          );
+    } catch (_) {
+      // The system appearance remains the offline fallback when GPS is absent.
+    }
+    _applyAutomaticTheme();
+  }
+
+  void _applyAutomaticTheme() {
+    final Position? position = _automaticThemePosition;
+    if (position == null) {
+      state = ThemeMode.system;
+      return;
+    }
+    final SolarPhase phase = solarPhaseAt(
+      moment: DateTime.now(),
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+    state = phase == SolarPhase.daylight ? ThemeMode.light : ThemeMode.dark;
   }
 }
 
@@ -197,6 +265,11 @@ class _MissingRouteDataScreen extends StatelessWidget {
 
 final NotifierProvider<ThemeNotifier, ThemeMode> themeModeProvider =
     NotifierProvider<ThemeNotifier, ThemeMode>(ThemeNotifier.new);
+
+final Provider<ThemeMode> themeSelectionProvider = Provider<ThemeMode>((ref) {
+  ref.watch(themeModeProvider);
+  return ref.read(themeModeProvider.notifier).selectedMode;
+});
 
 class FirBirdApp extends ConsumerWidget {
   const FirBirdApp({super.key});
@@ -335,6 +408,14 @@ class HomeScreen extends StatelessWidget {
                   icon: Icons.camera_alt_outlined,
                   title: 'Kamera',
                   onTap: () => context.push('/photo', extra: 'camera'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _QuickAction(
+                  icon: Icons.map_outlined,
+                  title: 'Harita',
+                  onTap: () => context.push('/explore'),
                 ),
               ),
             ],

@@ -277,6 +277,10 @@ $observations = @(
           longitude = [double]$longitude
           count = if ($null -ne $_.howMany) { [int](Get-FirstScalar $_.howMany) } else { $null }
           reviewed = [bool](Get-FirstScalar $_.obsReviewed)
+          submissionId = if ($_.subId) { [string](Get-FirstScalar $_.subId) } else { $null }
+          # The API only exposes a display name when the observer has allowed it.
+          # Never infer or reconstruct a hidden observer identity.
+          observerName = if ($_.userDisplayName) { [string](Get-FirstScalar $_.userDisplayName) } else { $null }
         }
       }
     }

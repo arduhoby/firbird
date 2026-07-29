@@ -1,7 +1,7 @@
 {
     "schemaVersion":  1,
     "packageId":  "turkey-ebird-context",
-    "version":  "2026.07.26",
+    "version":  "2026.07.29-ebd1y",
     "minimumAppVersion":  "0.5.0",
     "regionCode":  "TR",
     "coverageArea":  "Turkey",
@@ -331,12 +331,12 @@
                                 "name":  "Duzce"
                             }
                         ],
-    "generatedAt":  "2026-07-26T13:54:25.6243339Z",
-    "lookbackDays":  30,
+    "generatedAt":  "2026-07-29T09:00:00Z",
+    "lookbackDays":  365,
     "counts":  {
                    "coverageRegions":  81,
                    "hotspots":  4857,
-                   "recentObservations":  4397
+                   "recentObservations":  93637
                },
     "sources":  [
                     {
@@ -431,10 +431,10 @@
                         "recordCount":  4857
                     },
                     {
-                        "name":  "eBird Recent Observations API",
-                        "endpointTemplate":  "https://api.ebird.org/v2/data/obs/{regionCode}/recent?back=30\u0026hotspot=true\u0026includeProvisional=false\u0026maxResults=10000",
-                        "strategy":  "subnational1 fan-out",
-                        "requestCount":  81,
+                        "name":  "eBird Basic Dataset (EBD)",
+                        "endpointTemplate":  "https://ebird.org/data/download",
+                        "strategy":  "approved hotspot observations; latest record per hotspot and taxon",
+                        "requestCount":  1,
                         "regions":  [
                                         "TR-01",
                                         "TR-02",
@@ -518,10 +518,10 @@
                                         "TR-80",
                                         "TR-81"
                                     ],
-                        "fetchedAt":  "2026-07-26T13:54:25.6243339Z",
-                        "recordCount":  4397,
+                        "fetchedAt":  "2026-07-29T09:00:00Z",
+                        "recordCount":  93637,
                         "parameters":  {
-                                           "back":  30,
+                                           "back":  365,
                                            "hotspot":  true,
                                            "includeProvisional":  false,
                                            "maxResultsPerRegion":  10000
@@ -535,12 +535,12 @@
                                },
                   "recentObservations":  {
                                              "name":  "recent_observations.json",
-                                             "sha256":  "4bf9bc1a030fc50d2f3aec8e16fd69b3e044b4a2169f1a560250d9cdc15031f9"
+                                             "sha256":  "39fd5022c2098d9a80094bc7111e4f7f3c2d17788596f1d1a307b205c2eaa4dd"
                                          }
               },
     "notices":  [
                     "Coverage area: Turkey.",
-                    "Contains limited, recent and summary outputs from the eBird API.",
+                    "Contains derived one-year hotspot summaries from the eBird Basic Dataset; eBird terms apply.",
                     "Absence of a recent record does not mean that a species is absent.",
                     "The API token is not included in this package."
                 ]

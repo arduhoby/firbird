@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:audio_decoder/audio_decoder.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
+import 'package:firbird/audio/pcm16_wav.dart';
+
+import 'birdnet_label_filter.dart';
 import 'bird_inference_engine.dart';
 import 'model_coverage.dart';
 import 'sex_age_estimator.dart';
@@ -27,14 +30,15 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   final List<SpeciesPrediction> _turkeyCandidates = <SpeciesPrediction>[];
   SpeciesSexAgePolicyStore? _policyStore;
   final SexAgeEstimator _sexAgeEstimator = const PlaceholderSexAgeEstimator();
-  
+
   final OnnxRuntime _runtime = OnnxRuntime();
   OrtSession? _session;
   Future<void>? _warmUpFuture;
-  
+
   static const int sampleRate = 48000;
   static const int chunkDurationSeconds = 3;
-  static const int chunkSize = sampleRate * chunkDurationSeconds; // 144,000 samples
+  static const int chunkSize =
+      sampleRate * chunkDurationSeconds; // 144,000 samples
 
   @override
   List<SpeciesPrediction> get candidateSpecies =>
@@ -44,34 +48,43 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   Future<void> warmUp() => _warmUpFuture ??= _warmUp();
 
   Future<void> _warmUp() async {
-    
     final File modelFile = File(modelPath);
     if (!await modelFile.exists()) {
       try {
         final Directory parent = modelFile.parent;
         if (!await parent.exists()) await parent.create(recursive: true);
-        final ByteData bytes = await rootBundle.load('assets/models/birdnet.onnx');
-        await modelFile.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes), flush: true);
+        final ByteData bytes = await rootBundle.load(
+          'assets/models/birdnet.onnx',
+        );
+        await modelFile.writeAsBytes(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          flush: true,
+        );
       } catch (e) {
         debugPrint('Could not extract birdnet.onnx from assets: $e');
       }
     }
-    
+
     final File labelsFile = File(labelsPath);
     if (!await labelsFile.exists()) {
       try {
         final Directory parent = labelsFile.parent;
         if (!await parent.exists()) await parent.create(recursive: true);
-        final ByteData bytes = await rootBundle.load('assets/models/birdnet_labels.txt');
-        await labelsFile.writeAsBytes(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes), flush: true);
+        final ByteData bytes = await rootBundle.load(
+          'assets/models/birdnet_labels.txt',
+        );
+        await labelsFile.writeAsBytes(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          flush: true,
+        );
       } catch (e) {
         debugPrint('Could not extract birdnet_labels.txt from assets: $e');
       }
     }
-    
+
     // Create session
     _session = await _runtime.createSession(modelPath);
-    
+
     // Load labels
     if (await labelsFile.exists()) {
       _labels = await labelsFile.readAsLines();
@@ -79,18 +92,21 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       debugPrint('Labels file not found at $labelsPath');
     }
 
-    // Load regional candidates mapping for Turkish names, origin labels, thumbnail URLs
+    // Audio has its own BirdNET-compatible Türkiye catalog. The image model
+    // continues to use its independent BioCLIP candidate package.
     try {
-      final String content = (await rootBundle
-              .loadString('tools/model_staging/turkey_0.1.0/candidates.json'))
-          .replaceAll('\uFEFF', '');
-      final Map<String, dynamic> source = jsonDecode(content) as Map<String, dynamic>;
-      final List<dynamic> jsonList = source['candidates'] as List<dynamic>;
+      final String content = (await rootBundle.loadString(
+        'assets/audio_catalog/turkey-birdnet-v1.json',
+      )).replaceAll('\uFEFF', '');
+      final Map<String, dynamic> source =
+          jsonDecode(content) as Map<String, dynamic>;
+      final List<dynamic> jsonList = source['species'] as List<dynamic>;
       _candidatesByScientificName = {};
       _turkeyCandidates.clear();
       for (final item in jsonList) {
         final candidateMap = item as Map<String, dynamic>;
-        final String sciName = (candidateMap['scientificName'] as String).toLowerCase();
+        final String sciName = (candidateMap['scientificName'] as String)
+            .toLowerCase();
         final String turkishName = candidateMap['turkishName'] as String? ?? '';
         final String englishName = candidateMap['englishName'] as String? ?? '';
         final String occurrence = candidateMap['occurrence'] as String? ?? '';
@@ -108,9 +124,13 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
         final SpeciesPrediction candidate = SpeciesPrediction(
           speciesId: sciName.replaceAll(' ', '-'),
-          turkishName: turkishName.trim().isEmpty ? sciNameOriginal : turkishName,
+          turkishName: turkishName.trim().isEmpty
+              ? sciNameOriginal
+              : turkishName,
           scientificName: sciNameOriginal,
-          englishName: englishName.trim().isEmpty ? sciNameOriginal : englishName,
+          englishName: englishName.trim().isEmpty
+              ? sciNameOriginal
+              : englishName,
           score: 0.0,
           thumbnailUrl: imageUrl,
           ornitoId: ornitoId,
@@ -119,13 +139,12 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         _candidatesByScientificName![_candidateKey(sciName)] = candidate;
         _turkeyCandidates.add(candidate);
       }
-      debugPrint(
-        'BirdNET candidate map loaded: ${_candidatesByScientificName!.length} species.',
-      );
+      debugPrint('BirdNET audio catalog loaded: '
+          '${_candidatesByScientificName!.length}/${source['sourceCandidateCount']} Türkiye species.');
     } catch (e) {
       _candidatesByScientificName = <String, SpeciesPrediction>{};
       _turkeyCandidates.clear();
-      debugPrint('Could not load candidates.json for AudioInferenceEngine: $e');
+      debugPrint('Could not load BirdNET audio catalog: $e');
     }
 
     try {
@@ -133,13 +152,11 @@ class AudioInferenceEngine implements BirdInferenceEngine {
     } catch (e) {
       debugPrint('Could not load policy store for AudioInferenceEngine: $e');
     }
-    
   }
 
   SpeciesPrediction? _candidateForScientificName(String scientificName) {
     final String lookupKey = _candidateKey(scientificName);
-    final SpeciesPrediction? direct =
-        _candidatesByScientificName?[lookupKey];
+    final SpeciesPrediction? direct = _candidatesByScientificName?[lookupKey];
     if (direct != null) return direct;
 
     for (final SpeciesPrediction candidate in _turkeyCandidates) {
@@ -152,14 +169,14 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
   String _candidateKey(String name) =>
       name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  
+
   @override
   Future<InferenceResult> identify(
     ImageInput audio,
     IdentificationContext context,
   ) async {
     await warmUp();
-    
+
     if (_session == null) {
       throw StateError('AudioInferenceEngine is not initialized properly.');
     }
@@ -170,8 +187,9 @@ class AudioInferenceEngine implements BirdInferenceEngine {
     }
 
     // 1. Convert to WAV (48kHz, mono, 16-bit)
-    final String tempWavPath = '${sourceFile.parent.path}/temp_audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-    
+    final String tempWavPath =
+        '${sourceFile.parent.path}/temp_audio_${DateTime.now().millisecondsSinceEpoch}.wav';
+
     try {
       await AudioDecoder.convertToWav(
         audio.uri,
@@ -180,156 +198,183 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         channels: 1,
         bitDepth: 16,
       );
-      
+
       // 2. Read the decoded WAV file
       final File wavFile = File(tempWavPath);
       final Uint8List wavBytes = await wavFile.readAsBytes();
-      
+
       // 3. Extract PCM float data
       final Float32List pcmData = _parseWavToFloat32(wavBytes);
-      
-      // 4. Split into chunks and run inference
-      final Map<int, double> maxProbabilities = {}; // speciesIndex -> max probability across chunks
-      
-      int offset = 0;
-      while (offset + chunkSize <= pcmData.length) {
-        final Float32List chunk = Float32List.sublistView(pcmData, offset, offset + chunkSize);
-        
-        // Input tensor shape [1, 144000]
-        final shape = [1, chunkSize];
-        final OrtValue inputTensor = await OrtValue.fromList(chunk, shape);
-        
-        final List<dynamic> inputInfo = await _session!.getInputInfo();
-        final String inputName = inputInfo.first['name'] as String;
-
-        final Map<String, OrtValue> outputs = await _session!.run(
-          <String, OrtValue>{inputName: inputTensor},
-        );
-        
-        if (outputs.isNotEmpty) {
-          final OrtValue outputTensor = outputs.values.first;
-          final List<dynamic> outputData = await outputTensor.asFlattenedList();
-          final List<double> logits = outputData.cast<num>().map((num val) => val.toDouble()).toList();
-          
-          for (int i = 0; i < logits.length; i++) {
-            final double prob = _sigmoid(logits[i]);
-            if (prob > (maxProbabilities[i] ?? 0.0)) {
-              maxProbabilities[i] = prob;
-            }
-          }
-        }
-        
-        // Release resources
-        await inputTensor.dispose();
-        for (final OrtValue output in outputs.values) {
-          await output.dispose();
-        }
-        
-        offset += chunkSize;
-      }
-      
-      // 5. Sort probabilities and map to SpeciesPrediction
-      final List<MapEntry<int, double>> sortedProbs = maxProbabilities.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      final List<String> rawTopLabels = sortedProbs
-          .take(20)
-          .map((MapEntry<int, double> entry) {
-        final String label = entry.key < _labels.length
-            ? _labels[entry.key]
-            : 'Unknown-${entry.key}';
-        return '$label=${entry.value.toStringAsFixed(3)}';
-      }).toList(growable: false);
-      debugPrint('BirdNET raw top: ${rawTopLabels.join(', ')}');
-        
-      final List<SpeciesPrediction> predictions = [];
-      for (final entry in sortedProbs.take(20)) {
-        final int index = entry.key;
-        final double score = entry.value;
-        
-        if (score < 0.03) continue; // Noise threshold
-        
-        final String label = index < _labels.length ? _labels[index] : 'Unknown-$index';
-        
-        // BirdNET labels format: "Scientific_Name_Common_Name".
-        final int underscoreIdx = label.indexOf('_');
-        final String rawSciName = birdNetScientificName(label);
-        String rawEngName = label;
-        if (underscoreIdx != -1) {
-          rawEngName = label.substring(underscoreIdx + 1).trim().replaceAll('_', ' ');
-        } else {
-          rawEngName = rawSciName;
-        }
-
-        // ── Non-bird / background class filter ──────────────────────────────
-        // BirdNET contains non-bird sounds; skip them all
-        final String sciLower = rawSciName.toLowerCase();
-        final String engLower = rawEngName.toLowerCase();
-        const List<String> nonBirdKeywords = [
-          'human', 'homo sapien', 'dog', 'canis lupus', 'cat', 'felis catus',
-          'engine', 'car', 'machinery', 'wind', 'rain', 'thunder', 'noise',
-          'insect', 'frog', 'rana', 'bufo', 'cricket', 'cicada',
-          'firework', 'gunshot', 'siren', 'music', 'speech',
-        ];
-        if (nonBirdKeywords.any((kw) => sciLower.contains(kw) || engLower.contains(kw))) {
-          continue; // skip — not a bird
-        }
-        // ────────────────────────────────────────────────────────────────────
-
-        final SpeciesPrediction? matchedCandidate =
-            _candidateForScientificName(rawSciName);
-        if (matchedCandidate != null) {
-          // Only include if we have a valid Turkish name (not just scientific/English fallback)
-          final String trName = matchedCandidate.turkishName.trim();
-          final bool hasTurkishName = trName.isNotEmpty &&
-              trName.toLowerCase() != rawSciName.toLowerCase() &&
-              trName.toLowerCase() != rawEngName.toLowerCase();
-          if (!hasTurkishName) {
-            // No proper Turkish name — skip or use scientificName label only
-            // (still add, but mark turkishName as scientificName so it's recognizable)
-            predictions.add(matchedCandidate.copyWith(
-              score: score,
-              turkishName: rawSciName, // show scientific name rather than English
-            ));
-          } else {
-            predictions.add(matchedCandidate.copyWith(score: score));
-          }
-        }
-        // Labels outside the installed Türkiye candidate package must not be
-        // emitted as detections. This prevents global BirdNET labels from
-        // appearing as impossible local birds.
-      }
-      
-      SexAgePrediction? sexAge;
-      if (predictions.isNotEmpty && _policyStore != null) {
-        final SpeciesSexAgePolicy policy = _policyStore!.forSpecies(predictions.first.speciesId);
-        sexAge = _sexAgeEstimator.estimate(
-          speciesId: predictions.first.speciesId,
-          imageFeatures: Float32List(768),
-          policy: policy,
-        );
-      }
-
-      debugPrint(
-        'BirdNET Turkiye candidates: ${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(3)}').join(', ')}',
-      );
-
-      return InferenceResult(
-        predictions: predictions,
-        modelVersion: 'BirdNET-ONNX-v2.4',
-        locationAffectedResult: false,
-        dateAffectedResult: false,
-        sourceImageUri: audio.uri,
-        sexAge: sexAge,
-      );
-      
+      return _identifyPcmData(pcmData, sourceUri: audio.uri);
     } finally {
-      // Cleanup temporary WAV file
       final File tempFile = File(tempWavPath);
-      if (tempFile.existsSync()) {
-        tempFile.deleteSync();
-      }
+      if (tempFile.existsSync()) tempFile.deleteSync();
     }
+  }
+
+  /// Runs BirdNET directly on live 48 kHz mono PCM16 audio. The microphone
+  /// can remain open while overlapping model windows are analyzed.
+  Future<InferenceResult> identifyPcm16(
+    Uint8List pcmBytes,
+    IdentificationContext context, {
+    String sourceUri = 'live://microphone',
+  }) async {
+    await warmUp();
+    if (_session == null) {
+      throw StateError('AudioInferenceEngine is not initialized properly.');
+    }
+    return _identifyPcmData(_pcm16ToFloat32(pcmBytes), sourceUri: sourceUri);
+  }
+
+  Future<InferenceResult> _identifyPcmData(
+    Float32List pcmData, {
+    required String sourceUri,
+  }) async {
+    // Split into three-second chunks and run inference.
+    final Map<int, double> maxProbabilities =
+        {}; // speciesIndex -> max probability across chunks
+
+    int offset = 0;
+    while (offset + chunkSize <= pcmData.length) {
+      final Float32List chunk = Float32List.sublistView(
+        pcmData,
+        offset,
+        offset + chunkSize,
+      );
+
+      // Input tensor shape [1, 144000]
+      final shape = [1, chunkSize];
+      final OrtValue inputTensor = await OrtValue.fromList(chunk, shape);
+
+      final List<dynamic> inputInfo = await _session!.getInputInfo();
+      final String inputName = inputInfo.first['name'] as String;
+
+      final Map<String, OrtValue> outputs = await _session!.run(
+        <String, OrtValue>{inputName: inputTensor},
+      );
+
+      if (outputs.isNotEmpty) {
+        final OrtValue outputTensor = outputs.values.first;
+        final List<dynamic> outputData = await outputTensor.asFlattenedList();
+        final List<double> logits = outputData
+            .cast<num>()
+            .map((num val) => val.toDouble())
+            .toList();
+
+        for (int i = 0; i < logits.length; i++) {
+          final double prob = _sigmoid(logits[i]);
+          if (prob > (maxProbabilities[i] ?? 0.0)) {
+            maxProbabilities[i] = prob;
+          }
+        }
+      }
+
+      // Release resources
+      await inputTensor.dispose();
+      for (final OrtValue output in outputs.values) {
+        await output.dispose();
+      }
+
+      offset += chunkSize;
+    }
+
+    // 5. Sort probabilities and map to SpeciesPrediction
+    final List<MapEntry<int, double>> sortedProbs =
+        maxProbabilities.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+    final List<String> rawTopLabels = sortedProbs
+        .take(20)
+        .map((MapEntry<int, double> entry) {
+          final String label = entry.key < _labels.length
+              ? _labels[entry.key]
+              : 'Unknown-${entry.key}';
+          return '$label=${entry.value.toStringAsFixed(3)}';
+        })
+        .toList(growable: false);
+    debugPrint('BirdNET raw top: ${rawTopLabels.join(', ')}');
+
+    final List<SpeciesPrediction> predictions = [];
+    for (final entry in sortedProbs.take(20)) {
+      final int index = entry.key;
+      final double score = entry.value;
+
+      if (score < 0.03) continue; // Noise threshold
+
+      final String label = index < _labels.length
+          ? _labels[index]
+          : 'Unknown-$index';
+
+      // BirdNET labels format: "Scientific_Name_Common_Name".
+      final int underscoreIdx = label.indexOf('_');
+      final String rawSciName = birdNetScientificName(label);
+      String rawEngName = label;
+      if (underscoreIdx != -1) {
+        rawEngName = label
+            .substring(underscoreIdx + 1)
+            .trim()
+            .replaceAll('_', ' ');
+      } else {
+        rawEngName = rawSciName;
+      }
+
+      // Only exact BirdNET background classes are rejected. Substring
+      // matching would reject real taxa such as Carduelis and flycatchers.
+      if (isBirdNetNonBirdClass(rawSciName)) continue;
+
+      final SpeciesPrediction? matchedCandidate = _candidateForScientificName(
+        rawSciName,
+      );
+      if (matchedCandidate != null) {
+        // Only include if we have a valid Turkish name (not just scientific/English fallback)
+        final String trName = matchedCandidate.turkishName.trim();
+        final bool hasTurkishName =
+            trName.isNotEmpty &&
+            trName.toLowerCase() != rawSciName.toLowerCase() &&
+            trName.toLowerCase() != rawEngName.toLowerCase();
+        if (!hasTurkishName) {
+          // No proper Turkish name — skip or use scientificName label only
+          // (still add, but mark turkishName as scientificName so it's recognizable)
+          predictions.add(
+            matchedCandidate.copyWith(
+              score: score,
+              turkishName:
+                  rawSciName, // show scientific name rather than English
+            ),
+          );
+        } else {
+          predictions.add(matchedCandidate.copyWith(score: score));
+        }
+      }
+      // Labels outside the installed Türkiye candidate package must not be
+      // emitted as detections. This prevents global BirdNET labels from
+      // appearing as impossible local birds.
+    }
+
+    SexAgePrediction? sexAge;
+    if (predictions.isNotEmpty && _policyStore != null) {
+      final SpeciesSexAgePolicy policy = _policyStore!.forSpecies(
+        predictions.first.speciesId,
+      );
+      sexAge = _sexAgeEstimator.estimate(
+        speciesId: predictions.first.speciesId,
+        imageFeatures: Float32List(768),
+        policy: policy,
+      );
+    }
+
+    debugPrint(
+      'BirdNET Turkiye candidates: ${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(3)}').join(', ')}',
+    );
+
+    return InferenceResult(
+      predictions: predictions,
+      modelVersion: 'BirdNET-ONNX-v2.4',
+      locationAffectedResult: false,
+      dateAffectedResult: false,
+      sourceImageUri: sourceUri,
+      sexAge: sexAge,
+    );
   }
 
   @override
@@ -345,24 +390,25 @@ class AudioInferenceEngine implements BirdInferenceEngine {
   Future<void> dispose() async {
     _session = null;
   }
-  
+
   Float32List _parseWavToFloat32(Uint8List wavBytes) {
-    const int headerSize = 44;
-    if (wavBytes.length <= headerSize) {
+    final Pcm16WavData? wav = parsePcm16Wav(wavBytes);
+    if (wav == null || wav.sampleRate != sampleRate || wav.channels != 1) {
       return Float32List(0);
     }
-    
-    final int dataSize = wavBytes.length - headerSize;
-    final int numSamples = dataSize ~/ 2;
-    
-    final ByteData byteData = ByteData.sublistView(wavBytes, headerSize);
+    return _pcm16ToFloat32(wav.pcmBytes);
+  }
+
+  Float32List _pcm16ToFloat32(Uint8List pcmBytes) {
+    final int numSamples = pcmBytes.length ~/ 2;
+    final ByteData byteData = ByteData.sublistView(pcmBytes);
     final Float32List floatData = Float32List(numSamples);
-    
+
     for (int i = 0; i < numSamples; i++) {
       final int intSample = byteData.getInt16(i * 2, Endian.little);
       floatData[i] = intSample / 32768.0;
     }
-    
+
     return floatData;
   }
 

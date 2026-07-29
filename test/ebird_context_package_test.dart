@@ -25,7 +25,27 @@ void main() {
 
     expect(package.manifest.regionCode, 'TR');
     expect(package.hotspots, hasLength(4857));
-    expect(package.recentObservations, hasLength(4397));
+    expect(package.recentObservations, hasLength(93637));
+  });
+
+  test('preserves public checklist attribution fields when supplied', () {
+    final EbirdRecentObservation observation =
+        EbirdRecentObservation.fromJson(<String, dynamic>{
+          'speciesCode': 'comkin1',
+          'scientificName': 'Alcedo atthis',
+          'commonName': 'Common Kingfisher',
+          'locationId': 'L1',
+          'locationName': 'Test hotspot',
+          'observedAt': '2026-07-28 08:30',
+          'latitude': 41.0,
+          'longitude': 29.0,
+          'reviewed': true,
+          'submissionId': 'S123',
+          'observerName': 'Public Observer',
+        });
+
+    expect(observation.submissionId, 'S123');
+    expect(observation.observerName, 'Public Observer');
   });
 
   test('loads a source-attributed offline Türkiye context package', () async {

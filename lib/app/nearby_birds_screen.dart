@@ -1,13 +1,15 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/app_drawer.dart';
+import 'package:firbird/app/bird_photo.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/observation_context/ebird_context_package.dart';
 import 'package:firbird/observation_context/ebird_live_observation_service.dart';
+import 'package:firbird/observation_context/ebird_observation_cache.dart';
+import 'package:firbird/observation_context/ebird_observation_repository.dart';
+import 'package:firbird/species/species_catalog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -21,16 +23,10 @@ class NearbyBirdsScreen extends StatefulWidget {
 }
 
 Future<List<_NearbyBird>> _loadBirdCatalog() async {
-  final Map<String, dynamic> json =
-      jsonDecode(
-            await rootBundle.loadString(
-              'assets/audio_catalog/turkey-birdnet-v1.json',
-            ),
-          )
-          as Map<String, dynamic>;
-  return (json['species'] as List<dynamic>? ?? const <dynamic>[])
-      .cast<Map<String, dynamic>>()
-      .map(_NearbyBird.fromJson)
+  final SpeciesCatalog catalog =
+      await SpeciesCatalogRepository.instance.catalog;
+  return catalog.entries
+      .map(_NearbyBird.fromCatalogEntry)
       .toList(growable: false);
 }
 
@@ -40,42 +36,15 @@ Map<String, String> _photoUrlsByScientificName(List<_NearbyBird> birds) =>
         bird.scientificName.toLowerCase(): bird.imageUrl,
     };
 
-String _observationMergeKey(EbirdRecentObservation observation) =>
-    '${observation.locationId}|${observation.scientificName.toLowerCase()}';
-
-List<EbirdRecentObservation> _mergeLiveObservations(
-  List<EbirdRecentObservation> existing,
-  List<EbirdRecentObservation> live,
-) {
-  final Map<String, EbirdRecentObservation> archivedBySpecies =
-      <String, EbirdRecentObservation>{
-        for (final EbirdRecentObservation observation in existing)
-          _observationMergeKey(observation): observation,
-      };
-  final List<EbirdRecentObservation> resolvedLive = live
-      .map((EbirdRecentObservation observation) {
-        if (observation.observerName?.trim().isNotEmpty == true) {
-          return observation;
-        }
-        final EbirdRecentObservation? archived =
-            archivedBySpecies[_observationMergeKey(observation)];
-        if (archived?.observerName?.trim().isNotEmpty != true) {
-          return observation;
-        }
-        return observation.copyWith(
-          observerName: archived!.observerName,
-          observerIdentityFromArchive: true,
-        );
-      })
-      .toList(growable: false);
-  final Set<String> liveKeys = resolvedLive.map(_observationMergeKey).toSet();
-  return <EbirdRecentObservation>[
-    ...existing.where(
-      (EbirdRecentObservation observation) =>
-          !liveKeys.contains(_observationMergeKey(observation)),
-    ),
-    ...resolvedLive,
-  ];
+Future<_StandaloneMapData> _loadHotspotMapData() async {
+  final List<_NearbyBird> birds = await _loadBirdCatalog();
+  final EbirdObservationData data = await EbirdObservationRepository().load();
+  return _StandaloneMapData(
+    hotspots: data.hotspots,
+    recentObservations: data.observations,
+    photoUrls: _photoUrlsByScientificName(birds),
+    snapshot: data.snapshot,
+  );
 }
 
 /// Opens the hotspot map without replacing the current route. This is used by
@@ -84,6 +53,10 @@ Future<void> showNearbyHotspotMapSheet(
   BuildContext context, {
   double? latitude,
   double? longitude,
+  List<EbirdHotspot>? hotspots,
+  List<EbirdRecentObservation>? recentObservations,
+  Map<String, String>? photoUrls,
+  int radiusKm = 20,
 }) async {
   final LatLng? center = await _resolveMapCenter(
     latitude: latitude,
@@ -95,8 +68,18 @@ Future<void> showNearbyHotspotMapSheet(
     isScrollControlled: true,
     useSafeArea: true,
     builder: (BuildContext context) => FractionallySizedBox(
-      heightFactor: 0.9,
-      child: _StandaloneHotspotMap(center: center),
+      heightFactor: 1,
+      child: _StandaloneHotspotMap(
+        center: center,
+        initialData: hotspots == null || recentObservations == null
+            ? null
+            : _StandaloneMapData(
+                hotspots: hotspots,
+                recentObservations: recentObservations,
+                photoUrls: photoUrls ?? const <String, String>{},
+              ),
+        radiusKm: radiusKm,
+      ),
     ),
   );
 }
@@ -119,33 +102,27 @@ Future<LatLng?> _resolveMapCenter({double? latitude, double? longitude}) async {
 }
 
 class _StandaloneHotspotMap extends StatefulWidget {
-  const _StandaloneHotspotMap({this.center});
+  const _StandaloneHotspotMap({
+    this.center,
+    this.initialData,
+    this.radiusKm = 20,
+  });
 
   final LatLng? center;
+  final _StandaloneMapData? initialData;
+  final int radiusKm;
 
   @override
   State<_StandaloneHotspotMap> createState() => _StandaloneHotspotMapState();
 }
 
 class _StandaloneHotspotMapState extends State<_StandaloneHotspotMap> {
-  late final Future<_StandaloneMapData> _data = _loadData();
+  late final Future<_StandaloneMapData> _data = widget.initialData == null
+      ? _loadData()
+      : Future<_StandaloneMapData>.value(widget.initialData);
 
   Future<_StandaloneMapData> _loadData() async {
-    final List<_NearbyBird> birds = await _loadBirdCatalog();
-    return _StandaloneMapData(
-      package: EbirdContextPackage.fromJsonStrings(
-        manifest: await rootBundle.loadString(
-          'assets/ebird_context/manifest.json',
-        ),
-        hotspots: await rootBundle.loadString(
-          'assets/ebird_context/hotspots.json',
-        ),
-        recentObservations: await rootBundle.loadString(
-          'assets/ebird_context/recent_observations.json',
-        ),
-      ),
-      photoUrls: _photoUrlsByScientificName(birds),
-    );
+    return _loadHotspotMapData();
   }
 
   @override
@@ -167,109 +144,30 @@ class _StandaloneHotspotMapState extends State<_StandaloneHotspotMap> {
           }
           return const Center(child: CircularProgressIndicator());
         }
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: _HotspotMapCard(
-            expanded: true,
-            onToggle: () {},
-            center: widget.center,
-            hotspots: snap.data!.package.hotspots,
-            recentObservations: snap.data!.package.recentObservations,
-            photoUrls: snap.data!.photoUrls,
-            hasGps: widget.center != null,
-          ),
+        return LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) =>
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: _HotspotMapCard(
+                  expanded: true,
+                  onToggle: () {},
+                  isFullscreen: true,
+                  onFullscreen: () => Navigator.pop(context),
+                  center: widget.center,
+                  hotspots: snap.data!.hotspots,
+                  recentObservations: snap.data!.recentObservations,
+                  photoUrls: snap.data!.photoUrls,
+                  hasGps: widget.center != null,
+                  radiusKm: widget.radiusKm,
+                  mapHeight: math.max(240.0, constraints.maxHeight - 104),
+                ),
+              ),
         );
       },
     ),
   );
 }
 
-/* Duplicate block retained only temporarily by an earlier patch; disabled.
-The active implementation is above. */
-/*
-/// Opens the hotspot map without replacing the current route. This is used by
-/// live listening so the recorder and inference session keep running behind it.
-Future<void> showNearbyHotspotMapSheet(
-  BuildContext context, {
-  double? latitude,
-  double? longitude,
-}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (BuildContext context) => FractionallySizedBox(
-      heightFactor: 0.9,
-      child: _StandaloneHotspotMap(
-        center: latitude != null && longitude != null
-            ? LatLng(latitude, longitude)
-            : null,
-      ),
-    ),
-  );
-}
-
-class _StandaloneHotspotMap extends StatefulWidget {
-  const _StandaloneHotspotMap({this.center});
-
-  final LatLng? center;
-
-  @override
-  State<_StandaloneHotspotMap> createState() => _StandaloneHotspotMapState();
-}
-
-class _StandaloneHotspotMapState extends State<_StandaloneHotspotMap> {
-  late final Future<EbirdContextPackage> _package = _loadPackage();
-
-  Future<EbirdContextPackage> _loadPackage() async =>
-      EbirdContextPackage.fromJsonStrings(
-        manifest: await rootBundle.loadString(
-          'assets/ebird_context/manifest.json',
-        ),
-        hotspots: await rootBundle.loadString(
-          'assets/ebird_context/hotspots.json',
-        ),
-        recentObservations: await rootBundle.loadString(
-          'assets/ebird_context/recent_observations.json',
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: IconButton(
-        tooltip: 'Haritayı kapat',
-        icon: const Icon(Icons.close),
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: const Text('Yakındaki gözlem noktaları'),
-    ),
-    body: FutureBuilder<EbirdContextPackage>(
-      future: _package,
-      builder: (BuildContext context, AsyncSnapshot<EbirdContextPackage> snap) {
-        if (!snap.hasData) {
-          if (snap.hasError) {
-            return const Center(child: Text('Harita verisi yüklenemedi.'));
-          }
-          return const Center(child: CircularProgressIndicator());
-        }
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: _HotspotMapCard(
-            expanded: true,
-            onToggle: () {},
-            center: widget.center,
-            hotspots: snap.data!.hotspots,
-            recentObservations: snap.data!.recentObservations,
-            hasGps: widget.center != null,
-          ),
-        );
-      },
-    ),
-  );
-}
-
-*/
 class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
   late final Future<List<_NearbyBird>> _birds = _loadBirdCatalog();
   DateTime _date = DateTime.now();
@@ -288,9 +186,11 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
   bool _hotspotsLoaded = false;
   final EbirdLiveObservationService _liveObservationService =
       EbirdLiveObservationService();
+  final EbirdObservationCache _observationCache = EbirdObservationCache();
   int _nearbyRadiusKm = 20;
   bool _nearbyRefreshLoading = false;
   String? _nearbyRefreshStatus;
+  EbirdObservationSnapshot? _savedObservationSnapshot;
 
   static const List<String> _regions = <String>[
     'Marmara',
@@ -302,31 +202,25 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
     'Güneydoğu Anadolu',
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadHotspots();
+  }
+
   /// Bundled hotspot verisini yükle (ebird_context/hotspots.json asset'i)
   Future<void> _loadHotspots() async {
     if (_hotspotsLoaded) return;
     try {
-      final List<String> documents = await Future.wait(<Future<String>>[
-        rootBundle.loadString('assets/ebird_context/hotspots.json'),
-        rootBundle.loadString('assets/ebird_context/recent_observations.json'),
-      ]);
-      final dynamic decodedHotspots = jsonDecode(documents[0]);
-      final dynamic decodedObservations = jsonDecode(documents[1]);
-      final List<dynamic> hotspotList = decodedHotspots is List<dynamic>
-          ? decodedHotspots
-          : <dynamic>[];
-      final List<dynamic> observationList = decodedObservations is List<dynamic>
-          ? decodedObservations
-          : <dynamic>[];
+      final _StandaloneMapData data = await _loadHotspotMapData();
+      if (!mounted) return;
       setState(() {
-        _hotspots = hotspotList
-            .cast<Map<String, dynamic>>()
-            .map(EbirdHotspot.fromJson)
-            .toList(growable: false);
-        _recentObservations = observationList
-            .cast<Map<String, dynamic>>()
-            .map(EbirdRecentObservation.fromJson)
-            .toList(growable: false);
+        _hotspots = data.hotspots;
+        _recentObservations = data.recentObservations;
+        if (data.snapshot != null) {
+          _nearbyRadiusKm = data.snapshot!.radiusKm;
+          _savedObservationSnapshot = data.snapshot;
+        }
         _hotspotsLoaded = true;
       });
     } catch (e) {
@@ -414,14 +308,23 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
             longitude: position.longitude,
             radiusKm: _nearbyRadiusKm,
           );
+      final EbirdObservationSnapshot snapshot = EbirdObservationSnapshot(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radiusKm: _nearbyRadiusKm,
+        fetchedAt: DateTime.now(),
+        observations: downloaded,
+      );
+      await _observationCache.replace(snapshot);
       if (mounted) {
         setState(() {
-          _recentObservations = _mergeLiveObservations(
+          _recentObservations = EbirdObservationRepository.mergeObservations(
             _recentObservations,
             downloaded,
           );
+          _savedObservationSnapshot = snapshot;
           _nearbyRefreshStatus =
-              '$_nearbyRadiusKm km içinden ${downloaded.length} güncel kayıt indirildi.';
+              '${downloaded.length} güncel kayıt alındı; yeni veri cihazda saklandı.';
         });
       }
     } on EbirdLiveDataException catch (error) {
@@ -429,6 +332,18 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
     } finally {
       if (mounted) setState(() => _nearbyRefreshLoading = false);
     }
+  }
+
+  bool get _selectedRadiusHasSavedData =>
+      _savedObservationSnapshot?.radiusKm == _nearbyRadiusKm;
+
+  String get _savedObservationLabel {
+    final EbirdObservationSnapshot? snapshot = _savedObservationSnapshot;
+    if (snapshot == null) return 'Henüz veri indirilmedi';
+    final DateTime local = snapshot.fetchedAt.toLocal();
+    final String date =
+        '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year}';
+    return '${snapshot.radiusKm} km verisi $date tarihinde indirildi';
   }
 
   String? _regionFor(Position position) {
@@ -609,34 +524,85 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
                               ),
                       ),
                       const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed: _nearbyRefreshLoading
-                            ? null
-                            : _refreshNearbyEbird,
-                        icon: _nearbyRefreshLoading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: <Widget>[
+                          FilledButton.icon(
+                            onPressed: _nearbyRefreshLoading
+                                ? null
+                                : _refreshNearbyEbird,
+                            icon: _nearbyRefreshLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    _selectedRadiusHasSavedData
+                                        ? Icons.refresh
+                                        : Icons.download_for_offline_outlined,
+                                  ),
+                            label: Text(
+                              _nearbyRefreshLoading
+                                  ? 'eBird’den indiriliyor…'
+                                  : '$_nearbyRadiusKm km verisini ${_selectedRadiusHasSavedData ? 'yenile' : 'indir'}',
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _savedObservationSnapshot == null
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest
+                                  : Colors.green.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _savedObservationSnapshot == null
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.outlineVariant
+                                    : Colors.green,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  _savedObservationSnapshot == null
+                                      ? Icons.info_outline
+                                      : Icons.check_circle_outline,
+                                  size: 17,
+                                  color: _savedObservationSnapshot == null
+                                      ? null
+                                      : Colors.green,
                                 ),
-                              )
-                            : const Icon(Icons.download_for_offline_outlined),
-                        label: Text(
-                          _nearbyRefreshLoading
-                              ? 'eBird’den indiriliyor…'
-                              : '$_nearbyRadiusKm km verisini indir',
-                        ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _savedObservationLabel,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       if (_nearbyRefreshStatus != null) ...<Widget>[
                         const SizedBox(height: 8),
                         Row(
                           children: <Widget>[
                             Icon(
-                              _nearbyRefreshStatus!.contains('indirildi')
+                              _nearbyRefreshStatus!.contains('saklandı')
                                   ? Icons.check_circle
                                   : Icons.error_outline,
-                              color: _nearbyRefreshStatus!.contains('indirildi')
+                              color: _nearbyRefreshStatus!.contains('saklandı')
                                   ? Colors.green
                                   : Theme.of(context).colorScheme.error,
                             ),
@@ -656,6 +622,15 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
             _HotspotMapCard(
               expanded: _mapExpanded,
               onToggle: _toggleMap,
+              onFullscreen: () => showNearbyHotspotMapSheet(
+                context,
+                latitude: _currentPosition?.latitude,
+                longitude: _currentPosition?.longitude,
+                hotspots: _hotspots,
+                recentObservations: _recentObservations,
+                photoUrls: photoUrls,
+                radiusKm: _nearbyRadiusKm,
+              ),
               center: _currentPosition != null
                   ? LatLng(
                       _currentPosition!.latitude,
@@ -666,6 +641,7 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
               recentObservations: _recentObservations,
               photoUrls: photoUrls,
               hasGps: _currentPosition != null,
+              radiusKm: _nearbyRadiusKm,
             ),
             const SizedBox(height: 8),
 
@@ -802,6 +778,10 @@ class _HotspotMapCard extends StatefulWidget {
     required this.recentObservations,
     required this.photoUrls,
     required this.hasGps,
+    this.radiusKm = 20,
+    this.mapHeight = 340,
+    this.isFullscreen = false,
+    this.onFullscreen,
   });
 
   final bool expanded;
@@ -811,6 +791,10 @@ class _HotspotMapCard extends StatefulWidget {
   final List<EbirdRecentObservation> recentObservations;
   final Map<String, String> photoUrls;
   final bool hasGps;
+  final int radiusKm;
+  final double mapHeight;
+  final bool isFullscreen;
+  final VoidCallback? onFullscreen;
 
   @override
   State<_HotspotMapCard> createState() => _HotspotMapCardState();
@@ -825,6 +809,7 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
   static const double _gpsZoom = 13.0;
   bool _mapReady = false;
   double _mapZoom = _turkiyeZoom;
+  double _mapRotation = 0;
 
   @override
   void didUpdateWidget(_HotspotMapCard oldWidget) {
@@ -851,6 +836,8 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -864,17 +851,6 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Row(
                     children: <Widget>[
                       Container(
@@ -898,6 +874,11 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                      ),
+                      IconButton(
+                        tooltip: 'Gözlem listesini kapat',
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
                       ),
                     ],
                   ),
@@ -954,7 +935,7 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                     ...observations.map(
                       (EbirdRecentObservation observation) => ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: _BirdPhoto(
+                        leading: BirdPhoto(
                           scientificName: observation.scientificName,
                           imageUrl:
                               widget.photoUrls[observation.scientificName
@@ -1002,10 +983,11 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                           );
                           if (ctx.mounted) {
                             setSheetState(
-                              () => observations = _mergeLiveObservations(
-                                observations,
-                                refreshed,
-                              ),
+                              () => observations =
+                                  EbirdObservationRepository.mergeObservations(
+                                    observations,
+                                    refreshed,
+                                  ),
                             );
                           }
                         } on EbirdApiKeyMissingException {
@@ -1106,6 +1088,17 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
       ? '${(meters / 1000).toStringAsFixed(meters >= 10000 ? 0 : 1)} km'
       : '${meters.round()} m';
 
+  void _centerOnGps() {
+    final LatLng? center = widget.center;
+    if (!_mapReady || center == null) return;
+    _mapController.move(center, _gpsZoom);
+  }
+
+  void _resetNorth() {
+    if (!_mapReady) return;
+    _mapController.rotate(0);
+  }
+
   @override
   void dispose() {
     _mapController.dispose();
@@ -1144,7 +1137,9 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
         children: <Widget>[
           // Başlık / toggle satırı
           InkWell(
-            onTap: widget.onToggle,
+            onTap: widget.onFullscreen == null || widget.isFullscreen
+                ? null
+                : widget.onToggle,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -1176,11 +1171,12 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                       ],
                     ),
                   ),
-                  AnimatedRotation(
-                    turns: widget.expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 250),
-                    child: const Icon(Icons.expand_more),
-                  ),
+                  if (widget.onFullscreen != null && !widget.isFullscreen)
+                    AnimatedRotation(
+                      turns: widget.expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 250),
+                      child: const Icon(Icons.expand_more),
+                    ),
                 ],
               ),
             ),
@@ -1193,7 +1189,7 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                 ? CrossFadeState.showFirst
                 : CrossFadeState.showSecond,
             firstChild: SizedBox(
-              height: 340,
+              height: widget.mapHeight,
               child: Stack(
                 children: <Widget>[
                   FlutterMap(
@@ -1216,8 +1212,15 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                         }
                       },
                       onPositionChanged: (MapCamera camera, bool hasGesture) {
-                        if ((camera.zoom - _mapZoom).abs() > 0.01 && mounted) {
-                          setState(() => _mapZoom = camera.zoom);
+                        final bool zoomChanged =
+                            (camera.zoom - _mapZoom).abs() > 0.01;
+                        final bool rotationChanged =
+                            (camera.rotation - _mapRotation).abs() > 0.1;
+                        if (mounted && (zoomChanged || rotationChanged)) {
+                          setState(() {
+                            _mapZoom = camera.zoom;
+                            _mapRotation = camera.rotation;
+                          });
                         }
                       },
                     ),
@@ -1283,28 +1286,34 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                               point: widget.center!,
                               width: 42,
                               height: 42,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade700.withValues(
-                                    alpha: 0.9,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2.5,
-                                  ),
-                                  boxShadow: const <BoxShadow>[
-                                    BoxShadow(
-                                      color: Colors.black38,
-                                      blurRadius: 6,
-                                      offset: Offset(0, 3),
+                              child: GestureDetector(
+                                onTap: _centerOnGps,
+                                child: Tooltip(
+                                  message: 'GPS konumuna dön',
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade700.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2.5,
+                                      ),
+                                      boxShadow: const <BoxShadow>[
+                                        BoxShadow(
+                                          color: Colors.black38,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.my_location,
-                                  color: Colors.white,
-                                  size: 20,
+                                    child: const Icon(
+                                      Icons.my_location,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1314,35 +1323,28 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                   ),
                   // OSM atıfı
                   Positioned(
-                    bottom: 4,
+                    bottom: 6,
                     right: 4,
-                    child: Container(
+                    child: _MapOverlaySurface(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
                       child: const Text(
                         '© OpenStreetMap',
-                        style: TextStyle(fontSize: 9),
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                   Positioned(
                     left: 10,
                     bottom: 10,
-                    child: Container(
+                    child: _MapOverlaySurface(
                       padding: const EdgeInsets.fromLTRB(8, 5, 8, 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: const <BoxShadow>[
-                          BoxShadow(color: Colors.black26, blurRadius: 3),
-                        ],
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -1366,9 +1368,17 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                             ],
                           ),
                           const SizedBox(height: 3),
-                          Text(
-                            '${_formatDistance(scaleMeters)} ölçek · görünüm ≈ ${_formatDistance(visibleDiameterMeters)}',
-                            style: const TextStyle(fontSize: 10),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 190),
+                            child: Text(
+                              '${_formatDistance(scaleMeters)} ölçek · görünüm ≈ ${_formatDistance(visibleDiameterMeters)}',
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                            ),
                           ),
                         ],
                       ),
@@ -1378,17 +1388,10 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                   Positioned(
                     top: 8,
                     left: 8,
-                    child: Container(
+                    child: _MapOverlaySurface(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: const <BoxShadow>[
-                          BoxShadow(color: Colors.black12, blurRadius: 4),
-                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1398,6 +1401,7 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                             color: Colors.blue.shade700,
                             icon: Icons.my_location,
                             label: 'GPS konumunuz',
+                            onTap: widget.center == null ? null : _centerOnGps,
                           ),
                           const SizedBox(height: 4),
                           _LegendItem(
@@ -1409,23 +1413,63 @@ class _HotspotMapCardState extends State<_HotspotMapCard> {
                       ),
                     ),
                   ),
-                  // Zoom ~20 km hint (yalnızca GPS varken)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        if (widget.onFullscreen != null) ...<Widget>[
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.94),
+                            elevation: 2,
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              tooltip: widget.isFullscreen
+                                  ? 'Haritayı küçült'
+                                  : 'Haritayı tam ekran aç',
+                              onPressed: widget.onFullscreen,
+                              icon: Icon(
+                                widget.isFullscreen
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        _NorthCompass(
+                          rotationDegrees: _mapRotation,
+                          onReset: _resetNorth,
+                        ),
+                        const SizedBox(height: 6),
+                        _MapChip(icon: Icons.terrain_outlined, label: 'Arazi'),
+                        if (widget.center != null) ...<Widget>[
+                          const SizedBox(height: 6),
+                          _MapChip(
+                            icon: Icons.radar_outlined,
+                            label: '${widget.radiusKm} km yarıçap',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                   if (widget.center != null)
                     Positioned(
-                      bottom: 4,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          '~20 km yarıçap',
-                          style: TextStyle(fontSize: 9),
+                      right: 8,
+                      bottom: 30,
+                      child: Material(
+                        color: Colors.white.withValues(alpha: 0.94),
+                        elevation: 2,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: 'GPS konumuna dön',
+                          onPressed: _centerOnGps,
+                          icon: Icon(
+                            Icons.my_location,
+                            color: Colors.blue.shade700,
+                          ),
                         ),
                       ),
                     ),
@@ -1482,28 +1526,140 @@ class _LegendItem extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.label,
+    this.onTap,
   });
 
   final Color color;
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: <Widget>[
-      Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.9),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 10),
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(8),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.9),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 10),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
-      const SizedBox(width: 5),
-      Text(label, style: const TextStyle(fontSize: 10)),
-    ],
+    ),
+  );
+}
+
+class _MapChip extends StatelessWidget {
+  const _MapChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => _MapOverlaySurface(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 14, color: Colors.black87),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _NorthCompass extends StatelessWidget {
+  const _NorthCompass({required this.rotationDegrees, required this.onReset});
+
+  final double rotationDegrees;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Kuzeyi göster · dokununca kuzeye döner',
+    child: SizedBox(
+      width: 44,
+      height: 50,
+      child: _MapOverlaySurface(
+        padding: EdgeInsets.zero,
+        child: InkWell(
+          onTap: onReset,
+          borderRadius: BorderRadius.circular(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                'K',
+                style: TextStyle(
+                  color: Color(0xFFB42318),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Transform.rotate(
+                angle: -rotationDegrees * math.pi / 180,
+                child: const Icon(
+                  Icons.navigation_rounded,
+                  color: Color(0xFFB42318),
+                  size: 23,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _MapOverlaySurface extends StatelessWidget {
+  const _MapOverlaySurface({required this.child, required this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: BoxDecoration(
+      color: const Color(0xFFFDFDFD).withValues(alpha: 0.96),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0x33000000)),
+      boxShadow: const <BoxShadow>[
+        BoxShadow(
+          color: Color(0x33000000),
+          blurRadius: 5,
+          offset: Offset(0, 2),
+        ),
+      ],
+    ),
+    child: child,
   );
 }
 
@@ -1515,10 +1671,17 @@ class _NearbyLocationException implements Exception {
 }
 
 class _StandaloneMapData {
-  const _StandaloneMapData({required this.package, required this.photoUrls});
+  const _StandaloneMapData({
+    required this.hotspots,
+    required this.recentObservations,
+    required this.photoUrls,
+    this.snapshot,
+  });
 
-  final EbirdContextPackage package;
+  final List<EbirdHotspot> hotspots;
+  final List<EbirdRecentObservation> recentObservations;
   final Map<String, String> photoUrls;
+  final EbirdObservationSnapshot? snapshot;
 }
 
 class _BirdGroupHeader extends StatelessWidget {
@@ -1569,7 +1732,7 @@ class _NearbyBirdCard extends StatelessWidget {
       side: BorderSide(color: color.withValues(alpha: 0.45)),
     ),
     child: ListTile(
-      leading: _BirdPhoto(
+      leading: BirdPhoto(
         scientificName: bird.scientificName,
         imageUrl: bird.imageUrl,
       ),
@@ -1582,66 +1745,6 @@ class _NearbyBirdCard extends StatelessWidget {
   );
 }
 
-class _BirdPhoto extends StatelessWidget {
-  const _BirdPhoto({
-    required this.scientificName,
-    this.imageUrl,
-    this.size = 58,
-  });
-
-  final String scientificName;
-  final String? imageUrl;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final String resolvedUrl = imageUrl?.trim().isNotEmpty == true
-        ? imageUrl!.trim()
-        : 'https://birdnet.cornell.edu/taxonomy/api/image/'
-              '${Uri.encodeComponent(scientificName)}?size=medium';
-    final Widget unavailable = Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(4),
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      alignment: Alignment.center,
-      child: const Text(
-        'Fotoğraf\nalınamadı',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 9),
-      ),
-    );
-    return Semantics(
-      image: true,
-      label: '$scientificName kuş fotoğrafı',
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          resolvedUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => unavailable,
-          loadingBuilder:
-              (BuildContext context, Widget child, ImageChunkEvent? event) {
-                if (event == null) return child;
-                return SizedBox(
-                  width: size,
-                  height: size,
-                  child: const Center(
-                    child: SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                );
-              },
-        ),
-      ),
-    );
-  }
-}
-
 class _NearbyBird {
   const _NearbyBird({
     required this.turkishName,
@@ -1651,17 +1754,14 @@ class _NearbyBird {
     required this.imageUrl,
   });
 
-  factory _NearbyBird.fromJson(Map<String, dynamic> json) => _NearbyBird(
-    turkishName:
-        json['turkishName'] as String? ?? json['scientificName'] as String,
-    scientificName: json['scientificName'] as String,
-    englishName: json['englishName'] as String? ?? '',
-    isRare: json['occurrence'] == 'accidental',
-    imageUrl:
-        json['imageUrl'] as String? ??
-        'https://birdnet.cornell.edu/taxonomy/api/image/'
-            '${Uri.encodeComponent(json['scientificName'] as String)}?size=medium',
-  );
+  factory _NearbyBird.fromCatalogEntry(SpeciesCatalogEntry entry) =>
+      _NearbyBird(
+        turkishName: entry.turkishName,
+        scientificName: entry.scientificName,
+        englishName: entry.englishName,
+        isRare: entry.occurrence == 'accidental',
+        imageUrl: entry.imageUrl ?? '',
+      );
 
   final String turkishName;
   final String scientificName;

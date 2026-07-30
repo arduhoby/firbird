@@ -66,17 +66,8 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/player',
-      builder: (BuildContext context, GoRouterState state) {
-        final extra = state.extra;
-        final data = extra is Map ? extra : const <String, dynamic>{};
-        return MediaPlayerScreen(
-          initialPath: data['path'] as String?,
-          initialName: data['name'] as String?,
-          detections: data['detections'] is List<PlaybackDetection>
-              ? data['detections'] as List<PlaybackDetection>
-              : const <PlaybackDetection>[],
-        );
-      },
+      builder: (BuildContext context, GoRouterState state) =>
+          MediaPlayerScreen(session: state.extra as PlaybackSession?),
     ),
     GoRoute(
       path: '/history',

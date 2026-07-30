@@ -2,14 +2,20 @@ import 'dart:io';
 
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/bird_detection_card.dart';
+import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/app/sex_age_correction_sheet.dart';
+import 'package:firbird/detection/detection_record.dart';
 import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_inference_engine.dart';
 import 'package:firbird/inference/onnx_bird_detector.dart';
 import 'package:firbird/inference/bird_cropper.dart';
 import 'package:firbird/l10n/app_localizations.dart';
+import 'package:firbird/observation_context/ebird_context_package.dart';
+import 'package:firbird/observation_context/ebird_observation_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,35 +50,55 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   Future<InferenceResult> _runFullInference() async {
     final AppDatabase database = ref.read(appDatabaseProvider);
     final String cropMode = await database.cropMode();
-    
+
     ImageInput finalImage = widget.request.image;
     final String ext = p.extension(finalImage.uri).toLowerCase();
-    final bool isAudio = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.mp4'].contains(ext);
-    
+    final bool isAudio = [
+      '.mp3',
+      '.m4a',
+      '.wav',
+      '.aac',
+      '.ogg',
+      '.mp4',
+    ].contains(ext);
+
     if (isAudio) {
       final Directory targetDir = await getApplicationDocumentsDirectory();
-      final String modelPath = p.join(targetDir.path, 'firbird_test_model', 'birdnet.onnx');
-      final String labelsPath = p.join(targetDir.path, 'firbird_test_model', 'birdnet_labels.txt');
-      _engine = AudioInferenceEngine(modelPath: modelPath, labelsPath: labelsPath);
+      final String modelPath = p.join(
+        targetDir.path,
+        'firbird_test_model',
+        'birdnet.onnx',
+      );
+      final String labelsPath = p.join(
+        targetDir.path,
+        'firbird_test_model',
+        'birdnet_labels.txt',
+      );
+      _engine = AudioInferenceEngine(
+        modelPath: modelPath,
+        labelsPath: labelsPath,
+      );
     } else {
       _engine = OnnxBirdInferenceEngine.fromExternalTestFiles();
     }
-    
+
     if (cropMode == 'auto' && !isAudio) {
       try {
         final File modelFile = await OnnxBirdDetector.ensureModelExtracted();
-        final OnnxBirdDetector detector = OnnxBirdDetector(modelFile: modelFile);
+        final OnnxBirdDetector detector = OnnxBirdDetector(
+          modelFile: modelFile,
+        );
         final List<BirdBoundingBox> boxes = await detector.detect(finalImage);
-        
+
         if (boxes.isNotEmpty) {
           // En yüksek olasılıklı kutu (zaten sıralı geliyor)
           final BirdBoundingBox bestBox = boxes.first;
-          
+
           final String? croppedPath = await BirdCropper.cropBird(
-            finalImage.uri, 
+            finalImage.uri,
             bestBox,
           );
-          
+
           if (croppedPath != null) {
             finalImage = ImageInput(uri: croppedPath);
           }
@@ -197,6 +223,7 @@ class ResultsScreen extends ConsumerStatefulWidget {
 
 class _ResultsScreenState extends ConsumerState<ResultsScreen> {
   late InferenceResult _currentResult;
+  late final DateTime _resultOpenedAt = DateTime.now();
 
   @override
   void initState() {
@@ -216,7 +243,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
           loading: () => 0.20,
           error: (_, _) => 0.20,
         );
-    final List<SpeciesPrediction> visiblePredictions = _currentResult.predictions
+    final List<SpeciesPrediction> visiblePredictions = _currentResult
+        .predictions
         .where((SpeciesPrediction prediction) => prediction.score >= threshold)
         .toList(growable: false);
 
@@ -277,7 +305,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                   Text(
                     first.scientificName,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.75),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onPrimaryContainer.withValues(alpha: 0.75),
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -287,7 +317,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                     child: LinearProgressIndicator(
                       value: first.score.clamp(0, 1).toDouble(),
                       minHeight: 7,
-                      backgroundColor: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.12),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onPrimaryContainer.withValues(alpha: 0.12),
                     ),
                   ),
                   if (first.originLabel != null) ...<Widget>[
@@ -306,9 +338,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               sexAge: _currentResult.sexAge!,
               onSpeciesCorrected: (SpeciesPrediction newSpecies) {
                 setState(() {
-                  final List<SpeciesPrediction> newPredictions = List<SpeciesPrediction>.from(_currentResult.predictions);
+                  final List<SpeciesPrediction> newPredictions =
+                      List<SpeciesPrediction>.from(_currentResult.predictions);
                   // Remove if exists and place at the beginning
-                  newPredictions.removeWhere((SpeciesPrediction p) => p.speciesId == newSpecies.speciesId);
+                  newPredictions.removeWhere(
+                    (SpeciesPrediction p) =>
+                        p.speciesId == newSpecies.speciesId,
+                  );
                   newPredictions.insert(0, newSpecies);
                   _currentResult = _currentResult.copyWith(
                     predictions: newPredictions,
@@ -321,14 +357,21 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
-                  final SexAgeCorrectionResult? res = await showSexAgeCorrectionSheet(
-                    context,
-                    recordId: _currentResult.recordId,
-                  );
+                  final SexAgeCorrectionResult? res =
+                      await showSexAgeCorrectionSheet(
+                        context,
+                        recordId: _currentResult.recordId,
+                      );
                   if (res != null && res.species != null) {
                     setState(() {
-                      final List<SpeciesPrediction> newPredictions = List<SpeciesPrediction>.from(_currentResult.predictions);
-                      newPredictions.removeWhere((SpeciesPrediction p) => p.speciesId == res.species!.speciesId);
+                      final List<SpeciesPrediction> newPredictions =
+                          List<SpeciesPrediction>.from(
+                            _currentResult.predictions,
+                          );
+                      newPredictions.removeWhere(
+                        (SpeciesPrediction p) =>
+                            p.speciesId == res.species!.speciesId,
+                      );
                       newPredictions.insert(0, res.species!);
                       _currentResult = _currentResult.copyWith(
                         predictions: newPredictions,
@@ -336,7 +379,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                     });
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Tür düzeltmesi kaydedildi')),
+                        const SnackBar(
+                          content: Text('Tür düzeltmesi kaydedildi'),
+                        ),
                       );
                     }
                   }
@@ -353,7 +398,12 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
           ),
           const SizedBox(height: 8),
           if (visiblePredictions.isNotEmpty)
-            _CandidateTable(predictions: visiblePredictions)
+            _CandidateTable(
+              predictions: visiblePredictions,
+              sourceUri: _currentResult.sourceImageUri,
+              modelVersion: _currentResult.modelVersion,
+              detectedAt: _resultOpenedAt,
+            )
           else
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -443,12 +493,18 @@ class _ContextEffect extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF3E2723).withValues(alpha: 0.55) : const Color(0xFFFFE4C4).withValues(alpha: 0.65),
+        color: isDark
+            ? const Color(0xFF3E2723).withValues(alpha: 0.55)
+            : const Color(0xFFFFE4C4).withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.info_outline, size: 15, color: isDark ? const Color(0xFFFFB74D) : const Color(0xFF9A4D00)),
+          Icon(
+            Icons.info_outline,
+            size: 15,
+            color: isDark ? const Color(0xFFFFB74D) : const Color(0xFF9A4D00),
+          ),
           const SizedBox(width: 7),
           Expanded(
             child: Column(
@@ -457,14 +513,18 @@ class _ContextEffect extends StatelessWidget {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
+                    color: isDark
+                        ? const Color(0xFFFFCC80)
+                        : const Color(0xFF4A2A00),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   l10n.contextNotUsed,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isDark ? const Color(0xFFFFCC80) : const Color(0xFF4A2A00),
+                    color: isDark
+                        ? const Color(0xFFFFCC80)
+                        : const Color(0xFF4A2A00),
                   ),
                 ),
               ],
@@ -477,92 +537,54 @@ class _ContextEffect extends StatelessWidget {
 }
 
 class _CandidateTable extends StatelessWidget {
-  const _CandidateTable({required this.predictions});
+  const _CandidateTable({
+    required this.predictions,
+    required this.sourceUri,
+    required this.modelVersion,
+    required this.detectedAt,
+  });
 
   final List<SpeciesPrediction> predictions;
+  final String? sourceUri;
+  final String modelVersion;
+  final DateTime detectedAt;
+
+  bool get _isAudio {
+    final String extension = p.extension(sourceUri ?? '').toLowerCase();
+    return const <String>{
+      '.mp3',
+      '.m4a',
+      '.wav',
+      '.aac',
+      '.ogg',
+      '.mp4',
+    }.contains(extension);
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: predictions
-            .map((SpeciesPrediction prediction) {
-              final bool isLast = identical(prediction, predictions.last);
-              return InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => context.push('/species/demo', extra: prediction),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    border: isLast
-                        ? null
-                        : Border(
-                            bottom: BorderSide(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outlineVariant,
-                            ),
-                          ),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      _CandidateThumbnail(url: prediction.thumbnailUrl),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              <String>[
-                                    prediction.turkishName,
-                                    prediction.scientificName,
-                                  ]
-                                  .where((String name) => name.isNotEmpty)
-                                  .join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            if (prediction.originLabel != null) ...<Widget>[
-                              const SizedBox(height: 4),
-                              _OriginBadge(label: prediction.originLabel!),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 54,
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '%${(prediction.score * 100).round()}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            })
-            .toList(growable: false),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Column(
+    children: <Widget>[
+      for (int index = 0; index < predictions.length; index++) ...<Widget>[
+        BirdDetectionCard(
+          record: DetectionRecord(
+            id: '${sourceUri ?? 'analysis'}|${predictions[index].speciesId}|${detectedAt.millisecondsSinceEpoch}',
+            speciesId: predictions[index].speciesId,
+            turkishName: predictions[index].turkishName,
+            scientificName: predictions[index].scientificName,
+            modelConfidence: predictions[index].score,
+            detectedAt: detectedAt,
+            source: _isAudio
+                ? DetectionSource.audioFile
+                : DetectionSource.photo,
+            modelVersion: modelVersion,
+            thumbnailUrl: predictions[index].thumbnailUrl,
+            audioUri: _isAudio ? sourceUri : null,
+          ),
+        ),
+        if (index != predictions.length - 1) const SizedBox(height: 8),
+      ],
+    ],
+  );
 }
 
 class _OriginBadge extends StatelessWidget {
@@ -587,36 +609,6 @@ class _OriginBadge extends StatelessWidget {
           color: isDark ? const Color(0xFF81C784) : const Color(0xFF28633A),
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-}
-
-class _CandidateThumbnail extends StatelessWidget {
-  const _CandidateThumbnail({this.url});
-
-  final String? url;
-
-  @override
-  Widget build(BuildContext context) {
-    final Widget fallback = Container(
-      width: 54,
-      height: 54,
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      alignment: Alignment.center,
-      child: const Icon(Icons.flutter_dash_outlined),
-    );
-    if (url == null || url!.isEmpty) {
-      return ClipRRect(borderRadius: BorderRadius.circular(8), child: fallback);
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        url!,
-        width: 54,
-        height: 54,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => fallback,
       ),
     );
   }
@@ -666,6 +658,8 @@ class SpeciesDetailScreen extends StatelessWidget {
             value:
                 'Bu, fotograf uzerinden cihazda uretilen bir adaydir. Turkiye bolge paketi tamamlandiginda dagilim ve mevsim bilgisiyle yeniden siralanacaktir.',
           ),
+          const SizedBox(height: 8),
+          _NearbySpeciesObservationSection(prediction: prediction),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => _openTrakus(context),
@@ -741,6 +735,191 @@ class SpeciesDetailScreen extends StatelessWidget {
       .replaceAll(RegExp(r'(^-|-$)'), '');
 }
 
+class _NearbySpeciesObservationSection extends StatefulWidget {
+  const _NearbySpeciesObservationSection({required this.prediction});
+
+  final SpeciesPrediction prediction;
+
+  @override
+  State<_NearbySpeciesObservationSection> createState() =>
+      _NearbySpeciesObservationSectionState();
+}
+
+class _NearbySpeciesObservationSectionState
+    extends State<_NearbySpeciesObservationSection> {
+  late final Future<_NearbySpeciesObservationResult> _result = _load();
+
+  Future<_NearbySpeciesObservationResult> _load() async {
+    final EbirdObservationData data = await EbirdObservationRepository().load();
+    final double? centerLatitude;
+    final double? centerLongitude;
+    if (data.snapshot != null) {
+      centerLatitude = data.snapshot!.latitude;
+      centerLongitude = data.snapshot!.longitude;
+    } else {
+      Position? position;
+      try {
+        final LocationPermission permission =
+            await Geolocator.checkPermission();
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          position = await Geolocator.getCurrentPosition();
+        }
+      } catch (_) {
+        position = null;
+      }
+      centerLatitude = position?.latitude;
+      centerLongitude = position?.longitude;
+    }
+
+    final int radiusKm = data.snapshot?.radiusKm ?? 20;
+    final String scientificName = widget.prediction.scientificName
+        .trim()
+        .toLowerCase();
+    final List<EbirdRecentObservation> matches =
+        data.observations
+            .where((EbirdRecentObservation observation) {
+              if (observation.scientificName.trim().toLowerCase() !=
+                  scientificName) {
+                return false;
+              }
+              if (centerLatitude == null || centerLongitude == null) {
+                return false;
+              }
+              return Geolocator.distanceBetween(
+                    centerLatitude,
+                    centerLongitude,
+                    observation.latitude,
+                    observation.longitude,
+                  ) <=
+                  radiusKm * 1000;
+            })
+            .toList(growable: false)
+          ..sort(
+            (EbirdRecentObservation a, EbirdRecentObservation b) =>
+                b.observedAt.compareTo(a.observedAt),
+          );
+
+    final Map<String, List<EbirdRecentObservation>> byLocation =
+        <String, List<EbirdRecentObservation>>{};
+    for (final EbirdRecentObservation observation in matches) {
+      byLocation
+          .putIfAbsent(observation.locationId, () => <EbirdRecentObservation>[])
+          .add(observation);
+    }
+    return _NearbySpeciesObservationResult(
+      data: data,
+      radiusKm: radiusKm,
+      hasCenter: centerLatitude != null && centerLongitude != null,
+      points: byLocation.values
+          .map(_NearbySpeciesObservationPoint.new)
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<_NearbySpeciesObservationResult>(
+    future: _result,
+    builder:
+        (
+          BuildContext context,
+          AsyncSnapshot<_NearbySpeciesObservationResult> snapshot,
+        ) {
+          final TextTheme textTheme = Theme.of(context).textTheme;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Yakındaki gözlem noktaları',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (snapshot.connectionState != ConnectionState.done)
+                const LinearProgressIndicator()
+              else if (snapshot.hasError)
+                const Text('Gözlem verisi şu anda okunamadı.')
+              else if (!snapshot.data!.hasCenter)
+                const Text(
+                  'Yakınlığı hesaplamak için konum izni gerekir. Haritadan konumunuzu açıp tekrar deneyin.',
+                )
+              else if (snapshot.data!.points.isEmpty)
+                Text(
+                  'Seçili ${snapshot.data!.radiusKm} km alanda bu tür için kayıt bulunamadı. Haritadan güncel eBird verisi indirildiğinde bu bölüm de yenilenir.',
+                )
+              else ...<Widget>[
+                Text(
+                  '${snapshot.data!.radiusKm} km içinde ${snapshot.data!.points.length} gözlem noktası',
+                  style: textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                ...snapshot.data!.points.map(
+                  (_NearbySpeciesObservationPoint point) => Card(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: Text(point.latest.locationName),
+                      subtitle: Text(_pointSummary(point)),
+                      trailing: const Icon(Icons.map_outlined),
+                      onTap: () => showNearbyHotspotMapSheet(
+                        context,
+                        latitude: point.latest.latitude,
+                        longitude: point.latest.longitude,
+                        hotspots: snapshot.data!.data.hotspots,
+                        recentObservations: snapshot.data!.data.observations,
+                        radiusKm: snapshot.data!.radiusKm,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+  );
+
+  String _pointSummary(_NearbySpeciesObservationPoint point) {
+    final EbirdRecentObservation latest = point.latest;
+    final DateTime local = latest.observedAt.toLocal();
+    final String date =
+        '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}.${local.year} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    final String observer = latest.observerName?.trim().isNotEmpty == true
+        ? 'Gözlemci: ${latest.observerName}'
+        : 'Gözlemci kimliği paylaşılmamış';
+    final String count = latest.count == null ? '' : ' · ${latest.count} kuş';
+    final String records = point.observations.length > 1
+        ? ' · ${point.observations.length} kayıt'
+        : '';
+    return '$date$count$records\n$observer';
+  }
+}
+
+class _NearbySpeciesObservationResult {
+  const _NearbySpeciesObservationResult({
+    required this.data,
+    required this.radiusKm,
+    required this.hasCenter,
+    required this.points,
+  });
+
+  final EbirdObservationData data;
+  final int radiusKm;
+  final bool hasCenter;
+  final List<_NearbySpeciesObservationPoint> points;
+}
+
+class _NearbySpeciesObservationPoint {
+  const _NearbySpeciesObservationPoint(this.observations);
+
+  final List<EbirdRecentObservation> observations;
+  EbirdRecentObservation get latest => observations.first;
+}
+
 class _DetailSection extends StatelessWidget {
   const _DetailSection({required this.title, required this.value});
 
@@ -801,14 +980,18 @@ class _SexAgeSectionState extends ConsumerState<_SexAgeSection> {
         final PredictionMethod newMethod = res.userApproved
             ? PredictionMethod.userApproved
             : PredictionMethod.userValidated;
-            
+
         _current = SexAgePrediction(
           sex: SexPrediction(
-            scores: res.sex != null ? <SexCategory, double>{res.sex!: 1.0} : _current.sex.scores,
+            scores: res.sex != null
+                ? <SexCategory, double>{res.sex!: 1.0}
+                : _current.sex.scores,
             method: newMethod,
           ),
           age: AgePrediction(
-            scores: res.age != null ? <AgeCategory, double>{res.age!: 1.0} : _current.age.scores,
+            scores: res.age != null
+                ? <AgeCategory, double>{res.age!: 1.0}
+                : _current.age.scores,
             method: newMethod,
             terminology: _current.age.terminology,
           ),
@@ -907,24 +1090,24 @@ class _SexAgeSectionState extends ConsumerState<_SexAgeSection> {
     if (isUnreliable) {
       return Text(
         l10n.sexUnreliableWarning,
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.error),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontStyle: FontStyle.italic,
+          color: Theme.of(context).colorScheme.error,
+        ),
       );
     }
 
-    final bool lowConfidence = sex.displayCategory == SexCategory.unknown &&
+    final bool lowConfidence =
+        sex.displayCategory == SexCategory.unknown &&
         (sex.scores[SexCategory.female] ?? 0) < 0.60 &&
         (sex.scores[SexCategory.male] ?? 0) < 0.60;
 
     if (lowConfidence) {
       return Text(
         l10n.sexUnknown,
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(fontStyle: FontStyle.italic),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
       );
     }
 
@@ -1009,8 +1192,9 @@ class _ScoreBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: score,
-              backgroundColor:
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
               color: color,
               minHeight: 10,
             ),
@@ -1021,10 +1205,9 @@ class _ScoreBar extends StatelessWidget {
           width: 36,
           child: Text(
             '%$pct',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
             textAlign: TextAlign.end,
           ),
         ),
@@ -1034,11 +1217,7 @@ class _ScoreBar extends StatelessWidget {
 }
 
 class _SexAgeWarning extends StatelessWidget {
-  const _SexAgeWarning({
-    required this.message,
-    this.color,
-    this.iconColor,
-  });
+  const _SexAgeWarning({required this.message, this.color, this.iconColor});
 
   final String message;
   final Color? color;
@@ -1047,8 +1226,11 @@ class _SexAgeWarning extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgColor = color ?? (isDark ? const Color(0xFF4A3B00) : const Color(0xFFFFF3CD));
-    final Color fgColor = iconColor ?? (isDark ? const Color(0xFFFFD54F) : const Color(0xFF856404));
+    final Color bgColor =
+        color ?? (isDark ? const Color(0xFF4A3B00) : const Color(0xFFFFF3CD));
+    final Color fgColor =
+        iconColor ??
+        (isDark ? const Color(0xFFFFD54F) : const Color(0xFF856404));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1065,10 +1247,9 @@ class _SexAgeWarning extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: fgColor),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: fgColor),
             ),
           ),
         ],

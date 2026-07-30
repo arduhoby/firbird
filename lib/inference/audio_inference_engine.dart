@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -8,6 +7,7 @@ import 'package:audio_decoder/audio_decoder.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 
 import 'package:firbird/audio/pcm16_wav.dart';
+import 'package:firbird/species/species_catalog.dart';
 
 import 'birdnet_label_filter.dart';
 import 'bird_inference_engine.dart';
@@ -92,55 +92,42 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       debugPrint('Labels file not found at $labelsPath');
     }
 
-    // Audio has its own BirdNET-compatible Türkiye catalog. The image model
-    // continues to use its independent BioCLIP candidate package.
+    // Bird metadata is resolved by the application-wide species catalog.
     try {
-      final String content = (await rootBundle.loadString(
-        'assets/audio_catalog/turkey-birdnet-v1.json',
-      )).replaceAll('\uFEFF', '');
-      final Map<String, dynamic> source =
-          jsonDecode(content) as Map<String, dynamic>;
-      final List<dynamic> jsonList = source['species'] as List<dynamic>;
+      final SpeciesCatalog catalog =
+          await SpeciesCatalogRepository.instance.catalog;
       _candidatesByScientificName = {};
       _turkeyCandidates.clear();
-      for (final item in jsonList) {
-        final candidateMap = item as Map<String, dynamic>;
-        final String sciName = (candidateMap['scientificName'] as String)
-            .toLowerCase();
-        final String turkishName = candidateMap['turkishName'] as String? ?? '';
-        final String englishName = candidateMap['englishName'] as String? ?? '';
-        final String occurrence = candidateMap['occurrence'] as String? ?? '';
-        final String? imageUrl = candidateMap['imageUrl'] as String?;
-        final String? ornitoId = candidateMap['ornitoId'] as String?;
-        final String sciNameOriginal = candidateMap['scientificName'] as String;
-
-        final String originLabel = switch (occurrence) {
+      for (final SpeciesCatalogEntry entry in catalog.entries) {
+        final String originLabel = switch (entry.occurrence) {
           'accidental' => 'Türkiye · nadir kayıt',
           'regular-or-migratory' => 'Türkiye · düzenli / göçmen',
           'resident' => 'Türkiye · yerleşik',
           'balkans' => 'Balkanlar kapsamı',
-          _ => occurrence.isNotEmpty ? occurrence : 'Türkiye · kayıtlı',
+          _ =>
+            entry.occurrence.isNotEmpty
+                ? entry.occurrence
+                : 'Türkiye · kayıtlı',
         };
 
         final SpeciesPrediction candidate = SpeciesPrediction(
-          speciesId: sciName.replaceAll(' ', '-'),
-          turkishName: turkishName.trim().isEmpty
-              ? sciNameOriginal
-              : turkishName,
-          scientificName: sciNameOriginal,
-          englishName: englishName.trim().isEmpty
-              ? sciNameOriginal
-              : englishName,
+          speciesId: entry.speciesId,
+          turkishName: entry.turkishName,
+          scientificName: entry.scientificName,
+          englishName: entry.englishName,
           score: 0.0,
-          thumbnailUrl: imageUrl,
-          ornitoId: ornitoId,
+          thumbnailUrl: entry.imageUrl,
+          ornitoId: entry.ornitoId,
           originLabel: originLabel,
         );
-        _candidatesByScientificName![_candidateKey(sciName)] = candidate;
+        _candidatesByScientificName![_candidateKey(entry.scientificName)] =
+            candidate;
         _turkeyCandidates.add(candidate);
       }
-      debugPrint('BirdNET audio catalog loaded: '
-          '${_candidatesByScientificName!.length}/${source['sourceCandidateCount']} Türkiye species.');
+      debugPrint(
+        'BirdNET audio catalog loaded: '
+        '${_candidatesByScientificName!.length} Türkiye species.',
+      );
     } catch (e) {
       _candidatesByScientificName = <String, SpeciesPrediction>{};
       _turkeyCandidates.clear();

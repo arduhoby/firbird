@@ -1,6 +1,6 @@
 # FirBird 3 Kullanım Kılavuzu
 
-Bu kılavuz FirBird 3'ün v0.6.5 sürümü içindir. Uygulama kuş gözlemi için
+Bu kılavuz FirBird 3'ün v0.8.1 sürümü içindir. Uygulama kuş gözlemi için
 yardımcı bir araçtır; uzman doğrulamasının yerine geçmez.
 
 ## İlk kurulum
@@ -42,13 +42,15 @@ kullanılabilir; yoksa tanımlama yine yapılır.
 ## Canlı ses tespiti
 
 1. Menüden **Canlı Ses Tespiti** ekranını açın.
-2. Mikrofon iznini verin ve dinlemeyi başlatın.
-3. Tespitleri zaman damgası ve güven bilgisiyle takip edin.
-4. Bir karta dokunarak ses modeli, bölgesel destek ve yakın hotspot bilgisini
+2. Model hazır olunca ekrandaki mikrofon düğmesine dokunun. Ekranı açmak tek
+   başına kayıt veya dinleme başlatmaz.
+3. İstenirse mikrofon ve konum izinlerini verin; dinleme bundan sonra başlar.
+4. Tespitleri zaman damgası ve güven bilgisiyle takip edin.
+5. Bir karta dokunarak ses modeli, bölgesel destek ve yakın hotspot bilgisini
    inceleyin.
-5. Tespiti **Doğru** ya da **Doğru değil** olarak işaretleyin. Kartı sağa
+6. Tespiti **Doğru** ya da **Doğru değil** olarak işaretleyin. Kartı sağa
    kaydırmak da doğrulama akışını açar.
-6. Oturumu bitirdiğinizde WAV kaydı ve tespit zaman çizelgesi geçmişe eklenir.
+7. Oturumu bitirdiğinizde WAV kaydı ve tespit zaman çizelgesi geçmişe eklenir.
 
 ### Canlı dinleme sırasında harita
 
@@ -67,6 +69,22 @@ ses, fotoğraf, tarih ve saha koşullarını ayrıca doğrulayın.
 açtığınızda oynat/durdur yapabilir, süre çubuğunda ilerleyebilir, bir tespit
 kartından doğrudan o ana atlayabilir, önceki/sonraki tespiti seçebilir ve ses
 seviyesini %50 ile %400 arasında değiştirebilirsiniz.
+
+Canlı, ses dosyası ve replay kuş kartları aynı görünümdedir. Karta dokunmak
+**Kanıt Dosyası**nı açar. Replay sırasında sesin tespit anına gitmek için kartın
+sağındaki ayrı oynat düğmesini kullanın.
+
+## Kanıt Dosyası ve puanlama
+
+Kanıt Dosyası model güvenini; saat/etkinlik, eBird yakın çevre kayıtları,
+mevsim ve cihazdaki kullanıcı doğrulamalarıyla birlikte gösterir. Her satırda
+puan, açıklama ve veri kaynağı bulunur. eBird kaydı kuşun aynı saatte bölgede
+görüldüğünü destekler; ses çıkardığını kanıtlamaz.
+
+Puan ağırlıklarını **Ayarlar → Algoritma puanları** bölümünden değiştirebilir
+ve **Varsayılan puanlara dön** seçeneğiyle sıfırlayabilirsiniz. Güncel formül ve
+varsayılan değerler ana README belgesindeki **Puanlama algoritması** bölümünde
+yayımlanır.
 
 ## Yakınımdaki Kuşlar
 
@@ -92,6 +110,8 @@ hotspot-tür çifti için son bir yıldaki en yeni onaylı kaydı özetler.
 ## Hotspot haritası
 
 1. Harita kartını açın veya canlı dinleme ekranındaki harita düğmesine dokunun.
+   Kartın tam ekran düğmesi haritayı büyütür; kapatma düğmesi önceki ekrana ve
+   boyuta döndürür.
 2. Bir gözlem noktasına dokunun.
 3. Açılan panelde koordinat, bölge, toplam tür ve son gözlemi inceleyin.
 4. **Son kaydedilen kuşlar** listesinde kuş fotoğrafı, Türkçe/bilimsel ad,
@@ -100,9 +120,33 @@ hotspot-tür çifti için son bir yıldaki en yeni onaylı kaydı özetler.
    bilgiyi döndürmezse eşleşen çevrimdışı kimlik açıkça
    **EBD gözlemci kimliği** olarak etiketlenir.
 
+### Tür detayında yakın gözlem noktaları
+
+**Yakınımdaki Kuşlar** listesinden bir kuş seçildiğinde Tür Detayı sayfasında
+o türe ait yakın gözlem noktaları da gösterilir. Her satırda nokta adı, son
+gözlem tarihi, adet, kayıt sayısı ve paylaşılmışsa gözlemci kimliği yer alır.
+Satıra dokunmak hotspot haritasını ilgili konuma ortalar. Liste, cihazda saklanan
+son 20/50 km eBird indirmesini kullanır; yeni başarılı indirme eski etkin verinin
+yerine geçer ve Tür Detayı da güncel veriyi okur.
+
+İndirme düğmesinin yanında örneğin **20 km verisi 30.07.2026 tarihinde
+indirildi** bilgisi görünür. Aynı yarıçap seçiliyse düğme **veriyi yenile**
+olarak gösterilir. Farklı bir yarıçap seçildiğinde o alan için **veriyi indir**
+yazılır. Mevcut tarih kullanıcı için yeterliyse yeniden indirmeden uygulamayı
+kullanmaya devam edebilir.
+
 Harita zemini çevrimiçidir. Hotspotlar ve bir yıllık gözlem özeti ise uygulama
 paketindedir. Haritadaki ölçek cetveli görünür alanın yaklaşık mesafesini
-gösterir.
+gösterir. Mavi GPS işaretine, **GPS konumunuz** açıklamasına veya sağ alttaki
+konum düğmesine dokunmak haritayı yeniden bulunduğunuz yere ortalar. Arazi
+zemini varsayılandır; uydu katmanı lisanslı bir sağlayıcı olmadığı için bu
+sürümde etkin değildir.
+
+Sağ üstteki **K** pusulası harita döndürüldüğünde kuzey yönünü göstermeye devam
+eder; pusulaya dokunmak haritayı yeniden kuzey yukarı konumuna getirir. Tam ekran
+haritada aynı konumdaki küçültme simgesi önceki harita boyutuna döner. Köşe
+etiketleri, lejant ve mesafe cetveli açık ve koyu temada aynı yüksek kontrastlı
+harita üstü stili kullanır.
 
 ## Kişisel eBird API anahtarı
 

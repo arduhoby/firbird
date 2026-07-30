@@ -1264,6 +1264,39 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _detectedAtMeta = const VerificationMeta(
+    'detectedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> detectedAt = GeneratedColumn<DateTime>(
+    'detected_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1287,6 +1320,9 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     endMs,
     regionalSupport,
     temporalContext,
+    detectedAt,
+    latitude,
+    longitude,
     createdAt,
   ];
   @override
@@ -1384,6 +1420,24 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         ),
       );
     }
+    if (data.containsKey('detected_at')) {
+      context.handle(
+        _detectedAtMeta,
+        detectedAt.isAcceptableOrUnknown(data['detected_at']!, _detectedAtMeta),
+      );
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1441,6 +1495,18 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         DriftSqlType.string,
         data['${effectivePrefix}temporal_context'],
       ),
+      detectedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}detected_at'],
+      ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      ),
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1466,6 +1532,9 @@ class LiveDetectionEvent extends DataClass
   final int endMs;
   final String? regionalSupport;
   final String? temporalContext;
+  final DateTime? detectedAt;
+  final double? latitude;
+  final double? longitude;
   final DateTime createdAt;
   const LiveDetectionEvent({
     required this.id,
@@ -1478,6 +1547,9 @@ class LiveDetectionEvent extends DataClass
     required this.endMs,
     this.regionalSupport,
     this.temporalContext,
+    this.detectedAt,
+    this.latitude,
+    this.longitude,
     required this.createdAt,
   });
   @override
@@ -1496,6 +1568,15 @@ class LiveDetectionEvent extends DataClass
     }
     if (!nullToAbsent || temporalContext != null) {
       map['temporal_context'] = Variable<String>(temporalContext);
+    }
+    if (!nullToAbsent || detectedAt != null) {
+      map['detected_at'] = Variable<DateTime>(detectedAt);
+    }
+    if (!nullToAbsent || latitude != null) {
+      map['latitude'] = Variable<double>(latitude);
+    }
+    if (!nullToAbsent || longitude != null) {
+      map['longitude'] = Variable<double>(longitude);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1517,6 +1598,15 @@ class LiveDetectionEvent extends DataClass
       temporalContext: temporalContext == null && nullToAbsent
           ? const Value.absent()
           : Value(temporalContext),
+      detectedAt: detectedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(detectedAt),
+      latitude: latitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitude),
+      longitude: longitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitude),
       createdAt: Value(createdAt),
     );
   }
@@ -1537,6 +1627,9 @@ class LiveDetectionEvent extends DataClass
       endMs: serializer.fromJson<int>(json['endMs']),
       regionalSupport: serializer.fromJson<String?>(json['regionalSupport']),
       temporalContext: serializer.fromJson<String?>(json['temporalContext']),
+      detectedAt: serializer.fromJson<DateTime?>(json['detectedAt']),
+      latitude: serializer.fromJson<double?>(json['latitude']),
+      longitude: serializer.fromJson<double?>(json['longitude']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1554,6 +1647,9 @@ class LiveDetectionEvent extends DataClass
       'endMs': serializer.toJson<int>(endMs),
       'regionalSupport': serializer.toJson<String?>(regionalSupport),
       'temporalContext': serializer.toJson<String?>(temporalContext),
+      'detectedAt': serializer.toJson<DateTime?>(detectedAt),
+      'latitude': serializer.toJson<double?>(latitude),
+      'longitude': serializer.toJson<double?>(longitude),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1569,6 +1665,9 @@ class LiveDetectionEvent extends DataClass
     int? endMs,
     Value<String?> regionalSupport = const Value.absent(),
     Value<String?> temporalContext = const Value.absent(),
+    Value<DateTime?> detectedAt = const Value.absent(),
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
     DateTime? createdAt,
   }) => LiveDetectionEvent(
     id: id ?? this.id,
@@ -1585,6 +1684,9 @@ class LiveDetectionEvent extends DataClass
     temporalContext: temporalContext.present
         ? temporalContext.value
         : this.temporalContext,
+    detectedAt: detectedAt.present ? detectedAt.value : this.detectedAt,
+    latitude: latitude.present ? latitude.value : this.latitude,
+    longitude: longitude.present ? longitude.value : this.longitude,
     createdAt: createdAt ?? this.createdAt,
   );
   LiveDetectionEvent copyWithCompanion(LiveDetectionEventsCompanion data) {
@@ -1609,6 +1711,11 @@ class LiveDetectionEvent extends DataClass
       temporalContext: data.temporalContext.present
           ? data.temporalContext.value
           : this.temporalContext,
+      detectedAt: data.detectedAt.present
+          ? data.detectedAt.value
+          : this.detectedAt,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1626,6 +1733,9 @@ class LiveDetectionEvent extends DataClass
           ..write('endMs: $endMs, ')
           ..write('regionalSupport: $regionalSupport, ')
           ..write('temporalContext: $temporalContext, ')
+          ..write('detectedAt: $detectedAt, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1643,6 +1753,9 @@ class LiveDetectionEvent extends DataClass
     endMs,
     regionalSupport,
     temporalContext,
+    detectedAt,
+    latitude,
+    longitude,
     createdAt,
   );
   @override
@@ -1659,6 +1772,9 @@ class LiveDetectionEvent extends DataClass
           other.endMs == this.endMs &&
           other.regionalSupport == this.regionalSupport &&
           other.temporalContext == this.temporalContext &&
+          other.detectedAt == this.detectedAt &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
           other.createdAt == this.createdAt);
 }
 
@@ -1673,6 +1789,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
   final Value<int> endMs;
   final Value<String?> regionalSupport;
   final Value<String?> temporalContext;
+  final Value<DateTime?> detectedAt;
+  final Value<double?> latitude;
+  final Value<double?> longitude;
   final Value<DateTime> createdAt;
   const LiveDetectionEventsCompanion({
     this.id = const Value.absent(),
@@ -1685,6 +1804,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     this.endMs = const Value.absent(),
     this.regionalSupport = const Value.absent(),
     this.temporalContext = const Value.absent(),
+    this.detectedAt = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   LiveDetectionEventsCompanion.insert({
@@ -1698,6 +1820,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     required int endMs,
     this.regionalSupport = const Value.absent(),
     this.temporalContext = const Value.absent(),
+    this.detectedAt = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
     required DateTime createdAt,
   }) : sessionId = Value(sessionId),
        speciesId = Value(speciesId),
@@ -1718,6 +1843,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Expression<int>? endMs,
     Expression<String>? regionalSupport,
     Expression<String>? temporalContext,
+    Expression<DateTime>? detectedAt,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -1731,6 +1859,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       if (endMs != null) 'end_ms': endMs,
       if (regionalSupport != null) 'regional_support': regionalSupport,
       if (temporalContext != null) 'temporal_context': temporalContext,
+      if (detectedAt != null) 'detected_at': detectedAt,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -1746,6 +1877,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Value<int>? endMs,
     Value<String?>? regionalSupport,
     Value<String?>? temporalContext,
+    Value<DateTime?>? detectedAt,
+    Value<double?>? latitude,
+    Value<double?>? longitude,
     Value<DateTime>? createdAt,
   }) {
     return LiveDetectionEventsCompanion(
@@ -1759,6 +1893,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       endMs: endMs ?? this.endMs,
       regionalSupport: regionalSupport ?? this.regionalSupport,
       temporalContext: temporalContext ?? this.temporalContext,
+      detectedAt: detectedAt ?? this.detectedAt,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -1796,6 +1933,15 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     if (temporalContext.present) {
       map['temporal_context'] = Variable<String>(temporalContext.value);
     }
+    if (detectedAt.present) {
+      map['detected_at'] = Variable<DateTime>(detectedAt.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1815,6 +1961,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
           ..write('endMs: $endMs, ')
           ..write('regionalSupport: $regionalSupport, ')
           ..write('temporalContext: $temporalContext, ')
+          ..write('detectedAt: $detectedAt, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -2897,6 +3046,9 @@ typedef $$LiveDetectionEventsTableCreateCompanionBuilder =
       required int endMs,
       Value<String?> regionalSupport,
       Value<String?> temporalContext,
+      Value<DateTime?> detectedAt,
+      Value<double?> latitude,
+      Value<double?> longitude,
       required DateTime createdAt,
     });
 typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
@@ -2911,6 +3063,9 @@ typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
       Value<int> endMs,
       Value<String?> regionalSupport,
       Value<String?> temporalContext,
+      Value<DateTime?> detectedAt,
+      Value<double?> latitude,
+      Value<double?> longitude,
       Value<DateTime> createdAt,
     });
 
@@ -2970,6 +3125,21 @@ class $$LiveDetectionEventsTableFilterComposer
 
   ColumnFilters<String> get temporalContext => $composableBuilder(
     column: $table.temporalContext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3038,6 +3208,21 @@ class $$LiveDetectionEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -3092,6 +3277,17 @@ class $$LiveDetectionEventsTableAnnotationComposer
     column: $table.temporalContext,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -3150,6 +3346,9 @@ class $$LiveDetectionEventsTableTableManager
                 Value<int> endMs = const Value.absent(),
                 Value<String?> regionalSupport = const Value.absent(),
                 Value<String?> temporalContext = const Value.absent(),
+                Value<DateTime?> detectedAt = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => LiveDetectionEventsCompanion(
                 id: id,
@@ -3162,6 +3361,9 @@ class $$LiveDetectionEventsTableTableManager
                 endMs: endMs,
                 regionalSupport: regionalSupport,
                 temporalContext: temporalContext,
+                detectedAt: detectedAt,
+                latitude: latitude,
+                longitude: longitude,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -3176,6 +3378,9 @@ class $$LiveDetectionEventsTableTableManager
                 required int endMs,
                 Value<String?> regionalSupport = const Value.absent(),
                 Value<String?> temporalContext = const Value.absent(),
+                Value<DateTime?> detectedAt = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
                 required DateTime createdAt,
               }) => LiveDetectionEventsCompanion.insert(
                 id: id,
@@ -3188,6 +3393,9 @@ class $$LiveDetectionEventsTableTableManager
                 endMs: endMs,
                 regionalSupport: regionalSupport,
                 temporalContext: temporalContext,
+                detectedAt: detectedAt,
+                latitude: latitude,
+                longitude: longitude,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

@@ -27,7 +27,10 @@ void main() {
       confidence: 0.99,
       startMs: 1250,
       endMs: 4250,
+      detectedAt: DateTime.utc(2026, 7, 30, 8, 15),
       regionalSupport: 'strong',
+      latitude: 41.0082,
+      longitude: 28.9784,
       temporalContext: 'Gece etkinliği · yumuşak ağırlık %85',
     );
 
@@ -38,6 +41,9 @@ void main() {
     expect(events.single.startMs, 1250);
     expect(events.single.endMs, 4250);
     expect(events.single.scientificName, 'Carduelis carduelis');
+    expect(events.single.detectedAt?.toUtc(), DateTime.utc(2026, 7, 30, 8, 15));
+    expect(events.single.latitude, 41.0082);
+    expect(events.single.longitude, 28.9784);
     expect(
       events.single.temporalContext,
       'Gece etkinliği · yumuşak ağırlık %85',

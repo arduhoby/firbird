@@ -52,6 +52,9 @@ class LiveDetectionEvents extends Table {
   IntColumn get endMs => integer()();
   TextColumn get regionalSupport => text().nullable()();
   TextColumn get temporalContext => text().nullable()();
+  DateTimeColumn get detectedAt => dateTime().nullable()();
+  RealColumn get latitude => real().nullable()();
+  RealColumn get longitude => real().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 }
 
@@ -78,7 +81,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -109,6 +112,14 @@ class AppDatabase extends _$AppDatabase {
             liveDetectionEvents,
             liveDetectionEvents.temporalContext,
           );
+        }
+        if (from < 5) {
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.detectedAt,
+          );
+          await m.addColumn(liveDetectionEvents, liveDetectionEvents.latitude);
+          await m.addColumn(liveDetectionEvents, liveDetectionEvents.longitude);
         }
       },
     );
@@ -184,8 +195,11 @@ class AppDatabase extends _$AppDatabase {
     required double confidence,
     required int startMs,
     required int endMs,
+    required DateTime detectedAt,
     String? regionalSupport,
     String? temporalContext,
+    double? latitude,
+    double? longitude,
   }) {
     return into(liveDetectionEvents).insert(
       LiveDetectionEventsCompanion.insert(
@@ -198,6 +212,9 @@ class AppDatabase extends _$AppDatabase {
         endMs: endMs,
         regionalSupport: Value<String?>(regionalSupport),
         temporalContext: Value<String?>(temporalContext),
+        detectedAt: Value<DateTime?>(detectedAt),
+        latitude: Value<double?>(latitude),
+        longitude: Value<double?>(longitude),
         createdAt: DateTime.now(),
       ),
     );

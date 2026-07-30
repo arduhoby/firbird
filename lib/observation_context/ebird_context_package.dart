@@ -270,6 +270,24 @@ class EbirdRecentObservation {
   final bool isLive;
   final bool observerIdentityFromArchive;
 
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'speciesCode': speciesCode,
+    'scientificName': scientificName,
+    'commonName': commonName,
+    if (turkishName != null) 'turkishName': turkishName,
+    'locationId': locationId,
+    'locationName': locationName,
+    'observedAt': observedAt.toUtc().toIso8601String(),
+    'latitude': latitude,
+    'longitude': longitude,
+    if (count != null) 'count': count,
+    'reviewed': reviewed,
+    if (submissionId != null) 'submissionId': submissionId,
+    if (observerName != null) 'observerName': observerName,
+    'isLive': isLive,
+    'observerIdentityFromArchive': observerIdentityFromArchive,
+  };
+
   EbirdRecentObservation copyWith({
     String? observerName,
     bool? observerIdentityFromArchive,

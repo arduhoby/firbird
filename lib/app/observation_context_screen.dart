@@ -3,6 +3,7 @@
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -53,9 +54,14 @@ class _ObservationContextScreenState extends State<ObservationContextScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Çevrimiçi haritayı aç?', style: Theme.of(sheetContext).textTheme.titleLarge),
+            Text(
+              'Çevrimiçi haritayı aç?',
+              style: Theme.of(sheetContext).textTheme.titleLarge,
+            ),
             const SizedBox(height: 10),
-            const Text('Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.'),
+            const Text(
+              'Harita görüntüleri OpenStreetMap üzerinden yüklenir. Fotoğrafınız, sesiniz ve tanımlama verileriniz gönderilmez. Bu izin yalnızca bu oturum için geçerlidir.',
+            ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () => Navigator.pop(sheetContext, true),
@@ -73,7 +79,9 @@ class _ObservationContextScreenState extends State<ObservationContextScreen> {
     if (!mounted) return;
     setState(() {
       _onlineMapEnabled = accepted == true;
-      _locationChoice = accepted == true ? LocationChoice.map : LocationChoice.region;
+      _locationChoice = accepted == true
+          ? LocationChoice.map
+          : LocationChoice.region;
     });
   }
 
@@ -182,6 +190,7 @@ class _ObservationContextScreenState extends State<ObservationContextScreen> {
       appBar: AppBar(
         title: Text(l10n.setLocationAndDate),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -390,20 +399,31 @@ class _LocationError extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(Icons.location_off_outlined, size: 20, color: Theme.of(context).colorScheme.onErrorContainer),
+          Icon(
+            Icons.location_off_outlined,
+            size: 20,
+            color: Theme.of(context).colorScheme.onErrorContainer,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(message, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onErrorContainer)),
+                Text(
+                  message,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                ),
                 if (code == 'permissionDenied')
                   TextButton.icon(
                     onPressed: Geolocator.openAppSettings,
                     icon: const Icon(Icons.settings_outlined, size: 16),
                     label: const Text('Ayarları aç'),
                     style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onErrorContainer,
                       padding: const EdgeInsets.only(top: 6),
                     ),
                   ),

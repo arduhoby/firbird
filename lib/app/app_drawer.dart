@@ -56,14 +56,18 @@ class AppDrawer extends StatelessWidget {
                         ),
                         FutureBuilder<String>(
                           future: AppConfig.fullVersion,
-                          builder: (BuildContext context, AsyncSnapshot<String> snapshot) => Text(
-                            snapshot.data ?? 'v…',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                          builder:
+                              (
+                                BuildContext context,
+                                AsyncSnapshot<String> snapshot,
+                              ) => Text(
+                                snapshot.data ?? 'v…',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                         ),
                       ],
                     ),
@@ -71,7 +75,10 @@ class AppDrawer extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(12),
@@ -158,6 +165,13 @@ class AppDrawer extends StatelessWidget {
                   isSelected: currentRoute == '/settings',
                   onTap: () => _navigate(context, '/settings'),
                 ),
+                _DrawerTile(
+                  icon: Icons.help_outline,
+                  activeIcon: Icons.help,
+                  title: 'Kullanım Kılavuzu',
+                  isSelected: currentRoute == '/help',
+                  onTap: () => _navigate(context, '/help'),
+                ),
               ],
             ),
           ),
@@ -168,7 +182,9 @@ class AppDrawer extends StatelessWidget {
             child: Text(
               'FirBird · Yapay Zeka Kuş Gözlemcisi',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.6,
+                ),
               ),
             ),
           ),
@@ -212,11 +228,11 @@ class _DrawerTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       child: ListTile(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: isSelected,
-        selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+        selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+          alpha: 0.6,
+        ),
         leading: Icon(
           isSelected ? activeIcon : icon,
           color: isSelected

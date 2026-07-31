@@ -1,10 +1,12 @@
 import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/detection/algorithm_settings.dart';
+import 'package:firbird/detection/detection_score_aggregate.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/l10n/app_localizations.dart';
 import 'package:firbird/observation_context/ebird_live_observation_service.dart';
@@ -34,7 +36,7 @@ class HistoryScreen extends ConsumerWidget {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        actions: const [BackToHomeButton()],
+        actions: const [AppBarHelpButton(), BackToHomeButton()],
       ),
       body: StreamBuilder<List<IdentificationRecord>>(
         stream: database.watchHistory(),
@@ -92,6 +94,16 @@ class HistoryScreen extends ConsumerWidget {
                   if (item.isSessionGroup) {
                     final groupRecords = item.groupRecords!;
                     final int count = groupRecords.length;
+                    final int rareCount = groupRecords
+                        .where(
+                          (IdentificationRecord record) =>
+                              _statusCategory(
+                                record.speciesStatus,
+                                record.scientificName,
+                              ) ==
+                              SpeciesStatusCategory.rare,
+                        )
+                        .length;
                     final List<String> topNames = groupRecords
                         .take(3)
                         .map((r) => r.turkishName)
@@ -195,6 +207,13 @@ class HistoryScreen extends ConsumerWidget {
                                     color: theme.colorScheme.onSurface,
                                   ),
                                 ),
+                                if (rareCount > 0)
+                                  Text(
+                                    '$rareCount nadir tür tespiti',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -311,6 +330,13 @@ class HistoryScreen extends ConsumerWidget {
   ) {
     final theme = Theme.of(context);
     final String? audioPath = records.first.imageUri;
+    final int rareCount = records
+        .where(
+          (IdentificationRecord record) =>
+              _statusCategory(record.speciesStatus, record.scientificName) ==
+              SpeciesStatusCategory.rare,
+        )
+        .length;
 
     showModalBottomSheet<void>(
       context: context,
@@ -374,6 +400,13 @@ class HistoryScreen extends ConsumerWidget {
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
+                            if (rareCount > 0)
+                              Text(
+                                '$rareCount nadir tür tespiti',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -392,6 +425,8 @@ class HistoryScreen extends ConsumerWidget {
                         final String sessionId = records.first.packageId!;
                         final List<LiveDetectionEvent> events = await database
                             .eventsForLiveSession(sessionId);
+                        final AlgorithmSettings algorithmSettings =
+                            await AlgorithmSettingsRepository().load();
                         if (!context.mounted) return;
                         if (events.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -404,36 +439,70 @@ class HistoryScreen extends ConsumerWidget {
                           return;
                         }
                         if (!context.mounted) return;
+                        final int rareEventCount = events
+                            .where(
+                              (LiveDetectionEvent event) =>
+                                  _statusCategory(
+                                    event.speciesStatus,
+                                    event.scientificName,
+                                  ) ==
+                                  SpeciesStatusCategory.rare,
+                            )
+                            .map(
+                              (LiveDetectionEvent event) =>
+                                  event.scientificName.toLowerCase(),
+                            )
+                            .toSet()
+                            .length;
+                        final Map<String, DetectionScoreAggregate> aggregates =
+                            aggregateDetectionScores(
+                              events.map(
+                                (LiveDetectionEvent event) =>
+                                    DetectionScoreSample(
+                                      key: event.scientificName,
+                                      confidence: event.confidence,
+                                    ),
+                              ),
+                            );
                         context.push(
                           '/player',
                           extra: PlaybackSession(
                             filePath: audioPath,
                             displayName: path.basename(audioPath),
+                            rareSpeciesCount: rareEventCount,
                             detections: events
-                                .map(
-                                  (LiveDetectionEvent event) =>
-                                      PlaybackDetection(
-                                        speciesId: event.speciesId,
-                                        turkishName: event.turkishName,
-                                        scientificName: event.scientificName,
-                                        startMs: event.startMs,
-                                        endMs: event.endMs,
-                                        confidence: (event.confidence * 100)
-                                            .round(),
-                                        regionalSupport: event.regionalSupport,
-                                        temporalContext: event.temporalContext,
-                                        detectedAt:
-                                            event.detectedAt ??
-                                            records.first.createdAt.add(
-                                              Duration(
-                                                milliseconds: event.startMs,
-                                              ),
-                                            ),
-                                        latitude: event.latitude,
-                                        longitude: event.longitude,
-                                        modelVersion: 'BirdNET geçmiş kaydı',
-                                      ),
-                                )
+                                .map((LiveDetectionEvent event) {
+                                  final DetectionScoreAggregate aggregate =
+                                      aggregates[event.scientificName
+                                          .toLowerCase()]!;
+                                  return PlaybackDetection(
+                                    speciesId: event.speciesId,
+                                    turkishName: event.turkishName,
+                                    scientificName: event.scientificName,
+                                    startMs: event.startMs,
+                                    endMs: event.endMs,
+                                    modelConfidence:
+                                        aggregate.averageConfidence,
+                                    repeatedHits:
+                                        aggregate.independentEventCount,
+                                    repetitionSupportPerHit: algorithmSettings
+                                        .repeatedDetectionSupport,
+                                    regionalSupport: event.regionalSupport,
+                                    temporalContext: event.temporalContext,
+                                    detectedAt:
+                                        event.detectedAt ??
+                                        records.first.createdAt.add(
+                                          Duration(milliseconds: event.startMs),
+                                        ),
+                                    latitude: event.latitude,
+                                    longitude: event.longitude,
+                                    modelVersion: 'BirdNET geçmiş kaydı',
+                                    statusCategory: _statusCategory(
+                                      event.speciesStatus,
+                                      event.scientificName,
+                                    ),
+                                  );
+                                })
                                 .toList(growable: false),
                           ),
                         );
@@ -571,8 +640,10 @@ class HistoryScreen extends ConsumerWidget {
                                     ? Colors.orange
                                     : Colors.red;
 
-                                // Parse count from predictionMethod if available e.g. "count:3"
-                                int count = 1;
+                                // Typed v0.8.6 records carry the independent
+                                // event count. Keep the legacy parser only for
+                                // older local rows.
+                                int count = record.repeatedHits;
                                 if (record.predictionMethod?.startsWith(
                                       'count:',
                                     ) ==
@@ -587,9 +658,10 @@ class HistoryScreen extends ConsumerWidget {
                                       1;
                                 }
 
-                                final statusCat =
-                                    SpeciesStatusHelper.getCategory(
-                                      scientificName: record.scientificName,
+                                final SpeciesStatusCategory statusCat =
+                                    _statusCategory(
+                                      record.speciesStatus,
+                                      record.scientificName,
                                     );
                                 final Color borderColor = statusCat.borderColor;
 
@@ -720,11 +792,6 @@ class HistoryScreen extends ConsumerWidget {
                                   context,
                                   Colors.green,
                                   'Yerel / Göçmen',
-                                ),
-                                _buildModalLegendNoteItem(
-                                  context,
-                                  Colors.red,
-                                  'Nadir Tür',
                                 ),
                                 _buildModalLegendNoteItem(
                                   context,
@@ -971,7 +1038,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        actions: const [BackToHomeButton()],
+        actions: const [AppBarHelpButton(), BackToHomeButton()],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
@@ -1162,6 +1229,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 onChangeEnd: (int value) => _saveAlgorithmSettings(
                   _algorithmSettings.copyWith(seasonSupport: value),
+                ),
+              ),
+              _AlgorithmSlider(
+                title: 'Her ek bağımsız ses tespiti desteği',
+                value: _algorithmSettings.repeatedDetectionSupport,
+                max: 10,
+                prefix: '+',
+                onChanged: (int value) => setState(
+                  () => _algorithmSettings = _algorithmSettings.copyWith(
+                    repeatedDetectionSupport: value,
+                  ),
+                ),
+                onChangeEnd: (int value) => _saveAlgorithmSettings(
+                  _algorithmSettings.copyWith(repeatedDetectionSupport: value),
                 ),
               ),
               _AlgorithmSlider(
@@ -1412,4 +1493,14 @@ Widget _buildModalLegendNoteItem(
       ),
     ],
   );
+}
+
+SpeciesStatusCategory _statusCategory(
+  String? storedValue,
+  String scientificName,
+) {
+  for (final SpeciesStatusCategory value in SpeciesStatusCategory.values) {
+    if (value.name == storedValue) return value;
+  }
+  return SpeciesStatusHelper.getCategory(scientificName: scientificName);
 }

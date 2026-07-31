@@ -110,6 +110,40 @@ class $IdentificationRecordsTable extends IdentificationRecords
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _speciesStatusMeta = const VerificationMeta(
+    'speciesStatus',
+  );
+  @override
+  late final GeneratedColumn<String> speciesStatus = GeneratedColumn<String>(
+    'species_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelConfidenceMeta = const VerificationMeta(
+    'modelConfidence',
+  );
+  @override
+  late final GeneratedColumn<double> modelConfidence = GeneratedColumn<double>(
+    'model_confidence',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _repeatedHitsMeta = const VerificationMeta(
+    'repeatedHits',
+  );
+  @override
+  late final GeneratedColumn<int> repeatedHits = GeneratedColumn<int>(
+    'repeated_hits',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -231,6 +265,9 @@ class $IdentificationRecordsTable extends IdentificationRecords
     imageUri,
     thumbnailUri,
     packageId,
+    speciesStatus,
+    modelConfidence,
+    repeatedHits,
     createdAt,
     sexCategory,
     sexConfidence,
@@ -325,6 +362,33 @@ class $IdentificationRecordsTable extends IdentificationRecords
       context.handle(
         _packageIdMeta,
         packageId.isAcceptableOrUnknown(data['package_id']!, _packageIdMeta),
+      );
+    }
+    if (data.containsKey('species_status')) {
+      context.handle(
+        _speciesStatusMeta,
+        speciesStatus.isAcceptableOrUnknown(
+          data['species_status']!,
+          _speciesStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('model_confidence')) {
+      context.handle(
+        _modelConfidenceMeta,
+        modelConfidence.isAcceptableOrUnknown(
+          data['model_confidence']!,
+          _modelConfidenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('repeated_hits')) {
+      context.handle(
+        _repeatedHitsMeta,
+        repeatedHits.isAcceptableOrUnknown(
+          data['repeated_hits']!,
+          _repeatedHitsMeta,
+        ),
       );
     }
     if (data.containsKey('created_at')) {
@@ -461,6 +525,18 @@ class $IdentificationRecordsTable extends IdentificationRecords
         DriftSqlType.string,
         data['${effectivePrefix}package_id'],
       ),
+      speciesStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_status'],
+      ),
+      modelConfidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}model_confidence'],
+      ),
+      repeatedHits: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}repeated_hits'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -521,6 +597,9 @@ class IdentificationRecord extends DataClass
   final String? imageUri;
   final String? thumbnailUri;
   final String? packageId;
+  final String? speciesStatus;
+  final double? modelConfidence;
+  final int repeatedHits;
   final DateTime createdAt;
   final String? sexCategory;
   final double? sexConfidence;
@@ -541,6 +620,9 @@ class IdentificationRecord extends DataClass
     this.imageUri,
     this.thumbnailUri,
     this.packageId,
+    this.speciesStatus,
+    this.modelConfidence,
+    required this.repeatedHits,
     required this.createdAt,
     this.sexCategory,
     this.sexConfidence,
@@ -570,6 +652,13 @@ class IdentificationRecord extends DataClass
     if (!nullToAbsent || packageId != null) {
       map['package_id'] = Variable<String>(packageId);
     }
+    if (!nullToAbsent || speciesStatus != null) {
+      map['species_status'] = Variable<String>(speciesStatus);
+    }
+    if (!nullToAbsent || modelConfidence != null) {
+      map['model_confidence'] = Variable<double>(modelConfidence);
+    }
+    map['repeated_hits'] = Variable<int>(repeatedHits);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || sexCategory != null) {
       map['sex_category'] = Variable<String>(sexCategory);
@@ -622,6 +711,13 @@ class IdentificationRecord extends DataClass
       packageId: packageId == null && nullToAbsent
           ? const Value.absent()
           : Value(packageId),
+      speciesStatus: speciesStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speciesStatus),
+      modelConfidence: modelConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelConfidence),
+      repeatedHits: Value(repeatedHits),
       createdAt: Value(createdAt),
       sexCategory: sexCategory == null && nullToAbsent
           ? const Value.absent()
@@ -668,6 +764,9 @@ class IdentificationRecord extends DataClass
       imageUri: serializer.fromJson<String?>(json['imageUri']),
       thumbnailUri: serializer.fromJson<String?>(json['thumbnailUri']),
       packageId: serializer.fromJson<String?>(json['packageId']),
+      speciesStatus: serializer.fromJson<String?>(json['speciesStatus']),
+      modelConfidence: serializer.fromJson<double?>(json['modelConfidence']),
+      repeatedHits: serializer.fromJson<int>(json['repeatedHits']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       sexCategory: serializer.fromJson<String?>(json['sexCategory']),
       sexConfidence: serializer.fromJson<double?>(json['sexConfidence']),
@@ -697,6 +796,9 @@ class IdentificationRecord extends DataClass
       'imageUri': serializer.toJson<String?>(imageUri),
       'thumbnailUri': serializer.toJson<String?>(thumbnailUri),
       'packageId': serializer.toJson<String?>(packageId),
+      'speciesStatus': serializer.toJson<String?>(speciesStatus),
+      'modelConfidence': serializer.toJson<double?>(modelConfidence),
+      'repeatedHits': serializer.toJson<int>(repeatedHits),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'sexCategory': serializer.toJson<String?>(sexCategory),
       'sexConfidence': serializer.toJson<double?>(sexConfidence),
@@ -724,6 +826,9 @@ class IdentificationRecord extends DataClass
     Value<String?> imageUri = const Value.absent(),
     Value<String?> thumbnailUri = const Value.absent(),
     Value<String?> packageId = const Value.absent(),
+    Value<String?> speciesStatus = const Value.absent(),
+    Value<double?> modelConfidence = const Value.absent(),
+    int? repeatedHits,
     DateTime? createdAt,
     Value<String?> sexCategory = const Value.absent(),
     Value<double?> sexConfidence = const Value.absent(),
@@ -744,6 +849,13 @@ class IdentificationRecord extends DataClass
     imageUri: imageUri.present ? imageUri.value : this.imageUri,
     thumbnailUri: thumbnailUri.present ? thumbnailUri.value : this.thumbnailUri,
     packageId: packageId.present ? packageId.value : this.packageId,
+    speciesStatus: speciesStatus.present
+        ? speciesStatus.value
+        : this.speciesStatus,
+    modelConfidence: modelConfidence.present
+        ? modelConfidence.value
+        : this.modelConfidence,
+    repeatedHits: repeatedHits ?? this.repeatedHits,
     createdAt: createdAt ?? this.createdAt,
     sexCategory: sexCategory.present ? sexCategory.value : this.sexCategory,
     sexConfidence: sexConfidence.present
@@ -790,6 +902,15 @@ class IdentificationRecord extends DataClass
           ? data.thumbnailUri.value
           : this.thumbnailUri,
       packageId: data.packageId.present ? data.packageId.value : this.packageId,
+      speciesStatus: data.speciesStatus.present
+          ? data.speciesStatus.value
+          : this.speciesStatus,
+      modelConfidence: data.modelConfidence.present
+          ? data.modelConfidence.value
+          : this.modelConfidence,
+      repeatedHits: data.repeatedHits.present
+          ? data.repeatedHits.value
+          : this.repeatedHits,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       sexCategory: data.sexCategory.present
           ? data.sexCategory.value
@@ -833,6 +954,9 @@ class IdentificationRecord extends DataClass
           ..write('imageUri: $imageUri, ')
           ..write('thumbnailUri: $thumbnailUri, ')
           ..write('packageId: $packageId, ')
+          ..write('speciesStatus: $speciesStatus, ')
+          ..write('modelConfidence: $modelConfidence, ')
+          ..write('repeatedHits: $repeatedHits, ')
           ..write('createdAt: $createdAt, ')
           ..write('sexCategory: $sexCategory, ')
           ..write('sexConfidence: $sexConfidence, ')
@@ -848,7 +972,7 @@ class IdentificationRecord extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     speciesId,
     turkishName,
@@ -858,6 +982,9 @@ class IdentificationRecord extends DataClass
     imageUri,
     thumbnailUri,
     packageId,
+    speciesStatus,
+    modelConfidence,
+    repeatedHits,
     createdAt,
     sexCategory,
     sexConfidence,
@@ -868,7 +995,7 @@ class IdentificationRecord extends DataClass
     userCorrectedAge,
     userCorrectedSpeciesId,
     userCorrectedTurkishName,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -882,6 +1009,9 @@ class IdentificationRecord extends DataClass
           other.imageUri == this.imageUri &&
           other.thumbnailUri == this.thumbnailUri &&
           other.packageId == this.packageId &&
+          other.speciesStatus == this.speciesStatus &&
+          other.modelConfidence == this.modelConfidence &&
+          other.repeatedHits == this.repeatedHits &&
           other.createdAt == this.createdAt &&
           other.sexCategory == this.sexCategory &&
           other.sexConfidence == this.sexConfidence &&
@@ -905,6 +1035,9 @@ class IdentificationRecordsCompanion
   final Value<String?> imageUri;
   final Value<String?> thumbnailUri;
   final Value<String?> packageId;
+  final Value<String?> speciesStatus;
+  final Value<double?> modelConfidence;
+  final Value<int> repeatedHits;
   final Value<DateTime> createdAt;
   final Value<String?> sexCategory;
   final Value<double?> sexConfidence;
@@ -925,6 +1058,9 @@ class IdentificationRecordsCompanion
     this.imageUri = const Value.absent(),
     this.thumbnailUri = const Value.absent(),
     this.packageId = const Value.absent(),
+    this.speciesStatus = const Value.absent(),
+    this.modelConfidence = const Value.absent(),
+    this.repeatedHits = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.sexCategory = const Value.absent(),
     this.sexConfidence = const Value.absent(),
@@ -946,6 +1082,9 @@ class IdentificationRecordsCompanion
     this.imageUri = const Value.absent(),
     this.thumbnailUri = const Value.absent(),
     this.packageId = const Value.absent(),
+    this.speciesStatus = const Value.absent(),
+    this.modelConfidence = const Value.absent(),
+    this.repeatedHits = const Value.absent(),
     required DateTime createdAt,
     this.sexCategory = const Value.absent(),
     this.sexConfidence = const Value.absent(),
@@ -972,6 +1111,9 @@ class IdentificationRecordsCompanion
     Expression<String>? imageUri,
     Expression<String>? thumbnailUri,
     Expression<String>? packageId,
+    Expression<String>? speciesStatus,
+    Expression<double>? modelConfidence,
+    Expression<int>? repeatedHits,
     Expression<DateTime>? createdAt,
     Expression<String>? sexCategory,
     Expression<double>? sexConfidence,
@@ -993,6 +1135,9 @@ class IdentificationRecordsCompanion
       if (imageUri != null) 'image_uri': imageUri,
       if (thumbnailUri != null) 'thumbnail_uri': thumbnailUri,
       if (packageId != null) 'package_id': packageId,
+      if (speciesStatus != null) 'species_status': speciesStatus,
+      if (modelConfidence != null) 'model_confidence': modelConfidence,
+      if (repeatedHits != null) 'repeated_hits': repeatedHits,
       if (createdAt != null) 'created_at': createdAt,
       if (sexCategory != null) 'sex_category': sexCategory,
       if (sexConfidence != null) 'sex_confidence': sexConfidence,
@@ -1018,6 +1163,9 @@ class IdentificationRecordsCompanion
     Value<String?>? imageUri,
     Value<String?>? thumbnailUri,
     Value<String?>? packageId,
+    Value<String?>? speciesStatus,
+    Value<double?>? modelConfidence,
+    Value<int>? repeatedHits,
     Value<DateTime>? createdAt,
     Value<String?>? sexCategory,
     Value<double?>? sexConfidence,
@@ -1039,6 +1187,9 @@ class IdentificationRecordsCompanion
       imageUri: imageUri ?? this.imageUri,
       thumbnailUri: thumbnailUri ?? this.thumbnailUri,
       packageId: packageId ?? this.packageId,
+      speciesStatus: speciesStatus ?? this.speciesStatus,
+      modelConfidence: modelConfidence ?? this.modelConfidence,
+      repeatedHits: repeatedHits ?? this.repeatedHits,
       createdAt: createdAt ?? this.createdAt,
       sexCategory: sexCategory ?? this.sexCategory,
       sexConfidence: sexConfidence ?? this.sexConfidence,
@@ -1083,6 +1234,15 @@ class IdentificationRecordsCompanion
     }
     if (packageId.present) {
       map['package_id'] = Variable<String>(packageId.value);
+    }
+    if (speciesStatus.present) {
+      map['species_status'] = Variable<String>(speciesStatus.value);
+    }
+    if (modelConfidence.present) {
+      map['model_confidence'] = Variable<double>(modelConfidence.value);
+    }
+    if (repeatedHits.present) {
+      map['repeated_hits'] = Variable<int>(repeatedHits.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -1133,6 +1293,9 @@ class IdentificationRecordsCompanion
           ..write('imageUri: $imageUri, ')
           ..write('thumbnailUri: $thumbnailUri, ')
           ..write('packageId: $packageId, ')
+          ..write('speciesStatus: $speciesStatus, ')
+          ..write('modelConfidence: $modelConfidence, ')
+          ..write('repeatedHits: $repeatedHits, ')
           ..write('createdAt: $createdAt, ')
           ..write('sexCategory: $sexCategory, ')
           ..write('sexConfidence: $sexConfidence, ')
@@ -1264,6 +1427,17 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _speciesStatusMeta = const VerificationMeta(
+    'speciesStatus',
+  );
+  @override
+  late final GeneratedColumn<String> speciesStatus = GeneratedColumn<String>(
+    'species_status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _detectedAtMeta = const VerificationMeta(
     'detectedAt',
   );
@@ -1320,6 +1494,7 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     endMs,
     regionalSupport,
     temporalContext,
+    speciesStatus,
     detectedAt,
     latitude,
     longitude,
@@ -1420,6 +1595,15 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         ),
       );
     }
+    if (data.containsKey('species_status')) {
+      context.handle(
+        _speciesStatusMeta,
+        speciesStatus.isAcceptableOrUnknown(
+          data['species_status']!,
+          _speciesStatusMeta,
+        ),
+      );
+    }
     if (data.containsKey('detected_at')) {
       context.handle(
         _detectedAtMeta,
@@ -1495,6 +1679,10 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         DriftSqlType.string,
         data['${effectivePrefix}temporal_context'],
       ),
+      speciesStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_status'],
+      ),
       detectedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}detected_at'],
@@ -1532,6 +1720,7 @@ class LiveDetectionEvent extends DataClass
   final int endMs;
   final String? regionalSupport;
   final String? temporalContext;
+  final String? speciesStatus;
   final DateTime? detectedAt;
   final double? latitude;
   final double? longitude;
@@ -1547,6 +1736,7 @@ class LiveDetectionEvent extends DataClass
     required this.endMs,
     this.regionalSupport,
     this.temporalContext,
+    this.speciesStatus,
     this.detectedAt,
     this.latitude,
     this.longitude,
@@ -1568,6 +1758,9 @@ class LiveDetectionEvent extends DataClass
     }
     if (!nullToAbsent || temporalContext != null) {
       map['temporal_context'] = Variable<String>(temporalContext);
+    }
+    if (!nullToAbsent || speciesStatus != null) {
+      map['species_status'] = Variable<String>(speciesStatus);
     }
     if (!nullToAbsent || detectedAt != null) {
       map['detected_at'] = Variable<DateTime>(detectedAt);
@@ -1598,6 +1791,9 @@ class LiveDetectionEvent extends DataClass
       temporalContext: temporalContext == null && nullToAbsent
           ? const Value.absent()
           : Value(temporalContext),
+      speciesStatus: speciesStatus == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speciesStatus),
       detectedAt: detectedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(detectedAt),
@@ -1627,6 +1823,7 @@ class LiveDetectionEvent extends DataClass
       endMs: serializer.fromJson<int>(json['endMs']),
       regionalSupport: serializer.fromJson<String?>(json['regionalSupport']),
       temporalContext: serializer.fromJson<String?>(json['temporalContext']),
+      speciesStatus: serializer.fromJson<String?>(json['speciesStatus']),
       detectedAt: serializer.fromJson<DateTime?>(json['detectedAt']),
       latitude: serializer.fromJson<double?>(json['latitude']),
       longitude: serializer.fromJson<double?>(json['longitude']),
@@ -1647,6 +1844,7 @@ class LiveDetectionEvent extends DataClass
       'endMs': serializer.toJson<int>(endMs),
       'regionalSupport': serializer.toJson<String?>(regionalSupport),
       'temporalContext': serializer.toJson<String?>(temporalContext),
+      'speciesStatus': serializer.toJson<String?>(speciesStatus),
       'detectedAt': serializer.toJson<DateTime?>(detectedAt),
       'latitude': serializer.toJson<double?>(latitude),
       'longitude': serializer.toJson<double?>(longitude),
@@ -1665,6 +1863,7 @@ class LiveDetectionEvent extends DataClass
     int? endMs,
     Value<String?> regionalSupport = const Value.absent(),
     Value<String?> temporalContext = const Value.absent(),
+    Value<String?> speciesStatus = const Value.absent(),
     Value<DateTime?> detectedAt = const Value.absent(),
     Value<double?> latitude = const Value.absent(),
     Value<double?> longitude = const Value.absent(),
@@ -1684,6 +1883,9 @@ class LiveDetectionEvent extends DataClass
     temporalContext: temporalContext.present
         ? temporalContext.value
         : this.temporalContext,
+    speciesStatus: speciesStatus.present
+        ? speciesStatus.value
+        : this.speciesStatus,
     detectedAt: detectedAt.present ? detectedAt.value : this.detectedAt,
     latitude: latitude.present ? latitude.value : this.latitude,
     longitude: longitude.present ? longitude.value : this.longitude,
@@ -1711,6 +1913,9 @@ class LiveDetectionEvent extends DataClass
       temporalContext: data.temporalContext.present
           ? data.temporalContext.value
           : this.temporalContext,
+      speciesStatus: data.speciesStatus.present
+          ? data.speciesStatus.value
+          : this.speciesStatus,
       detectedAt: data.detectedAt.present
           ? data.detectedAt.value
           : this.detectedAt,
@@ -1733,6 +1938,7 @@ class LiveDetectionEvent extends DataClass
           ..write('endMs: $endMs, ')
           ..write('regionalSupport: $regionalSupport, ')
           ..write('temporalContext: $temporalContext, ')
+          ..write('speciesStatus: $speciesStatus, ')
           ..write('detectedAt: $detectedAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
@@ -1753,6 +1959,7 @@ class LiveDetectionEvent extends DataClass
     endMs,
     regionalSupport,
     temporalContext,
+    speciesStatus,
     detectedAt,
     latitude,
     longitude,
@@ -1772,6 +1979,7 @@ class LiveDetectionEvent extends DataClass
           other.endMs == this.endMs &&
           other.regionalSupport == this.regionalSupport &&
           other.temporalContext == this.temporalContext &&
+          other.speciesStatus == this.speciesStatus &&
           other.detectedAt == this.detectedAt &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
@@ -1789,6 +1997,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
   final Value<int> endMs;
   final Value<String?> regionalSupport;
   final Value<String?> temporalContext;
+  final Value<String?> speciesStatus;
   final Value<DateTime?> detectedAt;
   final Value<double?> latitude;
   final Value<double?> longitude;
@@ -1804,6 +2013,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     this.endMs = const Value.absent(),
     this.regionalSupport = const Value.absent(),
     this.temporalContext = const Value.absent(),
+    this.speciesStatus = const Value.absent(),
     this.detectedAt = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
@@ -1820,6 +2030,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     required int endMs,
     this.regionalSupport = const Value.absent(),
     this.temporalContext = const Value.absent(),
+    this.speciesStatus = const Value.absent(),
     this.detectedAt = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
@@ -1843,6 +2054,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Expression<int>? endMs,
     Expression<String>? regionalSupport,
     Expression<String>? temporalContext,
+    Expression<String>? speciesStatus,
     Expression<DateTime>? detectedAt,
     Expression<double>? latitude,
     Expression<double>? longitude,
@@ -1859,6 +2071,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       if (endMs != null) 'end_ms': endMs,
       if (regionalSupport != null) 'regional_support': regionalSupport,
       if (temporalContext != null) 'temporal_context': temporalContext,
+      if (speciesStatus != null) 'species_status': speciesStatus,
       if (detectedAt != null) 'detected_at': detectedAt,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
@@ -1877,6 +2090,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Value<int>? endMs,
     Value<String?>? regionalSupport,
     Value<String?>? temporalContext,
+    Value<String?>? speciesStatus,
     Value<DateTime?>? detectedAt,
     Value<double?>? latitude,
     Value<double?>? longitude,
@@ -1893,6 +2107,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       endMs: endMs ?? this.endMs,
       regionalSupport: regionalSupport ?? this.regionalSupport,
       temporalContext: temporalContext ?? this.temporalContext,
+      speciesStatus: speciesStatus ?? this.speciesStatus,
       detectedAt: detectedAt ?? this.detectedAt,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -1933,6 +2148,9 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     if (temporalContext.present) {
       map['temporal_context'] = Variable<String>(temporalContext.value);
     }
+    if (speciesStatus.present) {
+      map['species_status'] = Variable<String>(speciesStatus.value);
+    }
     if (detectedAt.present) {
       map['detected_at'] = Variable<DateTime>(detectedAt.value);
     }
@@ -1961,6 +2179,7 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
           ..write('endMs: $endMs, ')
           ..write('regionalSupport: $regionalSupport, ')
           ..write('temporalContext: $temporalContext, ')
+          ..write('speciesStatus: $speciesStatus, ')
           ..write('detectedAt: $detectedAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
@@ -2538,6 +2757,9 @@ typedef $$IdentificationRecordsTableCreateCompanionBuilder =
       Value<String?> imageUri,
       Value<String?> thumbnailUri,
       Value<String?> packageId,
+      Value<String?> speciesStatus,
+      Value<double?> modelConfidence,
+      Value<int> repeatedHits,
       required DateTime createdAt,
       Value<String?> sexCategory,
       Value<double?> sexConfidence,
@@ -2560,6 +2782,9 @@ typedef $$IdentificationRecordsTableUpdateCompanionBuilder =
       Value<String?> imageUri,
       Value<String?> thumbnailUri,
       Value<String?> packageId,
+      Value<String?> speciesStatus,
+      Value<double?> modelConfidence,
+      Value<int> repeatedHits,
       Value<DateTime> createdAt,
       Value<String?> sexCategory,
       Value<double?> sexConfidence,
@@ -2623,6 +2848,21 @@ class $$IdentificationRecordsTableFilterComposer
 
   ColumnFilters<String> get packageId => $composableBuilder(
     column: $table.packageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get modelConfidence => $composableBuilder(
+    column: $table.modelConfidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get repeatedHits => $composableBuilder(
+    column: $table.repeatedHits,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2731,6 +2971,21 @@ class $$IdentificationRecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get modelConfidence => $composableBuilder(
+    column: $table.modelConfidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get repeatedHits => $composableBuilder(
+    column: $table.repeatedHits,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -2827,6 +3082,21 @@ class $$IdentificationRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get packageId =>
       $composableBuilder(column: $table.packageId, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get modelConfidence => $composableBuilder(
+    column: $table.modelConfidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get repeatedHits => $composableBuilder(
+    column: $table.repeatedHits,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -2932,6 +3202,9 @@ class $$IdentificationRecordsTableTableManager
                 Value<String?> imageUri = const Value.absent(),
                 Value<String?> thumbnailUri = const Value.absent(),
                 Value<String?> packageId = const Value.absent(),
+                Value<String?> speciesStatus = const Value.absent(),
+                Value<double?> modelConfidence = const Value.absent(),
+                Value<int> repeatedHits = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String?> sexCategory = const Value.absent(),
                 Value<double?> sexConfidence = const Value.absent(),
@@ -2952,6 +3225,9 @@ class $$IdentificationRecordsTableTableManager
                 imageUri: imageUri,
                 thumbnailUri: thumbnailUri,
                 packageId: packageId,
+                speciesStatus: speciesStatus,
+                modelConfidence: modelConfidence,
+                repeatedHits: repeatedHits,
                 createdAt: createdAt,
                 sexCategory: sexCategory,
                 sexConfidence: sexConfidence,
@@ -2974,6 +3250,9 @@ class $$IdentificationRecordsTableTableManager
                 Value<String?> imageUri = const Value.absent(),
                 Value<String?> thumbnailUri = const Value.absent(),
                 Value<String?> packageId = const Value.absent(),
+                Value<String?> speciesStatus = const Value.absent(),
+                Value<double?> modelConfidence = const Value.absent(),
+                Value<int> repeatedHits = const Value.absent(),
                 required DateTime createdAt,
                 Value<String?> sexCategory = const Value.absent(),
                 Value<double?> sexConfidence = const Value.absent(),
@@ -2994,6 +3273,9 @@ class $$IdentificationRecordsTableTableManager
                 imageUri: imageUri,
                 thumbnailUri: thumbnailUri,
                 packageId: packageId,
+                speciesStatus: speciesStatus,
+                modelConfidence: modelConfidence,
+                repeatedHits: repeatedHits,
                 createdAt: createdAt,
                 sexCategory: sexCategory,
                 sexConfidence: sexConfidence,
@@ -3046,6 +3328,7 @@ typedef $$LiveDetectionEventsTableCreateCompanionBuilder =
       required int endMs,
       Value<String?> regionalSupport,
       Value<String?> temporalContext,
+      Value<String?> speciesStatus,
       Value<DateTime?> detectedAt,
       Value<double?> latitude,
       Value<double?> longitude,
@@ -3063,6 +3346,7 @@ typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
       Value<int> endMs,
       Value<String?> regionalSupport,
       Value<String?> temporalContext,
+      Value<String?> speciesStatus,
       Value<DateTime?> detectedAt,
       Value<double?> latitude,
       Value<double?> longitude,
@@ -3125,6 +3409,11 @@ class $$LiveDetectionEventsTableFilterComposer
 
   ColumnFilters<String> get temporalContext => $composableBuilder(
     column: $table.temporalContext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3208,6 +3497,11 @@ class $$LiveDetectionEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get detectedAt => $composableBuilder(
     column: $table.detectedAt,
     builder: (column) => ColumnOrderings(column),
@@ -3275,6 +3569,11 @@ class $$LiveDetectionEventsTableAnnotationComposer
 
   GeneratedColumn<String> get temporalContext => $composableBuilder(
     column: $table.temporalContext,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get speciesStatus => $composableBuilder(
+    column: $table.speciesStatus,
     builder: (column) => column,
   );
 
@@ -3346,6 +3645,7 @@ class $$LiveDetectionEventsTableTableManager
                 Value<int> endMs = const Value.absent(),
                 Value<String?> regionalSupport = const Value.absent(),
                 Value<String?> temporalContext = const Value.absent(),
+                Value<String?> speciesStatus = const Value.absent(),
                 Value<DateTime?> detectedAt = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
@@ -3361,6 +3661,7 @@ class $$LiveDetectionEventsTableTableManager
                 endMs: endMs,
                 regionalSupport: regionalSupport,
                 temporalContext: temporalContext,
+                speciesStatus: speciesStatus,
                 detectedAt: detectedAt,
                 latitude: latitude,
                 longitude: longitude,
@@ -3378,6 +3679,7 @@ class $$LiveDetectionEventsTableTableManager
                 required int endMs,
                 Value<String?> regionalSupport = const Value.absent(),
                 Value<String?> temporalContext = const Value.absent(),
+                Value<String?> speciesStatus = const Value.absent(),
                 Value<DateTime?> detectedAt = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
@@ -3393,6 +3695,7 @@ class $$LiveDetectionEventsTableTableManager
                 endMs: endMs,
                 regionalSupport: regionalSupport,
                 temporalContext: temporalContext,
+                speciesStatus: speciesStatus,
                 detectedAt: detectedAt,
                 latitude: latitude,
                 longitude: longitude,

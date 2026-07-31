@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/bird_detection_card.dart';
 import 'package:firbird/app/media_player_controller.dart';
 import 'package:firbird/detection/detection_record.dart';
+import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:flutter/material.dart';
 
 class PlaybackDetection {
@@ -14,7 +16,9 @@ class PlaybackDetection {
     required this.scientificName,
     required this.startMs,
     required this.endMs,
-    required this.confidence,
+    required this.modelConfidence,
+    this.repeatedHits = 1,
+    this.repetitionSupportPerHit = 0,
     this.regionalSupport,
     this.temporalContext,
     this.thumbnailUrl,
@@ -22,6 +26,7 @@ class PlaybackDetection {
     this.latitude,
     this.longitude,
     this.modelVersion,
+    this.statusCategory,
   });
 
   final String speciesId;
@@ -29,7 +34,9 @@ class PlaybackDetection {
   final String scientificName;
   final int startMs;
   final int endMs;
-  final int confidence;
+  final double modelConfidence;
+  final int repeatedHits;
+  final int repetitionSupportPerHit;
   final String? regionalSupport;
   final String? temporalContext;
   final String? thumbnailUrl;
@@ -37,6 +44,7 @@ class PlaybackDetection {
   final double? latitude;
   final double? longitude;
   final String? modelVersion;
+  final SpeciesStatusCategory? statusCategory;
 
   DetectionRecord toDetectionRecord(String filePath) {
     DateTime resolvedAt = detectedAt ?? DateTime.now();
@@ -52,9 +60,12 @@ class PlaybackDetection {
       speciesId: speciesId,
       turkishName: turkishName,
       scientificName: scientificName,
-      modelConfidence: confidence / 100,
+      modelConfidence: modelConfidence,
       detectedAt: resolvedAt,
       source: DetectionSource.replay,
+      statusCategory:
+          statusCategory ??
+          SpeciesStatusHelper.getCategory(scientificName: scientificName),
       modelVersion: modelVersion ?? 'BirdNET replay',
       thumbnailUrl: thumbnailUrl,
       audioUri: filePath,
@@ -62,6 +73,8 @@ class PlaybackDetection {
       audioEndMs: endMs,
       latitude: latitude,
       longitude: longitude,
+      repeatedHits: repeatedHits,
+      repetitionSupportPerHit: repetitionSupportPerHit,
     );
   }
 }
@@ -71,11 +84,13 @@ class PlaybackSession {
     required this.filePath,
     required this.displayName,
     required this.detections,
+    this.rareSpeciesCount = 0,
   });
 
   final String filePath;
   final String displayName;
   final List<PlaybackDetection> detections;
+  final int rareSpeciesCount;
 }
 
 class MediaPlayerScreen extends StatefulWidget {
@@ -209,7 +224,10 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
             .toList(growable: false);
 
         return Scaffold(
-          appBar: AppBar(title: Text(session?.displayName ?? 'Ses oynatıcı')),
+          appBar: AppBar(
+            title: Text(session?.displayName ?? 'Ses oynatıcı'),
+            actions: const <Widget>[AppBarHelpButton()],
+          ),
           body: Column(
             children: <Widget>[
               Container(
@@ -330,6 +348,19 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(_loadError ?? _controller.error!),
+                ),
+              if ((session?.rareSpeciesCount ?? 0) > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      avatar: const Icon(Icons.notification_important_outlined),
+                      label: Text(
+                        '${session!.rareSpeciesCount} nadir tür tespiti',
+                      ),
+                    ),
+                  ),
                 ),
               if (detections.isEmpty)
                 Expanded(

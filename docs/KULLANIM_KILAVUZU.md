@@ -1,7 +1,11 @@
 # FirBird 3 Kullanım Kılavuzu
 
-Bu kılavuz FirBird 3'ün v0.8.1 sürümü içindir. Uygulama kuş gözlemi için
+Bu kılavuz FirBird 3'ün v0.8.6 sürümü içindir. Uygulama kuş gözlemi için
 yardımcı bir araçtır; uzman doğrulamasının yerine geçmez.
+
+Kılavuz uygulamaya gömülüdür ve internet bağlantısı gerektirmez. Sol menüdeki
+**Kullanım Kılavuzu** seçeneğinden veya ekranların sağ üstündeki soru işaretinden
+açılabilir.
 
 ## İlk kurulum
 
@@ -25,6 +29,7 @@ Sol üstteki menüden ana ekranlar açılır.
 | Geçmiş | Kaydedilmiş analiz ve canlı oturumları açar. |
 | Yakınımdaki Kuşlar | GPS çevresindeki mevsimsel türleri ve eBird hotspotlarını gösterir. |
 | Ayarlar | Eşikler, tema, paket bilgisi ve kişisel eBird anahtarını yönetir. |
+| Kullanım Kılavuzu | Kart renklerini, nadir uyarısını ve Kanıt Dosyası alanlarını uygulama içinde açıklar. |
 
 ## Fotoğraftan kuş tanımlama
 
@@ -63,6 +68,23 @@ Güven değeri modelin ses/fotoğraf benzerliğini ifade eder. Bölgesel destek 
 bilgidir; kesin teşhis veya tarihsel görülme sıklığı değildir. Nadir türlerde
 ses, fotoğraf, tarih ve saha koşullarını ayrıca doğrulayın.
 
+### Kuş kartının renkleri
+
+- Kartın açık pastel arka planı güven puanıdır: yeşil yüksek, turuncu orta,
+  kırmızı düşük veya çelişkili güveni anlatır.
+- Yeşil çerçeve yerel/göçmen, gri çerçeve bölge dışı/zor durumu gösterir.
+- Mavi **Yeni / aktif** rozeti son gelen veya o anda çalan tespittir.
+- Aynı tür ayrı ses olaylarında yeniden duyulursa kartta model skorlarının
+  **ortalaması** ile `× duyuldu` sayısı birlikte güncellenir. Örtüşen üç
+  saniyelik analiz pencereleri yeni bir duyulma sayılmaz.
+- Nadirlik güven rengi değildir. Kartta **Nadir Tür** yazısı bulunur; nadir tür
+  için sabit renkli çerçeve veya alt lejant maddesi kullanılmaz.
+
+Karar verilmemiş nadir tür kartı 15 saniyede bir turuncu parıltıyla uyarır.
+Karta dokunup **Doğru** veya **Doğru değil** seçmek uyarıyı durdurur. Kart yeni
+tespitler nedeniyle görünür alanın dışına çıksa bile oturum raporundaki benzersiz
+nadir tür sayısı korunur; aynı türün tekrarları sayıyı artırmaz.
+
 ## Kayıtlar ve oynatıcı
 
 **Geçmiş** ekranında canlı oturumlar ve analiz kayıtları görünür. Canlı oturumu
@@ -80,6 +102,10 @@ Kanıt Dosyası model güvenini; saat/etkinlik, eBird yakın çevre kayıtları,
 mevsim ve cihazdaki kullanıcı doğrulamalarıyla birlikte gösterir. Her satırda
 puan, açıklama ve veri kaynağı bulunur. eBird kaydı kuşun aynı saatte bölgede
 görüldüğünü destekler; ses çıkardığını kanıtlamaz.
+
+Canlı tespitte model puanı bağımsız ses olaylarının aritmetik ortalamasıdır.
+Her ek bağımsız tespit ayrıca destek puanı ekler; örtüşen analiz pencereleri
+yeniden sayılmaz ve toplam tekrar desteği +20 ile sınırlıdır.
 
 Puan ağırlıklarını **Ayarlar → Algoritma puanları** bölümünden değiştirebilir
 ve **Varsayılan puanlara dön** seçeneğiyle sıfırlayabilirsiniz. Güncel formül ve
@@ -181,6 +207,7 @@ geçersiz olduğu anlamına gelmez; API yanıtının içerik sınırıdır.
 | Kırpma modu | Fotoğraftaki kuşun kırpılmasına yönelik yöntemi seçer. |
 | Aday gösterme eşiği | Çok düşük güvenli görsel adayları gizler. |
 | Canlı tespit minimum güven eşiği | Canlı ses listesinde gösterilecek en düşük skoru belirler. |
+| Her ek bağımsız ses tespiti desteği | Aynı türün ayrı ses olaylarında yeniden duyulmasının Kanıt Dosyası'na eklediği puanı belirler. |
 | eBird canlı veri anahtarı | Anahtarı test eder, güvenli depoda saklar veya kaldırır. |
 | Gözlem bağlamı yarıçapı | Canlı tespitlerde çevrimdışı bölgesel desteğin kapsamını belirler. |
 | Tema | Açık, koyu veya sistem temasını seçer. |

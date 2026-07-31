@@ -5,7 +5,7 @@ FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android üzer
 sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
 gönderilmez.
 
-> Güncel sürüm: **v0.8.1 (build 81)**
+> Güncel sürüm: **v0.8.6 (build 86)**
 
 Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
 fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
@@ -21,8 +21,8 @@ fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
 5. Son eBird kayıtlarını yenilemek isterseniz kendi API anahtarınızı Ayarlar'da
    doğrulayın; ardından 20 veya 50 km verisini isteğe bağlı olarak indirin.
 
-Ekran ekran ayrıntılı açıklama için [Kullanım Kılavuzu](docs/KULLANIM_KILAVUZU.md)
-belgesine bakın.
+Ekran ekran ayrıntılı açıklama için [Kullanım Kılavuzu](docs/KULLANIM_KILAVUZU.md),
+hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bakın.
 
 ## Öne çıkan özellikler
 
@@ -35,7 +35,14 @@ belgesine bakın.
   çubuğu, oynat/durdur, ses seviyesi ve tespit anına atlama seçenekleriyle
   tekrar dinlenebilir.
 - **Kullanıcı geri bildirimi:** Canlı ses adayları **Doğru** veya **Doğru
-  değil** olarak işaretlenebilir; kartı sağa kaydırmak doğrulama akışını açar.
+  değil** olarak işaretlenebilir. Kart dokunma ve sağa kaydırma aynı Kanıt
+  Dosyası karar akışını kullanır.
+- **Kart renkleri:** Pastel arka plan güven puanını, yeşil/gri çerçeve bölgesel
+  durumu ve mavi rozet yeni/aktif tespiti gösterir. Nadirlik kartta metin olarak
+  yazılır; güven puanından bağımsızdır.
+- **Nadir tür uyarısı:** Karar verilmemiş nadir tür kartı 15 saniyede bir turuncu
+  parıltıyla uyarır. Kart görünür alandan çıksa bile nadir tür sayısı oturum
+  raporunda korunur; Doğru veya Doğru değil kararı uyarıyı durdurur.
 - **Yakındaki kuşlar:** GPS konumunun 20 km yarıçapında, seçilen tarihle aynı
   mevsimde gözlenmiş türler listelenir. Yerel/mevsimsel kayıtlar yeşil, nadir
   kayıtlar kırmızı grupta gösterilir.
@@ -90,11 +97,12 @@ bulunmaması da türün bölgede bulunmadığının kanıtı değildir.
 
 ### Puanlama algoritması
 
-Algoritma sürümü: `evidence-v1`
+Algoritma sürümü: `evidence-v2`
 
 ```text
-sonuç puanı = sınırla(model puanı + bağlam puanları, 0, 100)
-model puanı = yuvarla(model güveni × 100)
+model ortalaması = bağımsız ses olaylarındaki model skorlarının aritmetik ortalaması
+tekrar desteği = sınırla((bağımsız tespit sayısı − 1) × kullanıcı puanı, 0, 20)
+sonuç puanı = sınırla(model ortalaması + tekrar desteği + diğer kanıt puanları, 0, 100)
 ```
 
 Varsayılan değerler **Ayarlar → Algoritma puanları** bölümünden kullanıcı
@@ -105,6 +113,7 @@ tarafından değiştirilebilir ve tek düğmeyle varsayılanlara döndürülebil
 | Saat uyumsuzluğu | −30 | Türün etkinlik profili ile güneş evresi güçlü biçimde çelişirse tam, kısmen çelişirse yarım ceza. |
 | Yakında aynı saat desteği | +30 | 20/50 km çevrede ±2 saat aralığında iki veya daha fazla kayıt varsa tam, bir kayıt varsa yarım destek. |
 | Mevsim uyumu | +10 | Yakın çevrede aynı mevsime ait en az bir kayıt varsa uygulanır. |
+| Her ek bağımsız ses tespiti | +4 | Üç saniyelik örtüşen analiz pencereleri tek olay sayılır; ayrı olaylar için uygulanır ve toplam destek +20 ile sınırlıdır. |
 | Cihazda doğrulanmış tür | +15 | Doğru sayısı yanlış sayısından fazlaysa uygulanır. |
 | Cihazda reddedilmiş tür | −25 | Yanlış sayısı doğru sayısından fazlaysa uygulanır. |
 
@@ -166,6 +175,33 @@ kullanılmış ara sürümlerdir.
 | `v0.7.1` | Mikrofonla kontrollü canlı başlangıç, kesintisiz harita erişimi, tam ekran harita, GPS/ölçek düzeni ve kompakt Ayarlar formu. |
 | `v0.8.0` | Açıklanabilir Kanıt Dosyası, değiştirilebilir puanlama, kalıcı eBird çevre verisi ve cihaz doğrulama hafızası. |
 | `v0.8.1` | İndirme yarıçapı/tarihi durumu, yenileme davranışı, yüksek kontrastlı harita kaplamaları, küçültme düğmesi ve kuzey pusulası. |
+| `v0.8.5` | Güven ve bölgesel durum renklerinin ayrılması; 15 saniyelik çözümlenmemiş nadir tür uyarısı ve kalıcı nadir raporu; çevrimdışı uygulama içi kullanım kılavuzu. |
+| `v0.8.6` | Canlı tespitlerde ilk skora kilitlenme hatasının düzeltilmesi; bağımsız ses olaylarının ortalaması, sınırlı tekrar desteği ve canlı–geçmiş–replay skor bütünlüğü. |
+
+### v0.8.6
+
+- Aynı türün kart yüzdesi artık ilk tespitte donmaz; bağımsız ses olaylarının
+  model skorları aritmetik ortalamayla güncellenir.
+- Üç saniyelik ve bir saniye aralıklı örtüşen BirdNET pencereleri aynı akustik
+  olayı tekrar tekrar saymaz; olay içindeki en güçlü skor korunur.
+- Kartta birleşik güven, model ortalaması ve bağımsız duyulma sayısı ayrı ayrı
+  gösterilir.
+- Her ek bağımsız tespitin destek puanı Ayarlar'dan değiştirilebilir ve toplam
+  tekrar desteği +20 ile sınırlıdır.
+- Ortalama skor ve tekrar sayısı canlı oturum özeti, geçmiş ve ortak replay
+  oynatıcısında aynı kanonik sözleşmeyle korunur.
+
+### v0.8.5
+
+- Kartın pastel arka planı yalnız güven puanını gösterir; bölgesel durum
+  çerçeveden, yeni/aktif tespit mavi rozetten okunur.
+- Nadir tür sabit kırmızı çerçeve veya alt renk lejantıyla gösterilmez. Kartta
+  **Nadir Tür** yazısı bulunur ve kullanıcı karar verene kadar 15 saniyede bir
+  turuncu uyarı oluşur.
+- Oturum raporu, kart kaydırılarak görünmez olsa da benzersiz nadir tür sayısını
+  korur. Aynı türün tekrarları sayıyı artırmaz.
+- Çevrimdışı **Kullanım Kılavuzu** sol menüden ve ekranların sağ üstündeki soru
+  işaretinden açılabilir.
 
 ### v0.8.1
 

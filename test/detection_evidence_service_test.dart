@@ -4,6 +4,7 @@ import 'package:firbird/detection/algorithm_settings.dart';
 import 'package:firbird/detection/detection_evidence_service.dart';
 import 'package:firbird/detection/detection_feedback_repository.dart';
 import 'package:firbird/detection/detection_record.dart';
+import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/observation_context/ebird_context_package.dart';
 import 'package:firbird/observation_context/ebird_observation_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,7 +96,7 @@ void main() {
     );
 
     final DetectionRecord enriched = await service.enrich(
-      _record(detectedAt: moment),
+      _record(detectedAt: moment, repeatedHits: 3),
     );
     final Map<String, int> points = <String, int>{
       for (final DetectionEvidenceFactor factor in enriched.evidence!.factors)
@@ -105,23 +106,27 @@ void main() {
     expect(points['time'], -30);
     expect(points['nearby_time'], 30);
     expect(points['season'], 10);
+    expect(points['repeated_detection'], 8);
     expect(points['device_history'], 0);
     expect(enriched.evidence!.modelScore, 50);
-    expect(enriched.evidence!.finalScore, 60);
+    expect(enriched.evidence!.finalScore, 68);
   });
 }
 
-DetectionRecord _record({DateTime? detectedAt}) => DetectionRecord(
-  id: 'owl-detection',
-  speciesId: 'athene-noctua',
-  turkishName: 'Kukumav',
-  scientificName: 'Athene noctua',
-  modelConfidence: 0.50,
-  detectedAt: detectedAt ?? DateTime.utc(2026, 7, 15, 9),
-  source: DetectionSource.live,
-  latitude: 41,
-  longitude: 29,
-);
+DetectionRecord _record({DateTime? detectedAt, int repeatedHits = 1}) =>
+    DetectionRecord(
+      id: 'owl-detection',
+      speciesId: 'athene-noctua',
+      turkishName: 'Kukumav',
+      scientificName: 'Athene noctua',
+      modelConfidence: 0.50,
+      detectedAt: detectedAt ?? DateTime.utc(2026, 7, 15, 9),
+      source: DetectionSource.live,
+      statusCategory: SpeciesStatusCategory.localOrMigratory,
+      latitude: 41,
+      longitude: 29,
+      repeatedHits: repeatedHits,
+    );
 
 EbirdRecentObservation _observation(
   String locationId,

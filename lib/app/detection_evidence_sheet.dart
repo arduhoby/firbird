@@ -4,10 +4,10 @@ import 'package:firbird/detection/detection_record.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-Future<void> showDetectionEvidenceSheet(
+Future<DetectionVerdict?> showDetectionEvidenceSheet(
   BuildContext context,
   DetectionRecord record,
-) => showModalBottomSheet<void>(
+) => showModalBottomSheet<DetectionVerdict>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
@@ -42,10 +42,8 @@ class _DetectionEvidenceViewState extends State<_DetectionEvidenceView> {
       verdict,
     );
     if (!mounted) return;
-    setState(() {
-      _saving = false;
-      _record = Future<DetectionRecord>.value(updated);
-    });
+    _record = Future<DetectionRecord>.value(updated);
+    Navigator.of(context).pop(verdict);
   }
 
   @override
@@ -144,7 +142,7 @@ class _DetectionEvidenceViewState extends State<_DetectionEvidenceView> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Model %${bundle.modelScore} · bağlam ${bundle.contextAdjustment >= 0 ? '+' : ''}${bundle.contextAdjustment} · sonuç %${bundle.finalScore}',
+                  'Model ort. %${bundle.modelScore} · kanıt ${bundle.contextAdjustment >= 0 ? '+' : ''}${bundle.contextAdjustment} · sonuç %${bundle.finalScore}',
                 ),
               ],
             ),

@@ -1,3 +1,5 @@
+import 'package:firbird/inference/bird_inference_engine.dart';
+
 enum DetectionSource { live, audioFile, photo, replay }
 
 enum DetectionVerdict { correct, incorrect }
@@ -54,6 +56,7 @@ class DetectionRecord {
     required this.modelConfidence,
     required this.detectedAt,
     required this.source,
+    required this.statusCategory,
     this.modelVersion,
     this.thumbnailUrl,
     this.audioUri,
@@ -62,6 +65,7 @@ class DetectionRecord {
     this.latitude,
     this.longitude,
     this.repeatedHits = 1,
+    this.repetitionSupportPerHit = 0,
     this.evidence,
     this.verdict,
   });
@@ -73,6 +77,7 @@ class DetectionRecord {
   final double modelConfidence;
   final DateTime detectedAt;
   final DetectionSource source;
+  final SpeciesStatusCategory statusCategory;
   final String? modelVersion;
   final String? thumbnailUrl;
   final String? audioUri;
@@ -81,6 +86,7 @@ class DetectionRecord {
   final double? latitude;
   final double? longitude;
   final int repeatedHits;
+  final int repetitionSupportPerHit;
   final DetectionEvidenceBundle? evidence;
   final DetectionVerdict? verdict;
 
@@ -95,6 +101,7 @@ class DetectionRecord {
     modelConfidence: modelConfidence,
     detectedAt: detectedAt,
     source: source,
+    statusCategory: statusCategory,
     modelVersion: modelVersion,
     thumbnailUrl: thumbnailUrl,
     audioUri: audioUri,
@@ -103,6 +110,7 @@ class DetectionRecord {
     latitude: latitude,
     longitude: longitude,
     repeatedHits: repeatedHits,
+    repetitionSupportPerHit: repetitionSupportPerHit,
     evidence: evidence ?? this.evidence,
     verdict: verdict ?? this.verdict,
   );

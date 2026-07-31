@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/bird_photo.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
@@ -134,6 +135,7 @@ class _StandaloneHotspotMapState extends State<_StandaloneHotspotMap> {
         onPressed: () => Navigator.pop(context),
       ),
       title: const Text('Yakındaki gözlem noktaları'),
+      actions: const <Widget>[AppBarHelpButton()],
     ),
     body: FutureBuilder<_StandaloneMapData>(
       future: _data,
@@ -436,7 +438,7 @@ class _NearbyBirdsScreenState extends State<NearbyBirdsScreen> {
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-      actions: const [BackToHomeButton()],
+      actions: const [AppBarHelpButton(), BackToHomeButton()],
     ),
     body: FutureBuilder<List<_NearbyBird>>(
       future: _birds,

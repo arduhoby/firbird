@@ -129,6 +129,92 @@ void main() {
     );
   });
 
+  test('v0.8.5 does not advertise unavailable live age or call analysis', () {
+    final String card = File(
+      'lib/app/bird_detection_card.dart',
+    ).readAsStringSync();
+    final String evidence = File(
+      'lib/app/detection_evidence_sheet.dart',
+    ).readAsStringSync();
+    final String settings = File(
+      'lib/app/history_and_settings_screens.dart',
+    ).readAsStringSync();
+
+    expect(card, isNot(contains('Yaş grubu')));
+    expect(card, isNot(contains('Çağrı şekli')));
+    expect(card, contains("label: 'Nadir Tür'"));
+    expect(evidence, isNot(contains("label: 'Çağrı şekli'")));
+    expect(settings, isNot(contains('Kuş yaş grubu tespit edilsin mi?')));
+    expect(settings, isNot(contains('Kuş ötüşü ayrımı tespit edilsin mi?')));
+  });
+
+  test('photo sex and age analysis remains available', () {
+    final String identification = File(
+      'lib/app/identification_screens.dart',
+    ).readAsStringSync();
+    final String database = File(
+      'lib/data/app_database.dart',
+    ).readAsStringSync();
+
+    expect(identification, contains('class _SexAgeSection'));
+    expect(identification, contains('sexAge: _currentResult.sexAge!'));
+    expect(database, contains('TextColumn get sexCategory'));
+    expect(database, contains('TextColumn get ageCategory'));
+    expect(database, contains('updateCorrection('));
+  });
+
+  test('offline guide has one shared app bar entry point', () {
+    final String helpButton = File(
+      'lib/app/app_bar_help_button.dart',
+    ).readAsStringSync();
+    final String drawer = File('lib/app/app_drawer.dart').readAsStringSync();
+    final String home = File('lib/app/firbird_app.dart').readAsStringSync();
+    final String live = File(
+      'lib/app/live_audio_recording_screen.dart',
+    ).readAsStringSync();
+
+    expect(helpButton, contains("context.push('/help')"));
+    expect(drawer, contains("title: 'Kullanım Kılavuzu'"));
+    expect(drawer, contains("_navigate(context, '/help')"));
+    expect(home, contains('const AppBarHelpButton()'));
+    expect(live, contains('const AppBarHelpButton()'));
+  });
+
+  test('repeated detection confidence has one canonical aggregate', () {
+    final String aggregate = File(
+      'lib/detection/detection_score_aggregate.dart',
+    ).readAsStringSync();
+    final String live = File(
+      'lib/app/live_audio_recording_screen.dart',
+    ).readAsStringSync();
+    final String history = File(
+      'lib/app/history_and_settings_screens.dart',
+    ).readAsStringSync();
+    final String evidence = File(
+      'lib/detection/detection_evidence_service.dart',
+    ).readAsStringSync();
+
+    expect(aggregate, contains('class DetectionScoreAggregate'));
+    expect(aggregate, contains('aggregateDetectionScores('));
+    expect(live, contains('DetectionScoreAggregate.first(pred.score)'));
+    expect(live, contains('.addIndependentEvent(pred.score)'));
+    expect(history, contains('aggregateDetectionScores('));
+    expect(evidence, contains('repetitionBonusFor('));
+    expect(
+      RegExp(r'class DetectionScoreAggregate\b')
+          .allMatches(
+            Directory('lib')
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((File file) => file.path.endsWith('.dart'))
+                .map((File file) => file.readAsStringSync())
+                .join('\n'),
+          )
+          .length,
+      1,
+    );
+  });
+
   test('species detail reuses the canonical nearby eBird data and map', () {
     final String detail = File(
       'lib/app/identification_screens.dart',

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/app/back_to_home_button.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/bird_detection_card.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/app/sex_age_correction_sheet.dart';
@@ -126,6 +127,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       appBar: AppBar(
         title: Text(l10n.analyzing),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: FutureBuilder<InferenceResult>(
         future: _result,
@@ -183,6 +185,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       confidence: confidence,
       modelVersion: result.modelVersion,
       imageUri: result.sourceImageUri,
+      speciesStatus: first.statusCategory.name,
       sexCategory: result.sexAge?.sex.displayCategory.name,
       sexConfidence: result.sexAge?.sex.confidence,
       ageCategory: result.sexAge?.age.displayCategory.name,
@@ -252,6 +255,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
       appBar: AppBar(
         title: Text(l10n.identificationResult),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -576,6 +580,7 @@ class _CandidateTable extends StatelessWidget {
             source: _isAudio
                 ? DetectionSource.audioFile
                 : DetectionSource.photo,
+            statusCategory: predictions[index].statusCategory,
             modelVersion: modelVersion,
             thumbnailUrl: predictions[index].thumbnailUrl,
             audioUri: _isAudio ? sourceUri : null,
@@ -627,6 +632,7 @@ class SpeciesDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.speciesDetail),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),

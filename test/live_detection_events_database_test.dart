@@ -17,7 +17,10 @@ void main() {
       confidence: '%99',
       modelVersion: 'BirdNET',
       packageId: sessionId,
-      predictionMethod: 'timeline-v1',
+      speciesStatus: 'localOrMigratory',
+      modelConfidence: 0.73,
+      repeatedHits: 4,
+      predictionMethod: 'aggregate-v1',
     );
     await database.addLiveDetectionEvent(
       sessionId: sessionId,
@@ -29,6 +32,7 @@ void main() {
       endMs: 4250,
       detectedAt: DateTime.utc(2026, 7, 30, 8, 15),
       regionalSupport: 'strong',
+      speciesStatus: 'localOrMigratory',
       latitude: 41.0082,
       longitude: 28.9784,
       temporalContext: 'Gece etkinliği · yumuşak ağırlık %85',
@@ -44,10 +48,16 @@ void main() {
     expect(events.single.detectedAt?.toUtc(), DateTime.utc(2026, 7, 30, 8, 15));
     expect(events.single.latitude, 41.0082);
     expect(events.single.longitude, 28.9784);
+    expect(events.single.speciesStatus, 'localOrMigratory');
     expect(
       events.single.temporalContext,
       'Gece etkinliği · yumuşak ağırlık %85',
     );
+    final List<IdentificationRecord> summaries = await database
+        .watchHistory()
+        .first;
+    expect(summaries.single.modelConfidence, 0.73);
+    expect(summaries.single.repeatedHits, 4);
 
     await database.deleteLiveSession(sessionId);
     expect(await database.eventsForLiveSession(sessionId), isEmpty);

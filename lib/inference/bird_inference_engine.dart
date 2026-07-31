@@ -15,7 +15,7 @@ enum SpeciesStatusCategory {
   /// Yerel ve Göçmen Kuşlar -> Yeşil çerçeve
   localOrMigratory,
 
-  /// Nadir Kuşlar -> Kırmızı çerçeve
+  /// Nadir kuşlar kartta metinsel rozet ve çözümlenmemiş uyarı ile gösterilir.
   rare,
 
   /// Bölge Dışı / Olması Zor Kuşlar -> Gri çerçeve
@@ -24,16 +24,16 @@ enum SpeciesStatusCategory {
 
 extension SpeciesStatusCategoryX on SpeciesStatusCategory {
   Color get borderColor => switch (this) {
-        SpeciesStatusCategory.localOrMigratory => Colors.green,
-        SpeciesStatusCategory.rare => Colors.red,
-        SpeciesStatusCategory.outOfRegion => Colors.grey,
-      };
+    SpeciesStatusCategory.localOrMigratory => Colors.green,
+    SpeciesStatusCategory.rare => Colors.transparent,
+    SpeciesStatusCategory.outOfRegion => Colors.grey,
+  };
 
   String get label => switch (this) {
-        SpeciesStatusCategory.localOrMigratory => 'Yerel / Göçmen',
-        SpeciesStatusCategory.rare => 'Nadir Tür',
-        SpeciesStatusCategory.outOfRegion => 'Bölge Dışı / Zor',
-      };
+    SpeciesStatusCategory.localOrMigratory => 'Yerel / Göçmen',
+    SpeciesStatusCategory.rare => 'Nadir Tür',
+    SpeciesStatusCategory.outOfRegion => 'Bölge Dışı / Zor',
+  };
 }
 
 class SpeciesStatusHelper {
@@ -42,10 +42,12 @@ class SpeciesStatusHelper {
   static Future<void> loadOccurrences() async {
     if (_occurrenceMap != null) return;
     try {
-      final Directory dir = await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
+      final Directory dir =
+          await OnnxBirdInferenceEngine.ensureTurkeyPackageInstalled();
       final File file = File(path.join(dir.path, 'candidates.json'));
       if (await file.exists()) {
-        final Map<String, dynamic> json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        final Map<String, dynamic> json =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
         final List<dynamic> candidates = json['candidates'] as List<dynamic>;
         _occurrenceMap = {};
         for (final c in candidates) {
@@ -76,7 +78,9 @@ class SpeciesStatusHelper {
           label.contains('regular-or-migratory')) {
         return SpeciesStatusCategory.localOrMigratory;
       }
-      if (label.contains('dünya') || label.contains('balkan') || label.contains('bölge dışı')) {
+      if (label.contains('dünya') ||
+          label.contains('balkan') ||
+          label.contains('bölge dışı')) {
         return SpeciesStatusCategory.outOfRegion;
       }
     }
@@ -89,7 +93,9 @@ class SpeciesStatusHelper {
         if (occ == 'regular-or-migratory' || occ == 'resident') {
           return SpeciesStatusCategory.localOrMigratory;
         }
-        if (occ != null && occ.isNotEmpty) return SpeciesStatusCategory.outOfRegion;
+        if (occ != null && occ.isNotEmpty) {
+          return SpeciesStatusCategory.outOfRegion;
+        }
       }
     }
 
@@ -107,10 +113,10 @@ enum SexCategory {
   unknown;
 
   String get label => switch (this) {
-        SexCategory.female => 'Dişi',
-        SexCategory.male => 'Erkek',
-        SexCategory.unknown => 'Belirsiz',
-      };
+    SexCategory.female => 'Dişi',
+    SexCategory.male => 'Erkek',
+    SexCategory.unknown => 'Belirsiz',
+  };
 }
 
 enum AgeCategory {
@@ -120,11 +126,11 @@ enum AgeCategory {
   unknown;
 
   String defaultLabel() => switch (this) {
-        AgeCategory.chick => 'Yavru',
-        AgeCategory.juvenile => 'Genç',
-        AgeCategory.adult => 'Yetişkin',
-        AgeCategory.unknown => 'Belirsiz',
-      };
+    AgeCategory.chick => 'Yavru',
+    AgeCategory.juvenile => 'Genç',
+    AgeCategory.adult => 'Yetişkin',
+    AgeCategory.unknown => 'Belirsiz',
+  };
 }
 
 enum PredictionMethod {
@@ -144,27 +150,25 @@ enum PredictionMethod {
   hybrid;
 
   String get label => switch (this) {
-        PredictionMethod.zeroShot => 'BioCLIP 2 · metin benzerliği',
-        PredictionMethod.bioclip2 => 'BioCLIP 2',
-        PredictionMethod.userApproved => 'Kullanıcı onayladı',
-        PredictionMethod.userValidated => 'Kullanıcı düzeltmesi',
-        PredictionMethod.hybrid => 'Karma',
-      };
+    PredictionMethod.zeroShot => 'BioCLIP 2 · metin benzerliği',
+    PredictionMethod.bioclip2 => 'BioCLIP 2',
+    PredictionMethod.userApproved => 'Kullanıcı onayladı',
+    PredictionMethod.userValidated => 'Kullanıcı düzeltmesi',
+    PredictionMethod.hybrid => 'Karma',
+  };
 }
 
 class SexPrediction {
-  const SexPrediction({
-    required this.scores,
-    required this.method,
-  });
+  const SexPrediction({required this.scores, required this.method});
 
   /// Her cinsiyet için olasılık skoru (toplamı ~1.0).
   final Map<SexCategory, double> scores;
   final PredictionMethod method;
 
   SexCategory get displayCategory {
-    final SexCategory best =
-        scores.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final SexCategory best = scores.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
     final double bestScore = scores[best] ?? 0;
     if (best == SexCategory.unknown || bestScore < 0.60) {
       return SexCategory.unknown;
@@ -190,8 +194,9 @@ class AgePrediction {
   final Map<AgeCategory, String>? terminology;
 
   AgeCategory get displayCategory {
-    final AgeCategory best =
-        scores.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final AgeCategory best = scores.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
     return best;
   }
 
@@ -280,9 +285,9 @@ class SpeciesPrediction {
   final String? originLabel;
 
   SpeciesStatusCategory get statusCategory => SpeciesStatusHelper.getCategory(
-        originLabel: originLabel,
-        scientificName: scientificName,
-      );
+    originLabel: originLabel,
+    scientificName: scientificName,
+  );
 
   SpeciesPrediction copyWith({double? score, String? turkishName}) {
     return SpeciesPrediction(

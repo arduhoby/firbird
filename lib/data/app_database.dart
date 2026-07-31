@@ -17,6 +17,9 @@ class IdentificationRecords extends Table {
   TextColumn get imageUri => text().nullable()();
   TextColumn get thumbnailUri => text().nullable()();
   TextColumn get packageId => text().nullable()();
+  TextColumn get speciesStatus => text().nullable()();
+  RealColumn get modelConfidence => real().nullable()();
+  IntColumn get repeatedHits => integer().withDefault(const Constant(1))();
   DateTimeColumn get createdAt => dateTime()();
 
   // --- Cinsiyet & Yaşam Evresi (schemaVersion 2) ---
@@ -52,6 +55,7 @@ class LiveDetectionEvents extends Table {
   IntColumn get endMs => integer()();
   TextColumn get regionalSupport => text().nullable()();
   TextColumn get temporalContext => text().nullable()();
+  TextColumn get speciesStatus => text().nullable()();
   DateTimeColumn get detectedAt => dateTime().nullable()();
   RealColumn get latitude => real().nullable()();
   RealColumn get longitude => real().nullable()();
@@ -81,7 +85,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -121,6 +125,26 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(liveDetectionEvents, liveDetectionEvents.latitude);
           await m.addColumn(liveDetectionEvents, liveDetectionEvents.longitude);
         }
+        if (from < 6) {
+          await m.addColumn(
+            identificationRecords,
+            identificationRecords.speciesStatus,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.speciesStatus,
+          );
+        }
+        if (from < 7) {
+          await m.addColumn(
+            identificationRecords,
+            identificationRecords.modelConfidence,
+          );
+          await m.addColumn(
+            identificationRecords,
+            identificationRecords.repeatedHits,
+          );
+        }
       },
     );
   }
@@ -142,6 +166,9 @@ class AppDatabase extends _$AppDatabase {
     String? imageUri,
     String? thumbnailUri,
     String? packageId,
+    String? speciesStatus,
+    double? modelConfidence,
+    int repeatedHits = 1,
     String? sexCategory,
     double? sexConfidence,
     String? ageCategory,
@@ -158,6 +185,9 @@ class AppDatabase extends _$AppDatabase {
         imageUri: Value<String?>(imageUri),
         thumbnailUri: Value<String?>(thumbnailUri),
         packageId: Value<String?>(packageId),
+        speciesStatus: Value<String?>(speciesStatus),
+        modelConfidence: Value<double?>(modelConfidence),
+        repeatedHits: Value<int>(repeatedHits),
         createdAt: DateTime.now(),
         sexCategory: Value<String?>(sexCategory),
         sexConfidence: Value<double?>(sexConfidence),
@@ -198,6 +228,7 @@ class AppDatabase extends _$AppDatabase {
     required DateTime detectedAt,
     String? regionalSupport,
     String? temporalContext,
+    String? speciesStatus,
     double? latitude,
     double? longitude,
   }) {
@@ -212,6 +243,7 @@ class AppDatabase extends _$AppDatabase {
         endMs: endMs,
         regionalSupport: Value<String?>(regionalSupport),
         temporalContext: Value<String?>(temporalContext),
+        speciesStatus: Value<String?>(speciesStatus),
         detectedAt: Value<DateTime?>(detectedAt),
         latitude: Value<double?>(latitude),
         longitude: Value<double?>(longitude),
@@ -265,20 +297,23 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<bool> isHistoryEnabled() async {
-    final AppSetting? setting =
-        await (select(
-              appSettings,
-            )..where((AppSettings table) => table.key.equals('historyEnabled')))
-            .getSingleOrNull();
-    return setting?.value != 'false';
+    return _boolSetting('historyEnabled', defaultValue: true);
   }
 
-  Future<void> setHistoryEnabled(bool enabled) {
+  Future<void> setHistoryEnabled(bool enabled) =>
+      _setBoolSetting('historyEnabled', enabled);
+
+  Future<bool> _boolSetting(String key, {required bool defaultValue}) async {
+    final AppSetting? setting = await (select(
+      appSettings,
+    )..where((AppSettings table) => table.key.equals(key))).getSingleOrNull();
+    if (setting == null) return defaultValue;
+    return setting.value == 'true';
+  }
+
+  Future<void> _setBoolSetting(String key, bool enabled) {
     return into(appSettings).insertOnConflictUpdate(
-      AppSettingsCompanion.insert(
-        key: 'historyEnabled',
-        value: enabled.toString(),
-      ),
+      AppSettingsCompanion.insert(key: key, value: enabled.toString()),
     );
   }
 

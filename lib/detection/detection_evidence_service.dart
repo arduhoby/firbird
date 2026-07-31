@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:firbird/detection/algorithm_settings.dart';
 import 'package:firbird/detection/detection_feedback_repository.dart';
 import 'package:firbird/detection/detection_record.dart';
+import 'package:firbird/detection/detection_score_aggregate.dart';
 import 'package:firbird/inference/temporal_detection_context.dart';
 import 'package:firbird/observation_context/ebird_context_package.dart';
 import 'package:firbird/observation_context/ebird_observation_cache.dart';
@@ -31,11 +32,32 @@ class DetectionEvidenceService {
       DetectionEvidenceFactor(
         id: 'model',
         title: 'Ses modeli',
-        detail:
-            'Model bu ses ile ${record.turkishName} arasında %${(record.modelConfidence * 100).round()} benzerlik hesapladı. Tek başına kesin teşhis değildir.',
+        detail: record.repeatedHits > 1
+            ? 'Model ${record.repeatedHits} bağımsız ses olayında ${record.turkishName} için ortalama %${(record.modelConfidence * 100).round()} benzerlik hesapladı.'
+            : 'Model bu ses ile ${record.turkishName} arasında %${(record.modelConfidence * 100).round()} benzerlik hesapladı. Tek başına kesin teşhis değildir.',
         direction: EvidenceDirection.neutral,
         points: 0,
         sourceLabel: record.modelVersion ?? 'Cihaz içi ses modeli',
+      ),
+    );
+
+    final int repeatedDetectionPoints =
+        DetectionScoreAggregate.repetitionBonusFor(
+          independentEventCount: record.repeatedHits,
+          pointsPerAdditionalEvent: settings.repeatedDetectionSupport,
+        );
+    factors.add(
+      DetectionEvidenceFactor(
+        id: 'repeated_detection',
+        title: 'Tekrarlanan bağımsız tespitler',
+        detail: record.repeatedHits > 1
+            ? '${record.repeatedHits} ayrı ses olayı aynı türü destekledi. Örtüşen analiz pencereleri yeniden sayılmadı.'
+            : 'Bu tür henüz yalnız bir bağımsız ses olayında tespit edildi.',
+        direction: repeatedDetectionPoints > 0
+            ? EvidenceDirection.supports
+            : EvidenceDirection.neutral,
+        points: repeatedDetectionPoints,
+        sourceLabel: 'Canlı oturum · bağımsız ses olayları',
       ),
     );
 

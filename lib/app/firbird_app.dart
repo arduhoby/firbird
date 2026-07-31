@@ -5,6 +5,8 @@ import 'package:exif/exif.dart';
 import 'package:firbird/app/crop_confirmation_screen.dart';
 import 'package:firbird/app/identification_screens.dart';
 import 'package:firbird/app/history_and_settings_screens.dart';
+import 'package:firbird/app/help_screen.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/observation_context_screen.dart';
@@ -97,6 +99,11 @@ final GoRouter _router = GoRouter(
       path: '/settings',
       builder: (BuildContext context, GoRouterState state) =>
           const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/help',
+      builder: (BuildContext context, GoRouterState state) =>
+          const HelpScreen(),
     ),
     GoRoute(
       path: '/species/demo',
@@ -348,6 +355,7 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         actions: <Widget>[
+          const AppBarHelpButton(),
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: l10n.about,
@@ -821,6 +829,7 @@ class _PhotoSelectionScreenState extends ConsumerState<PhotoSelectionScreen> {
       appBar: AppBar(
         title: Text(l10n.selectPhoto),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -1188,7 +1197,7 @@ class TurkeyPackagesScreen extends StatelessWidget {
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-      actions: const [BackToHomeButton()],
+      actions: const [AppBarHelpButton(), BackToHomeButton()],
     ),
     body: ListView(
       padding: const EdgeInsets.all(16),
@@ -1243,6 +1252,7 @@ class FeatureScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(content.title),
         leading: const BackToHomeButton(),
+        actions: const <Widget>[AppBarHelpButton()],
       ),
       body: Center(
         child: Padding(

@@ -14,13 +14,17 @@ import 'package:record/record.dart';
 
 import 'package:firbird/audio/pcm16_wav.dart';
 import 'package:firbird/app/app_drawer.dart';
+import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
 import 'package:firbird/app/bird_detection_card.dart';
+import 'package:firbird/app/detection_evidence_sheet.dart';
 import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/data/app_database.dart';
-import 'package:firbird/detection/detection_evidence_service.dart';
+import 'package:firbird/detection/algorithm_settings.dart';
 import 'package:firbird/detection/detection_record.dart';
+import 'package:firbird/detection/detection_score_aggregate.dart';
+import 'package:firbird/detection/rare_detection_alert_controller.dart';
 import 'package:firbird/inference/audio_inference_engine.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/inference/live_detection_policy.dart';
@@ -31,18 +35,19 @@ import 'package:firbird/observation_context/regional_observation_context.dart';
 class LiveDetectionEntry {
   LiveDetectionEntry({
     required this.prediction,
+    required this.scoreAggregate,
     required this.firstDetectedAt,
     required this.lastDetectedAt,
-    this.detectionCount = 1,
     this.regionalContext,
     this.temporalContext,
     this.isProvisional = false,
   });
 
   final SpeciesPrediction prediction;
+  DetectionScoreAggregate scoreAggregate;
   final DateTime firstDetectedAt;
   DateTime lastDetectedAt;
-  int detectionCount;
+  int get detectionCount => scoreAggregate.independentEventCount;
   RegionalSpeciesContext? regionalContext;
   TemporalDetectionContext? temporalContext;
   bool isProvisional;
@@ -55,7 +60,7 @@ class _DetectionMoment {
     required this.endedAt,
   });
 
-  final SpeciesPrediction prediction;
+  SpeciesPrediction prediction;
   final DateTime startedAt;
   DateTime endedAt;
 }
@@ -125,19 +130,25 @@ class _LiveAudioRecordingScreenState
   final List<_DetectionMoment> _detectionMoments = <_DetectionMoment>[];
   final Set<String> _rejectedSpecies = <String>{};
   final Set<String> _confirmedSpecies = <String>{};
-  final DetectionEvidenceService _detectionEvidenceService =
-      DetectionEvidenceService();
+  final RareDetectionAlertController _rareAlerts =
+      RareDetectionAlertController();
   final List<Set<String>> _recentCandidateWindows = <Set<String>>[];
   String? _highlightedSpeciesKey;
   Timer? _highlightTimer;
 
   /// Loaded from settings — minimum confidence to show in live table (0.0 = all)
   double _liveMinScore = 0.0;
+  AlgorithmSettings _algorithmSettings = AlgorithmSettings.defaults;
 
   @override
   void initState() {
     super.initState();
+    _rareAlerts.addListener(_onRareAlertChanged);
     _prepareSession();
+  }
+
+  void _onRareAlertChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -151,6 +162,9 @@ class _LiveAudioRecordingScreenState
     _sessionPcmSink?.close();
     _audioRecorder.dispose();
     _highlightTimer?.cancel();
+    _rareAlerts
+      ..removeListener(_onRareAlertChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -208,6 +222,9 @@ class _LiveAudioRecordingScreenState
     final String key = prediction.scientificName.toLowerCase();
     for (final _DetectionMoment moment in _detectionMoments.reversed) {
       if (moment.prediction.scientificName.toLowerCase() == key) {
+        if (prediction.score > moment.prediction.score) {
+          moment.prediction = prediction;
+        }
         moment.endedAt = detectedAt.add(const Duration(seconds: 3));
         return;
       }
@@ -283,6 +300,7 @@ class _LiveAudioRecordingScreenState
       _observationRadiusKm = await ref
           .read(appDatabaseProvider)
           .observationContextRadiusKm();
+      _algorithmSettings = await AlgorithmSettingsRepository().load();
 
       // Initialize and warm up the audio engine first
       final Directory targetDir = await getApplicationDocumentsDirectory();
@@ -680,6 +698,7 @@ class _LiveAudioRecordingScreenState
           'accepted=${decision.accepted}',
         );
         if (!decision.accepted) continue;
+        if (isRare) _rareAlerts.register(candidateKey);
 
         final int existingIdx = _detectedSpeciesList.indexWhere(
           (item) =>
@@ -698,9 +717,12 @@ class _LiveAudioRecordingScreenState
               const Duration(seconds: 3);
           existing.lastDetectedAt = now;
           if (sameAcousticEvent) {
+            existing.scoreAggregate = existing.scoreAggregate
+                .updateCurrentEventPeak(pred.score);
             _extendLatestDetectionMoment(pred, now);
           } else {
-            existing.detectionCount++;
+            existing.scoreAggregate = existing.scoreAggregate
+                .addIndependentEvent(pred.score);
           }
           existing.regionalContext = regionalContext;
           existing.temporalContext = temporalContext;
@@ -714,6 +736,7 @@ class _LiveAudioRecordingScreenState
             0,
             LiveDetectionEntry(
               prediction: pred,
+              scoreAggregate: DetectionScoreAggregate.first(pred.score),
               firstDetectedAt: now,
               lastDetectedAt: now,
               regionalContext: regionalContext,
@@ -898,16 +921,22 @@ class _LiveAudioRecordingScreenState
           ).format(sessionStart);
           for (final entry in _detectedSpeciesList) {
             final String timeRange = _relativeTimeRange(entry);
+            final int combinedScore = entry.scoreAggregate.combinedPercent(
+              pointsPerAdditionalEvent:
+                  _algorithmSettings.repeatedDetectionSupport,
+            );
             await database.addIdentification(
               speciesId: entry.prediction.speciesId,
               turkishName: entry.prediction.turkishName,
               scientificName: entry.prediction.scientificName,
-              confidence:
-                  '%${(entry.prediction.score * 100).round()} · $timeRange',
+              confidence: '%$combinedScore · $timeRange',
               modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
               imageUri: destPath,
               packageId: sessionId,
-              predictionMethod: 'timeline-v1',
+              speciesStatus: entry.prediction.statusCategory.name,
+              modelConfidence: entry.scoreAggregate.averageConfidence,
+              repeatedHits: entry.scoreAggregate.independentEventCount,
+              predictionMethod: 'aggregate-v1',
             );
           }
 
@@ -936,6 +965,7 @@ class _LiveAudioRecordingScreenState
               detectedAt: moment.startedAt,
               regionalSupport: speciesEntry?.regionalContext?.supportLevel.name,
               temporalContext: speciesEntry?.temporalContext?.displayLabel,
+              speciesStatus: moment.prediction.statusCategory.name,
               latitude: _sessionPosition?.latitude,
               longitude: _sessionPosition?.longitude,
             );
@@ -1084,36 +1114,22 @@ class _LiveAudioRecordingScreenState
   }
 
   Future<bool?> _reviewDetection(LiveDetectionEntry entry) async {
-    final String key = entry.prediction.scientificName.toLowerCase();
-    final bool? correct = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(entry.prediction.turkishName),
-        content: const Text('Bu kuş tahmini doğru mu?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Doğru değil'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Doğru'),
-          ),
-        ],
-      ),
+    final DetectionVerdict? verdict = await showDetectionEvidenceSheet(
+      context,
+      _detectionRecordFor(entry),
     );
-    if (correct == null || !mounted) return false;
-    if (correct) {
-      await _detectionEvidenceService.recordVerdict(
-        _detectionRecordFor(entry),
-        DetectionVerdict.correct,
-      );
-      if (!mounted) return false;
-      setState(() => _confirmedSpecies.add(key));
+    if (verdict != null && mounted) _applyVerdict(entry, verdict);
+    return false;
+  }
+
+  void _applyVerdict(LiveDetectionEntry entry, DetectionVerdict verdict) {
+    final String key = entry.prediction.scientificName.toLowerCase();
+    _rareAlerts.resolve(key);
+    if (verdict == DetectionVerdict.correct) {
+      setState(() {
+        _confirmedSpecies.add(key);
+        _rejectedSpecies.remove(key);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1121,18 +1137,12 @@ class _LiveAudioRecordingScreenState
           ),
         ),
       );
-      return false;
+      return;
     }
-    await _detectionEvidenceService.recordVerdict(
-      _detectionRecordFor(entry),
-      DetectionVerdict.incorrect,
-    );
-    if (!mounted) return false;
     setState(() {
       _rejectedSpecies.add(key);
       _detectedSpeciesList.remove(entry);
     });
-    return false;
   }
 
   DetectionRecord _detectionRecordFor(LiveDetectionEntry entry) {
@@ -1150,9 +1160,10 @@ class _LiveAudioRecordingScreenState
       speciesId: entry.prediction.speciesId,
       turkishName: entry.prediction.turkishName,
       scientificName: entry.prediction.scientificName,
-      modelConfidence: entry.prediction.score,
+      modelConfidence: entry.scoreAggregate.averageConfidence,
       detectedAt: entry.firstDetectedAt,
       source: DetectionSource.live,
+      statusCategory: entry.prediction.statusCategory,
       modelVersion: 'BirdNET canlı ses',
       thumbnailUrl: entry.prediction.thumbnailUrl,
       audioStartMs: startMs,
@@ -1160,6 +1171,7 @@ class _LiveAudioRecordingScreenState
       latitude: _sessionPosition?.latitude,
       longitude: _sessionPosition?.longitude,
       repeatedHits: entry.detectionCount,
+      repetitionSupportPerHit: _algorithmSettings.repeatedDetectionSupport,
     );
   }
 
@@ -1170,6 +1182,7 @@ class _LiveAudioRecordingScreenState
     return PlaybackSession(
       filePath: filePath,
       displayName: path.basename(filePath),
+      rareSpeciesCount: _rareAlerts.detectedSpeciesCount,
       detections: _detectionMoments
           .map((moment) {
             final int startMs = math.max(
@@ -1183,13 +1196,19 @@ class _LiveAudioRecordingScreenState
             final LiveDetectionEntry? speciesEntry = _entryForPrediction(
               moment.prediction,
             );
+            final DetectionScoreAggregate scoreAggregate =
+                speciesEntry?.scoreAggregate ??
+                DetectionScoreAggregate.first(moment.prediction.score);
             return PlaybackDetection(
               speciesId: moment.prediction.speciesId,
               turkishName: moment.prediction.turkishName,
               scientificName: moment.prediction.scientificName,
               startMs: startMs,
               endMs: endMs,
-              confidence: (moment.prediction.score * 100).round(),
+              modelConfidence: scoreAggregate.averageConfidence,
+              repeatedHits: scoreAggregate.independentEventCount,
+              repetitionSupportPerHit:
+                  _algorithmSettings.repeatedDetectionSupport,
               regionalSupport: speciesEntry?.regionalContext?.supportLevel.name,
               temporalContext: speciesEntry?.temporalContext?.displayLabel,
               thumbnailUrl: moment.prediction.thumbnailUrl,
@@ -1197,6 +1216,7 @@ class _LiveAudioRecordingScreenState
               latitude: _sessionPosition?.latitude,
               longitude: _sessionPosition?.longitude,
               modelVersion: 'BirdNET canlı ses',
+              statusCategory: moment.prediction.statusCategory,
             );
           })
           .toList(growable: false),
@@ -1228,6 +1248,7 @@ class _LiveAudioRecordingScreenState
           ),
         ),
         actions: [
+          const AppBarHelpButton(),
           IconButton(
             tooltip: _isRecording
                 ? 'Harita (canlı dinleme devam eder)'
@@ -1364,7 +1385,7 @@ class _LiveAudioRecordingScreenState
                   flex: 3,
                   child: Text(
                     _isRecording
-                        ? '${_detectedSpeciesList.length} Kuş · ${_formatDuration(_secondsRecorded)}'
+                        ? '${_detectedSpeciesList.length} Kuş${_rareAlerts.detectedSpeciesCount > 0 ? ' · ${_rareAlerts.detectedSpeciesCount} nadir tür tespiti' : ''} · ${_formatDuration(_secondsRecorded)}'
                         : _statusText,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -1535,6 +1556,13 @@ class _LiveAudioRecordingScreenState
                                   child: BirdDetectionCard(
                                     record: _detectionRecordFor(item),
                                     isHighlighted: isFreshDetection,
+                                    isRareAlertActive: _rareAlerts.isUnresolved(
+                                      pred.scientificName,
+                                    ),
+                                    isRareAlertPulse:
+                                        _rareAlerts.isPulseVisible,
+                                    onVerdict: (DetectionVerdict verdict) =>
+                                        _applyVerdict(item, verdict),
                                   ),
                                 ),
                               );
@@ -1568,10 +1596,13 @@ class _LiveAudioRecordingScreenState
                                   Colors.green,
                                   'Yerel / Göçmen',
                                 ),
-                                _buildLegendNoteItem(Colors.red, 'Nadir Tür'),
                                 _buildLegendNoteItem(
                                   Colors.grey,
                                   'Bölge Dışı / Zor',
+                                ),
+                                _buildLegendNoteItem(
+                                  Colors.blue,
+                                  'Yeni / aktif tespit',
                                 ),
                               ],
                             ),

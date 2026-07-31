@@ -7,15 +7,17 @@ class AlgorithmSettings {
     required this.timeMismatchPenalty,
     required this.nearbySameTimeSupport,
     required this.seasonSupport,
+    required this.repeatedDetectionSupport,
     required this.deviceConfirmedSupport,
     required this.deviceRejectedPenalty,
   });
 
-  static const String version = 'evidence-v1';
+  static const String version = 'evidence-v2';
   static const AlgorithmSettings defaults = AlgorithmSettings(
     timeMismatchPenalty: 30,
     nearbySameTimeSupport: 30,
     seasonSupport: 10,
+    repeatedDetectionSupport: 4,
     deviceConfirmedSupport: 15,
     deviceRejectedPenalty: 25,
   );
@@ -23,6 +25,7 @@ class AlgorithmSettings {
   final int timeMismatchPenalty;
   final int nearbySameTimeSupport;
   final int seasonSupport;
+  final int repeatedDetectionSupport;
   final int deviceConfirmedSupport;
   final int deviceRejectedPenalty;
 
@@ -30,12 +33,15 @@ class AlgorithmSettings {
     int? timeMismatchPenalty,
     int? nearbySameTimeSupport,
     int? seasonSupport,
+    int? repeatedDetectionSupport,
     int? deviceConfirmedSupport,
     int? deviceRejectedPenalty,
   }) => AlgorithmSettings(
     timeMismatchPenalty: timeMismatchPenalty ?? this.timeMismatchPenalty,
     nearbySameTimeSupport: nearbySameTimeSupport ?? this.nearbySameTimeSupport,
     seasonSupport: seasonSupport ?? this.seasonSupport,
+    repeatedDetectionSupport:
+        repeatedDetectionSupport ?? this.repeatedDetectionSupport,
     deviceConfirmedSupport:
         deviceConfirmedSupport ?? this.deviceConfirmedSupport,
     deviceRejectedPenalty: deviceRejectedPenalty ?? this.deviceRejectedPenalty,
@@ -46,6 +52,7 @@ class AlgorithmSettings {
     'timeMismatchPenalty': timeMismatchPenalty,
     'nearbySameTimeSupport': nearbySameTimeSupport,
     'seasonSupport': seasonSupport,
+    'repeatedDetectionSupport': repeatedDetectionSupport,
     'deviceConfirmedSupport': deviceConfirmedSupport,
     'deviceRejectedPenalty': deviceRejectedPenalty,
   };
@@ -60,6 +67,9 @@ class AlgorithmSettings {
             defaults.nearbySameTimeSupport,
         seasonSupport:
             (json['seasonSupport'] as num?)?.toInt() ?? defaults.seasonSupport,
+        repeatedDetectionSupport:
+            (json['repeatedDetectionSupport'] as num?)?.toInt() ??
+            defaults.repeatedDetectionSupport,
         deviceConfirmedSupport:
             (json['deviceConfirmedSupport'] as num?)?.toInt() ??
             defaults.deviceConfirmedSupport,

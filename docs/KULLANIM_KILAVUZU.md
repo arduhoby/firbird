@@ -1,6 +1,6 @@
 # FirBird 3 Kullanım Kılavuzu
 
-Bu kılavuz FirBird 3'ün v0.8.6 sürümü içindir. Uygulama kuş gözlemi için
+Bu kılavuz FirBird 3'ün v0.8.9 sürümü içindir. Uygulama kuş gözlemi için
 yardımcı bir araçtır; uzman doğrulamasının yerine geçmez.
 
 Kılavuz uygulamaya gömülüdür ve internet bağlantısı gerektirmez. Sol menüdeki
@@ -28,8 +28,8 @@ Sol üstteki menüden ana ekranlar açılır.
 | Canlı Ses Tespiti | Mikrofonla sürekli dinleme ve kayıt yapar. |
 | Geçmiş | Kaydedilmiş analiz ve canlı oturumları açar. |
 | Yakınımdaki Kuşlar | GPS çevresindeki mevsimsel türleri ve eBird hotspotlarını gösterir. |
-| Ayarlar | Eşikler, tema, paket bilgisi ve kişisel eBird anahtarını yönetir. |
-| Kullanım Kılavuzu | Kart renklerini, nadir uyarısını ve Kanıt Dosyası alanlarını uygulama içinde açıklar. |
+| Ayarlar | Filtre ekolayzeri, eşikler, tema, paket bilgisi ve kişisel eBird anahtarını yönetir. |
+| Kullanım Kılavuzu | Kart renklerini, nadir uyarısını, ses filtresini ve Kanıt Dosyası alanlarını uygulama içinde açıklar. |
 
 ## Fotoğraftan kuş tanımlama
 
@@ -44,7 +44,7 @@ Net, iyi aydınlatılmış ve kuşun kadrajda büyük olduğu fotoğraflar daha 
 sonuç verir. EXIF tarih/konum bilgisi varsa bağlam değerlendirmesinde
 kullanılabilir; yoksa tanımlama yine yapılır.
 
-## Canlı ses tespiti
+## Canlı ses tespiti ve ses filtresi (ekolayzer)
 
 1. Menüden **Canlı Ses Tespiti** ekranını açın.
 2. Model hazır olunca ekrandaki mikrofon düğmesine dokunun. Ekranı açmak tek
@@ -56,6 +56,18 @@ kullanılabilir; yoksa tanımlama yine yapılır.
 6. Tespiti **Doğru** ya da **Doğru değil** olarak işaretleyin. Kartı sağa
    kaydırmak da doğrulama akışını açar.
 7. Oturumu bitirdiğinizde WAV kaydı ve tespit zaman çizelgesi geçmişe eklenir.
+
+### Gerçek zamanlı ses filtresi (ekolayzer)
+
+Canlı dinleme sırasında saha gürültüleri (rüzgar, akar su/dere, yaprak sesi)
+yapay zeka modelinin tahmin başarısını düşürebilir.
+
+- **Ayarlar → Ses Filtresi** bölümünden filtreyi açabilirsiniz.
+- **Hazır Profiller:** 🌬️ **Rüzgar** (1000 Hz HPF), 💧 **Dere/Su** (300 Hz HPF + %80 spektral gürültü azaltma) veya 🌿 **Orman** modlarından birini tek dokunuşla seçebilirsiniz.
+- **Manuel Kontroller (Ekolayzer Slider'ları):**
+  - **Rüzgar Filtresi (Kesim):** 100 Hz – 2000 Hz arası yüksek geçiren filtre. Rüzgar uğultusunu keser. *Baykuş veya kızılgerdan gibi düşük frekansta öten türleri dinlerken 100-300 Hz seviyesinde tutunuz.*
+  - **Su/Dere Gürültüsü Azaltma:** %0 – %100 arası spektral çıkarma faktörü. Akarsu ve şelale gibi geniş bantlı gürültüleri basbastırır.
+  - **Ses Güçlendirme:** 0.5× – 3.0× kazanç çarpanı. Uzaktaki veya zayıf duyulan kuş seslerini güçlendirir.
 
 ### Canlı dinleme sırasında harita
 

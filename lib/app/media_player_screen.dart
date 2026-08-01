@@ -7,7 +7,30 @@ import 'package:firbird/app/bird_detection_card.dart';
 import 'package:firbird/app/media_player_controller.dart';
 import 'package:firbird/detection/detection_record.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/audio/wav_clip_extractor.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+Future<String> resolveExistingAudioPath(String? rawPath) async {
+  if (rawPath == null || rawPath.trim().isEmpty) return '';
+  final String trimmed = rawPath.trim();
+  if (File(trimmed).existsSync()) return trimmed;
+
+  final String fileName = path.basename(trimmed);
+  try {
+    final Directory appDocs = await getApplicationDocumentsDirectory();
+    final String docsPath = path.join(appDocs.path, fileName);
+    if (File(docsPath).existsSync()) return docsPath;
+
+    final Directory tempDir = await getTemporaryDirectory();
+    final String tempPath = path.join(tempDir.path, fileName);
+    if (File(tempPath).existsSync()) return tempPath;
+  } catch (_) {}
+
+  return trimmed;
+}
 
 class PlaybackDetection {
   const PlaybackDetection({
@@ -131,25 +154,48 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
   }
 
   Future<void> _setSession(PlaybackSession? session) async {
-    _session = session;
-    _controller.attach(session?.filePath);
     if (session == null) {
+      _session = null;
+      _controller.attach(null);
       if (mounted) setState(() => _spectrogram = const <List<double>>[]);
       return;
     }
+
+    final String resolvedPath = await resolveExistingAudioPath(
+      session.filePath,
+    );
+    final PlaybackSession activeSession = PlaybackSession(
+      filePath: resolvedPath,
+      displayName: session.displayName,
+      detections: session.detections,
+      rareSpeciesCount: session.rareSpeciesCount,
+    );
+
+    _session = activeSession;
+    _controller.attach(resolvedPath);
+
+    if (resolvedPath.isNotEmpty && !File(resolvedPath).existsSync()) {
+      if (!mounted || _session != activeSession) return;
+      setState(
+        () => _loadError =
+            'Ses dosyası bulunamadı: ${path.basename(resolvedPath)}',
+      );
+      return;
+    }
+
     try {
       final List<List<double>> spectrum = await WavSpectrogram.analyze(
-        session.filePath,
-        maxColumns: 240,
+        resolvedPath,
+        maxColumns: 24000,
         columnsPerSecond: 8,
       );
-      if (!mounted || _session != session) return;
+      if (!mounted || _session != activeSession) return;
       setState(() {
         _spectrogram = spectrum;
         _loadError = null;
       });
     } catch (error) {
-      if (!mounted || _session != session) return;
+      if (!mounted || _session != activeSession) return;
       setState(() => _loadError = 'Ses dosyası açılamadı: $error');
     }
   }
@@ -188,6 +234,83 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     final int seconds = milliseconds ~/ 1000;
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:'
         '${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _saveClip() async {
+    final PlaybackSession? session = _session;
+    if (session == null || session.filePath.isEmpty) return;
+    try {
+      final Directory docsDir = await getApplicationDocumentsDirectory();
+      final Directory clipDir = Directory(path.join(docsDir.path, 'Clips'));
+      if (!clipDir.existsSync()) clipDir.createSync(recursive: true);
+
+      final String timestampStr = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final String fileName = 'klip_$timestampStr.wav';
+      final String outPath = path.join(clipDir.path, fileName);
+
+      await WavClipExtractor.extract(
+        session.filePath,
+        startMs: _controller.clipStartMs,
+        endMs: _controller.clipEndMs,
+        outputPath: outPath,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Klip kaydedildi: $fileName'),
+          action: SnackBarAction(
+            label: 'Paylaş',
+            onPressed: () => _shareWavPath(outPath),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Klip kaydedilemedi: $e')),
+      );
+    }
+  }
+
+  Future<void> _shareClip() async {
+    final PlaybackSession? session = _session;
+    if (session == null || session.filePath.isEmpty) return;
+    try {
+      final Directory tempDir = await getTemporaryDirectory();
+      final String timestampStr = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final String fileName = 'firbird_klip_$timestampStr.wav';
+      final String outPath = path.join(tempDir.path, fileName);
+
+      await WavClipExtractor.extract(
+        session.filePath,
+        startMs: _controller.clipStartMs,
+        endMs: _controller.clipEndMs,
+        outputPath: outPath,
+      );
+
+      await _shareWavPath(outPath);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Klip paylaşılamadı: $e')),
+      );
+    }
+  }
+
+  Future<void> _shareWavPath(String wavPath) async {
+    await Share.shareXFiles(
+      <XFile>[XFile(wavPath, mimeType: 'audio/wav')],
+      text: 'FirBird 3 Kuş Sesi Klipi',
+    );
   }
 
   @override
@@ -243,6 +366,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                         ScrollableAudioSpectrogram(
                           columns: _spectrogram,
                           markers: markers,
+                          durationMs: _controller.durationMs,
                           playbackPosition: _controller.durationMs > 0
                               ? _controller.positionMs / _controller.durationMs
                               : null,
@@ -252,7 +376,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                                   (_controller.durationMs * value).round(),
                                 ),
                           height: 220,
-                          pixelsPerColumn: 4,
+                          secondsPerScreen: 30.0,
                         ),
                         if (session != null)
                           Row(
@@ -362,6 +486,46 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                     ),
                   ),
                 ),
+              if (_controller.isClipMode)
+                Container(
+                  color: theme.colorScheme.primaryContainer,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        Icons.content_cut,
+                        size: 20,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Klip Modu: ${_time(_controller.clipStartMs)} – ${_time(_controller.clipEndMs)}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Klip Kaydet',
+                        icon: const Icon(Icons.download_rounded),
+                        onPressed: _saveClip,
+                      ),
+                      IconButton(
+                        tooltip: 'Klip Paylaş',
+                        icon: const Icon(Icons.share_rounded),
+                        onPressed: _shareClip,
+                      ),
+                      IconButton(
+                        tooltip: 'Klip Modundan Çık',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: _controller.clearClipMode,
+                      ),
+                    ],
+                  ),
+                ),
               if (detections.isEmpty)
                 Expanded(
                   child: Center(
@@ -385,7 +549,12 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                       return BirdDetectionCard(
                         record: item.toDetectionRecord(session!.filePath),
                         isHighlighted: highlightedIndex == index,
-                        onSeek: () => _controller.seek(item.startMs),
+                        onSeek: () {
+                          final int duration = _controller.durationMs;
+                          final int start = (item.startMs - 10000).clamp(0, duration > 0 ? duration : 0);
+                          final int end = (item.endMs + 10000).clamp(start + 1000, duration > 0 ? duration : start + 20000);
+                          _controller.playClip(clipStartMs: start, clipEndMs: end);
+                        },
                       );
                     },
                   ),

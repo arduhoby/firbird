@@ -59,6 +59,34 @@ class SpeciesCatalog {
   final Map<String, SpeciesCatalogEntry> _bySpeciesId;
   final Map<String, SpeciesCatalogEntry> _byScientificName;
 
+  static const Map<String, String> _genusAliases = <String, String>{
+    'curruca': 'sylvia',
+    'anarhynchus': 'charadrius',
+    'astur': 'accipiter',
+    'tachyspiza': 'accipiter',
+    'mareca': 'anas',
+    'spatula': 'anas',
+    'cyanistes': 'parus',
+    'periparus': 'parus',
+    'lophophanes': 'parus',
+    'poecile': 'parus',
+    'ichthyaetus': 'larus',
+    'chroicocephalus': 'larus',
+    'hydrocoloeus': 'larus',
+    'linaria': 'carduelis',
+    'chloris': 'carduelis',
+    'spinus': 'carduelis',
+    'acanthis': 'carduelis',
+    'cecropis': 'hirundo',
+    'cercotrichas': 'erythropygia',
+  };
+
+  static const Map<String, String> _speciesAliases = <String, String>{
+    'ardea ibis': 'bubulcus ibis',
+    'botaurus minutus': 'ixobrychus minutus',
+    'alaudala heinei': 'alaudala rufescens',
+  };
+
   List<SpeciesCatalogEntry> get entries =>
       List<SpeciesCatalogEntry>.unmodifiable(_bySpeciesId.values);
 
@@ -78,7 +106,55 @@ class SpeciesCatalog {
       if (match != null) return match;
     }
     final String normalizedName = normalizeScientificName(scientificName ?? '');
-    return normalizedName.isEmpty ? null : _byScientificName[normalizedName];
+    if (normalizedName.isEmpty) return null;
+
+    return _resolveScientificName(normalizedName);
+  }
+
+  SpeciesCatalogEntry? _resolveScientificName(String name) {
+    final SpeciesCatalogEntry? direct = _byScientificName[name];
+    if (direct != null) return direct;
+
+    final String? speciesAlias = _speciesAliases[name];
+    if (speciesAlias != null) {
+      final SpeciesCatalogEntry? match = _byScientificName[speciesAlias];
+      if (match != null) return match;
+    }
+
+    if (name.contains('/')) {
+      final String firstPart = normalizeScientificName(name.split('/')[0]);
+      final SpeciesCatalogEntry? match = _resolveScientificName(firstPart);
+      if (match != null) return match;
+    }
+
+    if (name.contains(' x ')) {
+      final String firstPart = normalizeScientificName(name.split(' x ')[0]);
+      final SpeciesCatalogEntry? match = _resolveScientificName(firstPart);
+      if (match != null) return match;
+    }
+
+    final List<String> parts = name.split(' ');
+    if (parts.length >= 2) {
+      final String genus = parts[0];
+      final String species = parts[1];
+      final String? targetGenus = _genusAliases[genus];
+      if (targetGenus != null) {
+        final String aliasedName = '$targetGenus ${parts.sublist(1).join(' ')}';
+        final SpeciesCatalogEntry? match = _byScientificName[aliasedName];
+        if (match != null) return match;
+      }
+
+      if (species == 'sp.' || species == 'sp') {
+        final String effectiveGenus = targetGenus ?? genus;
+        for (final MapEntry<String, SpeciesCatalogEntry> entry in _byScientificName.entries) {
+          if (entry.key.startsWith('$effectiveGenus ')) {
+            return entry.value;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   static String? _nonEmpty(String? value) {

@@ -90,6 +90,36 @@ class HelpScreen extends StatelessWidget {
             ],
           ),
           _HelpSection(
+            title: 'Ses filtresi (Ekolayzer)',
+            icon: Icons.graphic_eq,
+            children: const <Widget>[
+              Text(
+                'Canlı dinleme sırasında arka plandaki rüzgar ve su/dere gürültüleri kuş tanımlama modeline ulaşmadan önce gerçek zamanlı olarak temizlenebilir.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Ayarlar bölümünden filtreyi açabilir; 🌬️ Rüzgar, 💧 Dere/Su veya 🌿 Orman profillerini seçebilir ya da rüzgar kesim frekansı (HPF), su azaltma ve ses güçlendirme slider’larını kendiniz ayarlayabilirsiniz.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Baykuş veya kızılgerdan gibi düşük frekansta öten türleri dinlerken rüzgar filtresini daha düşük Hz seviyesinde tutmanız önerilir.',
+              ),
+            ],
+          ),
+          _HelpSection(
+            title: 'Kuş Kartından Klip Dinleme & Paylaşma',
+            icon: Icons.play_circle_outline,
+            children: const <Widget>[
+              Text(
+                'Oynatıcı ekranındaki her kuş kartında bulunan ▶ butonuna dokunduğunuzda, tespit anının 10 saniye öncesi ile 10 saniye sonrası arasındaki 20 saniyelik bölüm otomatik olarak dinletilir.',
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Klip bittiğinde oynatma kendiliğinden durur ve beliren Klip Barı üzerinden ses bölümü 💾 Kaydet düğmesiyle cihazınıza kaydedilebilir veya 📤 Paylaş düğmesiyle WhatsApp, AirDrop vb. üzerinden paylaşılabilir.',
+              ),
+            ],
+          ),
+          _HelpSection(
             title: 'Kılavuza erişim',
             icon: Icons.help_outline,
             children: const <Widget>[
@@ -99,7 +129,7 @@ class HelpScreen extends StatelessWidget {
             ],
           ),
           Text(
-            'FirBird v0.8.6',
+            'FirBird v0.8.9',
             textAlign: TextAlign.center,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

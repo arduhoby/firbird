@@ -1,11 +1,11 @@
 # FirBird 3
 
-FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android üzerinde
+FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android ve iOS üzerinde
 çalışan **offline-first** bir kuş tanımlama uygulamasıdır. Fotoğraf ve ortam
 sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
 gönderilmez.
 
-> Güncel sürüm: **v0.8.6 (build 86)**
+> Güncel sürüm: **v0.8.9 (build 89)**
 
 Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
 fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
@@ -31,9 +31,13 @@ hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bak�
   bağlam değerlendirmesinde kullanılabilir.
 - **Canlı ses tespiti:** BirdNET tabanlı model mikrofon akışını sürekli analiz
   eder. Kayıt kesintisiz sürer ve tespitler zaman damgasıyla görünür.
-- **Kayıt ve oynatıcı:** Canlı oturum WAV olarak saklanır. Oturum sonunda süre
-  çubuğu, oynat/durdur, ses seviyesi ve tespit anına atlama seçenekleriyle
-  tekrar dinlenebilir.
+- **Gerçek zamanlı ses filtresi (ekolayzer):** Rüzgar ve akar su/dere gürültülerini
+  AI modeline ulaşmadan önce temizleyen saf DSP filtre zinciri (Biquad HPF,
+  Spektral Çıkarma, RMS Normalleştirme). Ayarlar'dan 🌬️ Rüzgar, 💧 Dere/Su veya
+  🌿 Orman profilleri tek tıkla seçilebilir; frekans kesimi ve kazanç elle ayarlanabilir.
+- **Kayıt ve oynatıcı:** Canlı oturum WAV olarak saklanır. Oturum sonunda 30 saniyelik
+  zaman ölçeğine sahip spektrogram, otomatik kaydırma, oynat/durdur, ses seviyesi ve
+  tespit anına atlama seçenekleriyle tekrar dinlenebilir.
 - **Kullanıcı geri bildirimi:** Canlı ses adayları **Doğru** veya **Doğru
   değil** olarak işaretlenebilir. Kart dokunma ve sağa kaydırma aynı Kanıt
   Dosyası karar akışını kullanır.

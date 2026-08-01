@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'package:firbird/audio/fft_util.dart';
+
 class SpectrogramMarker {
   const SpectrogramMarker({
     required this.position,
@@ -19,8 +21,8 @@ class SpectrogramMarker {
 class WavSpectrogram {
   static Future<List<List<double>>> analyze(
     String filePath, {
-    int maxColumns = 180,
-    double? columnsPerSecond,
+    int maxColumns = 24000,
+    double? columnsPerSecond = 8.0,
     int bins = 48,
   }) async {
     final Uint8List bytes = await File(filePath).readAsBytes();
@@ -50,8 +52,8 @@ class WavSpectrogram {
   static List<List<double>> analyzePcm16(
     Uint8List pcmBytes, {
     int sampleRate = 48000,
-    int maxColumns = 180,
-    double? columnsPerSecond,
+    int maxColumns = 24000,
+    double? columnsPerSecond = 8.0,
     int bins = 48,
   }) {
     final int sampleCount = pcmBytes.length ~/ 2;
@@ -94,7 +96,7 @@ class WavSpectrogram {
             32768 *
             window;
       }
-      _fft(real, imag);
+      FftUtil.fft(real, imag);
       final List<double> column = List<double>.filled(bins, 0);
       for (int bin = 0; bin < bins; bin++) {
         final int from = 1 + (math.pow(bin / bins, 1.7) * 254).floor();
@@ -132,47 +134,7 @@ class WavSpectrogram {
     return -1;
   }
 
-  static void _fft(List<double> real, List<double> imag) {
-    final int n = real.length;
-    int j = 0;
-    for (int i = 1; i < n; i++) {
-      int bit = n >> 1;
-      while ((j & bit) != 0) {
-        j ^= bit;
-        bit >>= 1;
-      }
-      j ^= bit;
-      if (i < j) {
-        final double tr = real[i];
-        real[i] = real[j];
-        real[j] = tr;
-      }
-    }
-    for (int len = 2; len <= n; len <<= 1) {
-      final double angle = -2 * math.pi / len;
-      final double wLenR = math.cos(angle);
-      final double wLenI = math.sin(angle);
-      for (int i = 0; i < n; i += len) {
-        double wr = 1;
-        double wi = 0;
-        for (int k = 0; k < len ~/ 2; k++) {
-          final int even = i + k;
-          final int odd = even + len ~/ 2;
-          final double vr = real[odd] * wr - imag[odd] * wi;
-          final double vi = real[odd] * wi + imag[odd] * wr;
-          final double ur = real[even];
-          final double ui = imag[even];
-          real[even] = ur + vr;
-          imag[even] = ui + vi;
-          real[odd] = ur - vr;
-          imag[odd] = ui - vi;
-          final double nextWr = wr * wLenR - wi * wLenI;
-          wi = wr * wLenI + wi * wLenR;
-          wr = nextWr;
-        }
-      }
-    }
-  }
+  // FFT is provided by the canonical FftUtil in lib/audio/fft_util.dart.
 }
 
 class AudioSpectrogram extends StatelessWidget {
@@ -219,9 +181,9 @@ class AudioSpectrogram extends StatelessWidget {
 }
 
 /// Keeps each time slice at a readable width for completed recordings.
-/// Long recordings scroll horizontally instead of squeezing the waveform and
-/// bird markers into one screen width.
-class ScrollableAudioSpectrogram extends StatelessWidget {
+/// Horizontally scales to 30 seconds per screen width so lines and bird markers
+/// are never squeezed together. Auto-scrolls during playback to keep indicator centered.
+class ScrollableAudioSpectrogram extends StatefulWidget {
   const ScrollableAudioSpectrogram({
     super.key,
     required this.columns,
@@ -229,7 +191,10 @@ class ScrollableAudioSpectrogram extends StatelessWidget {
     this.playbackPosition,
     this.onSeek,
     this.height = 200,
-    this.pixelsPerColumn = 4.0,
+    this.durationMs,
+    this.secondsPerScreen = 30.0,
+    this.columnsPerSecond = 8.0,
+    this.pixelsPerColumn,
   });
 
   final List<List<double>> columns;
@@ -237,26 +202,91 @@ class ScrollableAudioSpectrogram extends StatelessWidget {
   final double? playbackPosition;
   final ValueChanged<double>? onSeek;
   final double height;
-  final double pixelsPerColumn;
+  final int? durationMs;
+  final double secondsPerScreen;
+  final double columnsPerSecond;
+  final double? pixelsPerColumn;
+
+  @override
+  State<ScrollableAudioSpectrogram> createState() =>
+      _ScrollableAudioSpectrogramState();
+}
+
+class _ScrollableAudioSpectrogramState
+    extends State<ScrollableAudioSpectrogram> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScrollableAudioSpectrogram oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playbackPosition != null &&
+        widget.playbackPosition != oldWidget.playbackPosition &&
+        _scrollController.hasClients) {
+      _autoScrollToPlayback(widget.playbackPosition!);
+    }
+  }
+
+  void _autoScrollToPlayback(double position) {
+    final double maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    final double viewportWidth = _scrollController.position.viewportDimension;
+    final double timelineWidth = maxScroll + viewportWidth;
+    final double playbackX = position.clamp(0.0, 1.0) * timelineWidth;
+    final double targetOffset = (playbackX - viewportWidth / 2).clamp(
+      0.0,
+      maxScroll,
+    );
+
+    if ((_scrollController.offset - targetOffset).abs() > 15) {
+      _scrollController.jumpTo(targetOffset);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (BuildContext context, BoxConstraints constraints) {
-      final double timelineWidth = math.max(
-        constraints.maxWidth,
-        columns.length * pixelsPerColumn,
-      );
+      final double screenWidth = constraints.maxWidth;
+      final double totalSeconds =
+          (widget.durationMs != null && widget.durationMs! > 0)
+              ? widget.durationMs! / 1000.0
+              : (widget.columns.length / widget.columnsPerSecond);
+
+      final double calculatedWidth =
+          widget.pixelsPerColumn != null
+              ? math.max(
+                screenWidth,
+                widget.columns.length * widget.pixelsPerColumn!,
+              )
+              : math.max(
+                screenWidth,
+                screenWidth * (totalSeconds / widget.secondsPerScreen),
+              );
+
       return SizedBox(
-        height: height,
+        height: widget.height,
         child: SingleChildScrollView(
+          controller: _scrollController,
           scrollDirection: Axis.horizontal,
           child: AudioSpectrogram(
-            columns: columns,
-            markers: markers,
-            playbackPosition: playbackPosition,
-            onSeek: onSeek,
-            height: height,
-            width: timelineWidth,
+            columns: widget.columns,
+            markers: widget.markers,
+            playbackPosition: widget.playbackPosition,
+            onSeek: widget.onSeek,
+            height: widget.height,
+            width: calculatedWidth,
           ),
         ),
       );

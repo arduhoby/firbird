@@ -84,12 +84,19 @@ class MediaPlayerController extends ChangeNotifier {
   String? _error;
   bool _disposed = false;
 
+  bool _clipMode = false;
+  int _clipStartMs = 0;
+  int _clipEndMs = 0;
+
   bool get isPlaying => _isPlaying;
   bool get isPaused => _isPaused;
   int get positionMs => _positionMs;
   int get durationMs => _durationMs;
   double get gain => _gain;
   String? get error => _error;
+  bool get isClipMode => _clipMode;
+  int get clipStartMs => _clipStartMs;
+  int get clipEndMs => _clipEndMs;
 
   void attach(String? filePath) {
     if (_filePath == filePath) return;
@@ -146,6 +153,28 @@ class MediaPlayerController extends ChangeNotifier {
     _notify();
   }
 
+  /// Jump to [clipStartMs], play until [clipEndMs], then automatically pause.
+  Future<void> playClip({
+    required int clipStartMs,
+    required int clipEndMs,
+  }) async {
+    if (_filePath == null) return;
+    _clipMode = true;
+    _clipStartMs = clipStartMs;
+    _clipEndMs = clipEndMs;
+    await seek(clipStartMs);
+    if (!_isPlaying || _isPaused) {
+      await toggle();
+    }
+  }
+
+  void clearClipMode() {
+    _clipMode = false;
+    _clipStartMs = 0;
+    _clipEndMs = 0;
+    _notify();
+  }
+
   Future<void> setGain(double value) async {
     _gain = value;
     _notify();
@@ -177,6 +206,15 @@ class MediaPlayerController extends ChangeNotifier {
         _positionMs = state.positionMs;
         _durationMs = state.durationMs;
         _notify();
+        // Auto-pause when clip window end is reached
+        if (_clipMode &&
+            _isPlaying &&
+            !_isPaused &&
+            _positionMs >= _clipEndMs) {
+          await _gateway.pause();
+          _isPaused = true;
+          _notify();
+        }
         // Native preparation may briefly report not-playing. Completion is
         // decided only from a real duration and the current position.
         if (_isPlaying &&

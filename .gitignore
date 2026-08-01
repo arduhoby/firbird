@@ -51,3 +51,4 @@ app.*.map.json
 assets/models/birdnet.onnx
 assets/models/birdnet_int8.onnx
 *.apk
+tmp_*

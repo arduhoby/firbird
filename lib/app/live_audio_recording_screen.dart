@@ -13,6 +13,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'package:firbird/audio/pcm16_wav.dart';
+import 'package:firbird/audio/noise_filter.dart';
+import 'package:firbird/audio/noise_filter_provider.dart';
+import 'package:firbird/audio/noise_filter_settings.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
@@ -140,6 +143,9 @@ class _LiveAudioRecordingScreenState
   double _liveMinScore = 0.0;
   AlgorithmSettings _algorithmSettings = AlgorithmSettings.defaults;
 
+  /// Real-time noise filter applied to every PCM analysis window before BirdNET.
+  final NoiseFilter _noiseFilter = NoiseFilter();
+
   @override
   void initState() {
     super.initState();
@@ -165,6 +171,7 @@ class _LiveAudioRecordingScreenState
     _rareAlerts
       ..removeListener(_onRareAlertChanged)
       ..dispose();
+    _noiseFilter.reset();
     super.dispose();
   }
 
@@ -617,8 +624,14 @@ class _LiveAudioRecordingScreenState
     if (mounted) setState(() => _statusText = 'Analiz ediliyor...');
 
     try {
+      // Apply real-time noise filter before model inference.
+      final NoiseFilterSettings filterSettings =
+          ref.read(noiseFilterProvider).value ?? NoiseFilterSettings.off;
+      final Uint8List filteredPcm =
+          _noiseFilter.apply(pcmWindow, filterSettings);
+
       final InferenceResult result = await _audioEngine!.identifyPcm16(
-        pcmWindow,
+        filteredPcm,
         IdentificationContext(
           countryCode: 'TR',
           observationDate: DateTime.now(),

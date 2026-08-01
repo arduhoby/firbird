@@ -4,6 +4,12 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FirBird, yakınındaki kuş gözlem noktalarını göstermek ve mevcut konumunu haritada işaretlemek için konumuna ihtiyaç duyar. Konum bilgisi yalnızca cihazında kullanılır, hiçbir sunucuya gönderilmez.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>FirBird, canlı ses tespiti sırasında konum bilgisini yerel olarak kaydetmek için konumuna ihtiyaç duyar. Konum bilgisi yalnızca cihazında kullanılır.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FirBird, kuş seslerini gerçek zamanlı tespit etmek için mikrofona ihtiyaç duyar. Ses kaydı yalnızca cihazında işlenir, hiçbir sunucuya gönderilmez.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

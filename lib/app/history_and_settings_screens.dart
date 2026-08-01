@@ -4,6 +4,8 @@ import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/media_player_screen.dart';
+import 'package:firbird/audio/noise_filter_provider.dart';
+import 'package:firbird/audio/noise_filter_settings.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:firbird/detection/algorithm_settings.dart';
 import 'package:firbird/detection/detection_score_aggregate.dart';
@@ -422,6 +424,8 @@ class HistoryScreen extends ConsumerWidget {
                     const SizedBox(height: 12),
                     InkWell(
                       onTap: () async {
+                        final String resolvedAudioPath =
+                            await resolveExistingAudioPath(audioPath);
                         final String sessionId = records.first.packageId!;
                         final List<LiveDetectionEvent> events = await database
                             .eventsForLiveSession(sessionId);
@@ -467,8 +471,8 @@ class HistoryScreen extends ConsumerWidget {
                         context.push(
                           '/player',
                           extra: PlaybackSession(
-                            filePath: audioPath,
-                            displayName: path.basename(audioPath),
+                            filePath: resolvedAudioPath,
+                            displayName: path.basename(resolvedAudioPath),
                             rareSpeciesCount: rareEventCount,
                             detections: events
                                 .map((LiveDetectionEvent event) {
@@ -1180,6 +1184,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           _SettingsSection(
+            title: 'Ses Filtresi',
+            icon: Icons.graphic_eq,
+            children: <Widget>[
+              _NoiseFilterSection(),
+            ],
+          ),
+          _SettingsSection(
             title: 'Algoritma puanları',
             icon: Icons.rule_folder_outlined,
             children: <Widget>[
@@ -1370,45 +1381,48 @@ class _SettingsSection extends StatelessWidget {
         border: Border.all(color: theme.colorScheme.outlineVariant, width: 1.4),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          ColoredBox(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.48),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 17,
-                      color: theme.colorScheme.onPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: theme.colorScheme.onPrimaryContainer,
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            ColoredBox(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 17,
+                        color: theme.colorScheme.onPrimary,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant),
-          ...children,
-        ],
+            Divider(height: 1, color: theme.colorScheme.outlineVariant),
+            ...children,
+          ],
+        ),
       ),
     );
   }
@@ -1504,3 +1518,196 @@ SpeciesStatusCategory _statusCategory(
   }
   return SpeciesStatusHelper.getCategory(scientificName: scientificName);
 }
+
+/// Noise filter settings section shown inside the Settings screen.
+/// Uses [noiseFilterProvider] so that live changes are immediately reflected
+/// in the active recording session without a restart.
+class _NoiseFilterSection extends ConsumerWidget {
+  const _NoiseFilterSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<NoiseFilterSettings> asyncSettings =
+        ref.watch(noiseFilterProvider);
+    final NoiseFilterNotifier notifier =
+        ref.read(noiseFilterProvider.notifier);
+    final NoiseFilterSettings settings =
+        asyncSettings.value ?? NoiseFilterSettings.off;
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        // ── Master toggle ────────────────────────────────────────────────
+        SwitchListTile(
+          title: const Text('Gerçek zamanlı gürültü filtresi'),
+          subtitle: const Text(
+            'Rüzgar ve su sesini model beslemeden önce temizler',
+          ),
+          value: settings.enabled,
+          onChanged: (_) => notifier.toggleEnabled(),
+        ),
+
+        if (settings.enabled) ...<Widget>[
+          const Divider(height: 1),
+
+          // ── Preset chips ─────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: Text(
+              'Hazır Profiller',
+              style: textTheme.labelMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: <Widget>[
+                for (final NoiseFilterPreset preset in <NoiseFilterPreset>[
+                  NoiseFilterPreset.wind,
+                  NoiseFilterPreset.water,
+                  NoiseFilterPreset.forest,
+                ])
+                  FilterChip(
+                    label: Text(preset.label),
+                    selected: settings.preset == preset,
+                    onSelected: (_) => notifier.applyPreset(preset),
+                    selectedColor: colors.primaryContainer,
+                    checkmarkColor: colors.onPrimaryContainer,
+                  ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // ── Wind HPF slider ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.air, size: 18),
+                const SizedBox(width: 8),
+                Text('Rüzgar Filtresi (Kesim)', style: textTheme.bodyMedium),
+                const Spacer(),
+                Text(
+                  '${settings.windCutoffHz.round()} Hz',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Slider(
+            value: settings.windCutoffHz,
+            min: 100,
+            max: 2000,
+            divisions: 38,
+            label: '${settings.windCutoffHz.round()} Hz',
+            onChanged: (double v) => notifier.setWindCutoff(v),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text('100 Hz', style: textTheme.labelSmall),
+                Text(
+                  'Düşük → baykuş korunur',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                Text('2000 Hz', style: textTheme.labelSmall),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // ── Water / broadband reduction slider ───────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.water, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Su/Dere Gürültüsü Azaltma',
+                  style: textTheme.bodyMedium,
+                ),
+                const Spacer(),
+                Text(
+                  '%${(settings.waterReduction * 100).round()}',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Slider(
+            value: settings.waterReduction,
+            min: 0,
+            max: 1,
+            divisions: 20,
+            label: '%${(settings.waterReduction * 100).round()}',
+            onChanged: (double v) => notifier.setWaterReduction(v),
+          ),
+
+          const Divider(height: 1),
+
+          // ── Gain slider ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.volume_up, size: 18),
+                const SizedBox(width: 8),
+                Text('Ses Güçlendirme', style: textTheme.bodyMedium),
+                const Spacer(),
+                Text(
+                  '${settings.gainMultiplier.toStringAsFixed(1)}×',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Slider(
+            value: settings.gainMultiplier,
+            min: 0.5,
+            max: 3.0,
+            divisions: 25,
+            label: '${settings.gainMultiplier.toStringAsFixed(1)}×',
+            onChanged: (double v) => notifier.setGain(v),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text('0.5×', style: textTheme.labelSmall),
+                Text(
+                  'Zayıf kuş sesleri için artırın',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                Text('3.0×', style: textTheme.labelSmall),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+

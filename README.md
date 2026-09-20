@@ -5,7 +5,7 @@ FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android ve iO
 sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
 gönderilmez.
 
-> Güncel sürüm: **v0.8.9 (build 89)**
+> Güncel sürüm: **v0.9.2 (build 92)**
 
 Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
 fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
@@ -64,6 +64,28 @@ hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bak�
 - **Canlı eBird güncellemesi:** Kendi kişisel API anahtarınızla, yalnızca siz
   istediğinizde 20 veya 50 km çevreden son 30 günlük hotspot kayıtları
   indirilebilir. Bu işlem canlı dinlemeyi kesmez.
+
+## v0.9.1 — Hızlı 3 Saniyelik Ses İncelemesi
+
+v0.9.1'de kartın oynatma düğmesi geniş bağlam yerine modelin değerlendirdiği
+tam üç saniyelik ham pencereyi oynatır. Player ilerlerken kuş kartları ve ağır
+spektrogram yeniden kurulmaz; yalnız zaman çizgisi ve küçük taşıma kontrolleri
+güncellenir. Canlı mikrofon seviyesi de ekranın geri kalanından ayrılmıştır.
+Seçili kuş için **Duyuluyor**, **Emin değilim** ve **Anlaşılmıyor** kararları
+ekranın altında sabit üç büyük düğme olarak gösterilir.
+
+## v0.9.0 — Dinlenebilir Ses Kanıtı
+
+v0.9.0, model önerisi ile insan kulağının doğrulayabildiği ses kaydını birbirinden
+ayırır. Her canlı tespit penceresi tek ortak kalite değerlendiricisiyle ölçülür ve
+**Ses güçlü · doğrula**, **Ses zayıf · incele** veya **Yalnız makine sinyali**
+olarak işaretlenir.
+
+Ortak player v0.9.0'da tespit anından 3 saniye önce başlayıp 7 saniye sonrasına
+kadar olan bölümü oynatır. Kullanıcı **Duyuluyor**, **Emin değilim** veya **Anlaşılmıyor**
+kararını verir. Karar geçmiş ve replay akışında korunur; anlaşılmayan kayıt model
+önerisi olarak kalabilir ancak eBird ses delili sayılmaz. Android ve iOS aynı
+Flutter kalite, kayıt ve doğrulama sözleşmesini kullanır.
 
 ## v0.8.0 — Açıklanabilir Kanıt Sistemi
 
@@ -181,6 +203,21 @@ kullanılmış ara sürümlerdir.
 | `v0.8.1` | İndirme yarıçapı/tarihi durumu, yenileme davranışı, yüksek kontrastlı harita kaplamaları, küçültme düğmesi ve kuzey pusulası. |
 | `v0.8.5` | Güven ve bölgesel durum renklerinin ayrılması; 15 saniyelik çözümlenmemiş nadir tür uyarısı ve kalıcı nadir raporu; çevrimdışı uygulama içi kullanım kılavuzu. |
 | `v0.8.6` | Canlı tespitlerde ilk skora kilitlenme hatasının düzeltilmesi; bağımsız ses olaylarının ortalaması, sınırlı tekrar desteği ve canlı–geçmiş–replay skor bütünlüğü. |
+| `v0.9.2` | Saha seslerini ham BirdNET puanlarıyla eşleştiren debug tanısı ve 10 saniye önce/sonra delil klibi. |
+| `v0.9.1` | Modelin tam üç saniyelik penceresini oynatma, sabit büyük dinleme kararları ve player/canlı ekran yeniden çizim optimizasyonu. |
+| `v0.9.0` | Duyulabilirlik kalite katmanı, eBird adayı–inceleme–makine sinyali ayrımı, tespit anına odaklı ortak player ve kalıcı insan dinleme kararı. |
+
+### v0.9.0
+
+- Ham 48 kHz PCM penceresi ses seviyesi, gürültü tabanı, kontrast ve clipping
+  açısından tek ortak değerlendiriciyle ölçülür.
+- Otomatik kalite sonucu tür teşhisinden ayrıdır; güçlü sinyal bile insan
+  doğrulaması olmadan eBird delili kabul edilmez.
+- Player tespit çevresindeki ortak 3 saniye öncesi / 7 saniye sonrası dinleme
+  aralığını kullanır.
+- Kullanıcının duyuluyor, belirsiz veya anlaşılmıyor kararı veritabanı şema 8 ile
+  geçmiş ve replay ekranında korunur.
+- Aynı Dart sözleşmesi Android ve iOS kayıtlarında kullanılır.
 
 ### v0.8.6
 

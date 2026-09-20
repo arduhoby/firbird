@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:firbird/audio/fft_util.dart';
 import 'package:firbird/audio/noise_filter.dart';
 import 'package:firbird/audio/noise_filter_settings.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Generates a synthetic PCM-16 mono buffer at [sampleRate] Hz containing
 /// a pure sine wave at [frequency] Hz with amplitude [amplitude] (0.0–1.0).
@@ -17,7 +17,8 @@ Uint8List _sinePcm16({
   final Uint8List out = Uint8List(samples * 2);
   final ByteData bd = ByteData.sublistView(out);
   for (int i = 0; i < samples; i++) {
-    final double v = amplitude * math.sin(2 * math.pi * frequency * i / sampleRate);
+    final double v =
+        amplitude * math.sin(2 * math.pi * frequency * i / sampleRate);
     bd.setInt16(i * 2, (v * 32767).round().clamp(-32768, 32767), Endian.little);
   }
   return out;
@@ -74,8 +75,10 @@ void main() {
 
   group('FftUtil round-trip', () {
     test('FFT followed by IFFT reconstructs the original signal', () {
-      final List<double> real =
-          List<double>.generate(512, (i) => math.sin(2 * math.pi * i / 32));
+      final List<double> real = List<double>.generate(
+        512,
+        (i) => math.sin(2 * math.pi * i / 32),
+      );
       final List<double> imag = List<double>.filled(512, 0);
       final List<double> original = List<double>.from(real);
 
@@ -92,8 +95,12 @@ void main() {
     final NoiseFilter filter = NoiseFilter();
 
     test('returns original bytes when filter is disabled', () {
-      final Uint8List pcm =
-          _sinePcm16(frequency: 1000, sampleRate: 48000, amplitude: 0.5, samples: 4096);
+      final Uint8List pcm = _sinePcm16(
+        frequency: 1000,
+        sampleRate: 48000,
+        amplitude: 0.5,
+        samples: 4096,
+      );
       final Uint8List result = filter.apply(pcm, NoiseFilterSettings.off);
       expect(identical(result, pcm), isTrue);
     });
@@ -140,36 +147,47 @@ void main() {
       expect(rmsAfter, greaterThan(rmsBefore * 0.7));
     });
 
-    test('water reduction with broadband noise reduces RMS after adaptation', () {
-      filter.reset();
-      final settings = NoiseFilterSettings(
-        enabled: true,
-        windCutoffHz: 100, // minimal HPF
-        waterReduction: 0.9,
-        gainMultiplier: 1.0,
-      );
-      // White noise approximation: use Random for broadband content
-      final int n = 48000 * 3;
-      final Uint8List noise = Uint8List(n * 2);
-      final ByteData bd = ByteData.sublistView(noise);
-      final rng = math.Random(42);
-      for (int i = 0; i < n; i++) {
-        final double v = (rng.nextDouble() - 0.5) * 0.6;
-        bd.setInt16(i * 2, (v * 32767).round().clamp(-32768, 32767), Endian.little);
-      }
-      final double rmsBefore = _rms(noise);
+    test(
+      'water reduction with broadband noise reduces RMS after adaptation',
+      () {
+        filter.reset();
+        final settings = NoiseFilterSettings(
+          enabled: true,
+          windCutoffHz: 100, // minimal HPF
+          waterReduction: 0.9,
+          gainMultiplier: 1.0,
+        );
+        // White noise approximation: use Random for broadband content
+        final int n = 48000 * 3;
+        final Uint8List noise = Uint8List(n * 2);
+        final ByteData bd = ByteData.sublistView(noise);
+        final rng = math.Random(42);
+        for (int i = 0; i < n; i++) {
+          final double v = (rng.nextDouble() - 0.5) * 0.6;
+          bd.setInt16(
+            i * 2,
+            (v * 32767).round().clamp(-32768, 32767),
+            Endian.little,
+          );
+        }
+        final double rmsBefore = _rms(noise);
 
-      // Warm up the noise floor with many passes so minimum statistics adapts
-      for (int i = 0; i < 8; i++) {
-        filter.apply(noise, settings);
-      }
-      final Uint8List filtered = filter.apply(noise, settings);
-      final double rmsAfter = _rms(filtered);
+        // Warm up the noise floor with many passes so minimum statistics adapts
+        for (int i = 0; i < 8; i++) {
+          filter.apply(noise, settings);
+        }
+        final Uint8List filtered = filter.apply(noise, settings);
+        final double rmsAfter = _rms(filtered);
 
-      // After full adaptation, spectral subtraction must reduce energy
-      expect(rmsAfter, lessThan(rmsBefore),
-          reason: 'Spectral subtraction should reduce broadband noise RMS. '
-              'Before: $rmsBefore, After: $rmsAfter');
-    });
+        // After full adaptation, spectral subtraction must reduce energy
+        expect(
+          rmsAfter,
+          lessThan(rmsBefore),
+          reason:
+              'Spectral subtraction should reduce broadband noise RMS. '
+              'Before: $rmsBefore, After: $rmsAfter',
+        );
+      },
+    );
   });
 }

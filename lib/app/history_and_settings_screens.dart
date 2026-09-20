@@ -4,6 +4,7 @@ import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/media_player_screen.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/audio/noise_filter_provider.dart';
 import 'package:firbird/audio/noise_filter_settings.dart';
 import 'package:firbird/data/app_database.dart';
@@ -474,6 +475,16 @@ class HistoryScreen extends ConsumerWidget {
                             filePath: resolvedAudioPath,
                             displayName: path.basename(resolvedAudioPath),
                             rareSpeciesCount: rareEventCount,
+                            onAudioReview:
+                                (
+                                  PlaybackDetection detection,
+                                  AudioReviewVerdict verdict,
+                                ) => database.updateLiveDetectionAudioReview(
+                                  sessionId: sessionId,
+                                  speciesId: detection.speciesId,
+                                  startMs: detection.startMs,
+                                  verdict: verdict,
+                                ),
                             detections: events
                                 .map((LiveDetectionEvent event) {
                                   final DetectionScoreAggregate aggregate =
@@ -505,6 +516,22 @@ class HistoryScreen extends ConsumerWidget {
                                       event.speciesStatus,
                                       event.scientificName,
                                     ),
+                                    audioEvidence:
+                                        AudioEvidenceAssessment.fromStored(
+                                          level: event.audioEvidenceLevel,
+                                          foregroundDbfs:
+                                              event.audioForegroundDbfs,
+                                          noiseFloorDbfs:
+                                              event.audioNoiseFloorDbfs,
+                                          contrastDb: event.audioContrastDb,
+                                          peakDbfs: event.audioPeakDbfs,
+                                          clippedFraction:
+                                              event.audioClippedFraction,
+                                        ),
+                                    audioReviewVerdict:
+                                        audioReviewVerdictFromName(
+                                          event.audioReviewVerdict,
+                                        ),
                                   );
                                 })
                                 .toList(growable: false),
@@ -1186,9 +1213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SettingsSection(
             title: 'Ses Filtresi',
             icon: Icons.graphic_eq,
-            children: <Widget>[
-              _NoiseFilterSection(),
-            ],
+            children: <Widget>[_NoiseFilterSection()],
           ),
           _SettingsSection(
             title: 'Algoritma puanları',
@@ -1389,7 +1414,10 @@ class _SettingsSection extends StatelessWidget {
             ColoredBox(
               color: theme.colorScheme.primaryContainer.withValues(alpha: 0.48),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: <Widget>[
                     Container(
@@ -1527,10 +1555,10 @@ class _NoiseFilterSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<NoiseFilterSettings> asyncSettings =
-        ref.watch(noiseFilterProvider);
-    final NoiseFilterNotifier notifier =
-        ref.read(noiseFilterProvider.notifier);
+    final AsyncValue<NoiseFilterSettings> asyncSettings = ref.watch(
+      noiseFilterProvider,
+    );
+    final NoiseFilterNotifier notifier = ref.read(noiseFilterProvider.notifier);
     final NoiseFilterSettings settings =
         asyncSettings.value ?? NoiseFilterSettings.off;
     final ColorScheme colors = Theme.of(context).colorScheme;
@@ -1638,10 +1666,7 @@ class _NoiseFilterSection extends ConsumerWidget {
               children: <Widget>[
                 const Icon(Icons.water, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  'Su/Dere Gürültüsü Azaltma',
-                  style: textTheme.bodyMedium,
-                ),
+                Text('Su/Dere Gürültüsü Azaltma', style: textTheme.bodyMedium),
                 const Spacer(),
                 Text(
                   '%${(settings.waterReduction * 100).round()}',
@@ -1710,4 +1735,3 @@ class _NoiseFilterSection extends ConsumerWidget {
     );
   }
 }
-

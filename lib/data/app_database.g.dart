@@ -1471,6 +1471,83 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _audioEvidenceLevelMeta =
+      const VerificationMeta('audioEvidenceLevel');
+  @override
+  late final GeneratedColumn<String> audioEvidenceLevel =
+      GeneratedColumn<String>(
+        'audio_evidence_level',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _audioForegroundDbfsMeta =
+      const VerificationMeta('audioForegroundDbfs');
+  @override
+  late final GeneratedColumn<double> audioForegroundDbfs =
+      GeneratedColumn<double>(
+        'audio_foreground_dbfs',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _audioNoiseFloorDbfsMeta =
+      const VerificationMeta('audioNoiseFloorDbfs');
+  @override
+  late final GeneratedColumn<double> audioNoiseFloorDbfs =
+      GeneratedColumn<double>(
+        'audio_noise_floor_dbfs',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _audioContrastDbMeta = const VerificationMeta(
+    'audioContrastDb',
+  );
+  @override
+  late final GeneratedColumn<double> audioContrastDb = GeneratedColumn<double>(
+    'audio_contrast_db',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioPeakDbfsMeta = const VerificationMeta(
+    'audioPeakDbfs',
+  );
+  @override
+  late final GeneratedColumn<double> audioPeakDbfs = GeneratedColumn<double>(
+    'audio_peak_dbfs',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioClippedFractionMeta =
+      const VerificationMeta('audioClippedFraction');
+  @override
+  late final GeneratedColumn<double> audioClippedFraction =
+      GeneratedColumn<double>(
+        'audio_clipped_fraction',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _audioReviewVerdictMeta =
+      const VerificationMeta('audioReviewVerdict');
+  @override
+  late final GeneratedColumn<String> audioReviewVerdict =
+      GeneratedColumn<String>(
+        'audio_review_verdict',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1498,6 +1575,13 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
     detectedAt,
     latitude,
     longitude,
+    audioEvidenceLevel,
+    audioForegroundDbfs,
+    audioNoiseFloorDbfs,
+    audioContrastDb,
+    audioPeakDbfs,
+    audioClippedFraction,
+    audioReviewVerdict,
     createdAt,
   ];
   @override
@@ -1622,6 +1706,69 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
       );
     }
+    if (data.containsKey('audio_evidence_level')) {
+      context.handle(
+        _audioEvidenceLevelMeta,
+        audioEvidenceLevel.isAcceptableOrUnknown(
+          data['audio_evidence_level']!,
+          _audioEvidenceLevelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_foreground_dbfs')) {
+      context.handle(
+        _audioForegroundDbfsMeta,
+        audioForegroundDbfs.isAcceptableOrUnknown(
+          data['audio_foreground_dbfs']!,
+          _audioForegroundDbfsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_noise_floor_dbfs')) {
+      context.handle(
+        _audioNoiseFloorDbfsMeta,
+        audioNoiseFloorDbfs.isAcceptableOrUnknown(
+          data['audio_noise_floor_dbfs']!,
+          _audioNoiseFloorDbfsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_contrast_db')) {
+      context.handle(
+        _audioContrastDbMeta,
+        audioContrastDb.isAcceptableOrUnknown(
+          data['audio_contrast_db']!,
+          _audioContrastDbMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_peak_dbfs')) {
+      context.handle(
+        _audioPeakDbfsMeta,
+        audioPeakDbfs.isAcceptableOrUnknown(
+          data['audio_peak_dbfs']!,
+          _audioPeakDbfsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_clipped_fraction')) {
+      context.handle(
+        _audioClippedFractionMeta,
+        audioClippedFraction.isAcceptableOrUnknown(
+          data['audio_clipped_fraction']!,
+          _audioClippedFractionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_review_verdict')) {
+      context.handle(
+        _audioReviewVerdictMeta,
+        audioReviewVerdict.isAcceptableOrUnknown(
+          data['audio_review_verdict']!,
+          _audioReviewVerdictMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1695,6 +1842,34 @@ class $LiveDetectionEventsTable extends LiveDetectionEvents
         DriftSqlType.double,
         data['${effectivePrefix}longitude'],
       ),
+      audioEvidenceLevel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_evidence_level'],
+      ),
+      audioForegroundDbfs: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}audio_foreground_dbfs'],
+      ),
+      audioNoiseFloorDbfs: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}audio_noise_floor_dbfs'],
+      ),
+      audioContrastDb: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}audio_contrast_db'],
+      ),
+      audioPeakDbfs: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}audio_peak_dbfs'],
+      ),
+      audioClippedFraction: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}audio_clipped_fraction'],
+      ),
+      audioReviewVerdict: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_review_verdict'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1724,6 +1899,13 @@ class LiveDetectionEvent extends DataClass
   final DateTime? detectedAt;
   final double? latitude;
   final double? longitude;
+  final String? audioEvidenceLevel;
+  final double? audioForegroundDbfs;
+  final double? audioNoiseFloorDbfs;
+  final double? audioContrastDb;
+  final double? audioPeakDbfs;
+  final double? audioClippedFraction;
+  final String? audioReviewVerdict;
   final DateTime createdAt;
   const LiveDetectionEvent({
     required this.id,
@@ -1740,6 +1922,13 @@ class LiveDetectionEvent extends DataClass
     this.detectedAt,
     this.latitude,
     this.longitude,
+    this.audioEvidenceLevel,
+    this.audioForegroundDbfs,
+    this.audioNoiseFloorDbfs,
+    this.audioContrastDb,
+    this.audioPeakDbfs,
+    this.audioClippedFraction,
+    this.audioReviewVerdict,
     required this.createdAt,
   });
   @override
@@ -1770,6 +1959,27 @@ class LiveDetectionEvent extends DataClass
     }
     if (!nullToAbsent || longitude != null) {
       map['longitude'] = Variable<double>(longitude);
+    }
+    if (!nullToAbsent || audioEvidenceLevel != null) {
+      map['audio_evidence_level'] = Variable<String>(audioEvidenceLevel);
+    }
+    if (!nullToAbsent || audioForegroundDbfs != null) {
+      map['audio_foreground_dbfs'] = Variable<double>(audioForegroundDbfs);
+    }
+    if (!nullToAbsent || audioNoiseFloorDbfs != null) {
+      map['audio_noise_floor_dbfs'] = Variable<double>(audioNoiseFloorDbfs);
+    }
+    if (!nullToAbsent || audioContrastDb != null) {
+      map['audio_contrast_db'] = Variable<double>(audioContrastDb);
+    }
+    if (!nullToAbsent || audioPeakDbfs != null) {
+      map['audio_peak_dbfs'] = Variable<double>(audioPeakDbfs);
+    }
+    if (!nullToAbsent || audioClippedFraction != null) {
+      map['audio_clipped_fraction'] = Variable<double>(audioClippedFraction);
+    }
+    if (!nullToAbsent || audioReviewVerdict != null) {
+      map['audio_review_verdict'] = Variable<String>(audioReviewVerdict);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1803,6 +2013,27 @@ class LiveDetectionEvent extends DataClass
       longitude: longitude == null && nullToAbsent
           ? const Value.absent()
           : Value(longitude),
+      audioEvidenceLevel: audioEvidenceLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioEvidenceLevel),
+      audioForegroundDbfs: audioForegroundDbfs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioForegroundDbfs),
+      audioNoiseFloorDbfs: audioNoiseFloorDbfs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioNoiseFloorDbfs),
+      audioContrastDb: audioContrastDb == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioContrastDb),
+      audioPeakDbfs: audioPeakDbfs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioPeakDbfs),
+      audioClippedFraction: audioClippedFraction == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioClippedFraction),
+      audioReviewVerdict: audioReviewVerdict == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioReviewVerdict),
       createdAt: Value(createdAt),
     );
   }
@@ -1827,6 +2058,23 @@ class LiveDetectionEvent extends DataClass
       detectedAt: serializer.fromJson<DateTime?>(json['detectedAt']),
       latitude: serializer.fromJson<double?>(json['latitude']),
       longitude: serializer.fromJson<double?>(json['longitude']),
+      audioEvidenceLevel: serializer.fromJson<String?>(
+        json['audioEvidenceLevel'],
+      ),
+      audioForegroundDbfs: serializer.fromJson<double?>(
+        json['audioForegroundDbfs'],
+      ),
+      audioNoiseFloorDbfs: serializer.fromJson<double?>(
+        json['audioNoiseFloorDbfs'],
+      ),
+      audioContrastDb: serializer.fromJson<double?>(json['audioContrastDb']),
+      audioPeakDbfs: serializer.fromJson<double?>(json['audioPeakDbfs']),
+      audioClippedFraction: serializer.fromJson<double?>(
+        json['audioClippedFraction'],
+      ),
+      audioReviewVerdict: serializer.fromJson<String?>(
+        json['audioReviewVerdict'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1848,6 +2096,13 @@ class LiveDetectionEvent extends DataClass
       'detectedAt': serializer.toJson<DateTime?>(detectedAt),
       'latitude': serializer.toJson<double?>(latitude),
       'longitude': serializer.toJson<double?>(longitude),
+      'audioEvidenceLevel': serializer.toJson<String?>(audioEvidenceLevel),
+      'audioForegroundDbfs': serializer.toJson<double?>(audioForegroundDbfs),
+      'audioNoiseFloorDbfs': serializer.toJson<double?>(audioNoiseFloorDbfs),
+      'audioContrastDb': serializer.toJson<double?>(audioContrastDb),
+      'audioPeakDbfs': serializer.toJson<double?>(audioPeakDbfs),
+      'audioClippedFraction': serializer.toJson<double?>(audioClippedFraction),
+      'audioReviewVerdict': serializer.toJson<String?>(audioReviewVerdict),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1867,6 +2122,13 @@ class LiveDetectionEvent extends DataClass
     Value<DateTime?> detectedAt = const Value.absent(),
     Value<double?> latitude = const Value.absent(),
     Value<double?> longitude = const Value.absent(),
+    Value<String?> audioEvidenceLevel = const Value.absent(),
+    Value<double?> audioForegroundDbfs = const Value.absent(),
+    Value<double?> audioNoiseFloorDbfs = const Value.absent(),
+    Value<double?> audioContrastDb = const Value.absent(),
+    Value<double?> audioPeakDbfs = const Value.absent(),
+    Value<double?> audioClippedFraction = const Value.absent(),
+    Value<String?> audioReviewVerdict = const Value.absent(),
     DateTime? createdAt,
   }) => LiveDetectionEvent(
     id: id ?? this.id,
@@ -1889,6 +2151,27 @@ class LiveDetectionEvent extends DataClass
     detectedAt: detectedAt.present ? detectedAt.value : this.detectedAt,
     latitude: latitude.present ? latitude.value : this.latitude,
     longitude: longitude.present ? longitude.value : this.longitude,
+    audioEvidenceLevel: audioEvidenceLevel.present
+        ? audioEvidenceLevel.value
+        : this.audioEvidenceLevel,
+    audioForegroundDbfs: audioForegroundDbfs.present
+        ? audioForegroundDbfs.value
+        : this.audioForegroundDbfs,
+    audioNoiseFloorDbfs: audioNoiseFloorDbfs.present
+        ? audioNoiseFloorDbfs.value
+        : this.audioNoiseFloorDbfs,
+    audioContrastDb: audioContrastDb.present
+        ? audioContrastDb.value
+        : this.audioContrastDb,
+    audioPeakDbfs: audioPeakDbfs.present
+        ? audioPeakDbfs.value
+        : this.audioPeakDbfs,
+    audioClippedFraction: audioClippedFraction.present
+        ? audioClippedFraction.value
+        : this.audioClippedFraction,
+    audioReviewVerdict: audioReviewVerdict.present
+        ? audioReviewVerdict.value
+        : this.audioReviewVerdict,
     createdAt: createdAt ?? this.createdAt,
   );
   LiveDetectionEvent copyWithCompanion(LiveDetectionEventsCompanion data) {
@@ -1921,6 +2204,27 @@ class LiveDetectionEvent extends DataClass
           : this.detectedAt,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      audioEvidenceLevel: data.audioEvidenceLevel.present
+          ? data.audioEvidenceLevel.value
+          : this.audioEvidenceLevel,
+      audioForegroundDbfs: data.audioForegroundDbfs.present
+          ? data.audioForegroundDbfs.value
+          : this.audioForegroundDbfs,
+      audioNoiseFloorDbfs: data.audioNoiseFloorDbfs.present
+          ? data.audioNoiseFloorDbfs.value
+          : this.audioNoiseFloorDbfs,
+      audioContrastDb: data.audioContrastDb.present
+          ? data.audioContrastDb.value
+          : this.audioContrastDb,
+      audioPeakDbfs: data.audioPeakDbfs.present
+          ? data.audioPeakDbfs.value
+          : this.audioPeakDbfs,
+      audioClippedFraction: data.audioClippedFraction.present
+          ? data.audioClippedFraction.value
+          : this.audioClippedFraction,
+      audioReviewVerdict: data.audioReviewVerdict.present
+          ? data.audioReviewVerdict.value
+          : this.audioReviewVerdict,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1942,13 +2246,20 @@ class LiveDetectionEvent extends DataClass
           ..write('detectedAt: $detectedAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
+          ..write('audioEvidenceLevel: $audioEvidenceLevel, ')
+          ..write('audioForegroundDbfs: $audioForegroundDbfs, ')
+          ..write('audioNoiseFloorDbfs: $audioNoiseFloorDbfs, ')
+          ..write('audioContrastDb: $audioContrastDb, ')
+          ..write('audioPeakDbfs: $audioPeakDbfs, ')
+          ..write('audioClippedFraction: $audioClippedFraction, ')
+          ..write('audioReviewVerdict: $audioReviewVerdict, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     sessionId,
     speciesId,
@@ -1963,8 +2274,15 @@ class LiveDetectionEvent extends DataClass
     detectedAt,
     latitude,
     longitude,
+    audioEvidenceLevel,
+    audioForegroundDbfs,
+    audioNoiseFloorDbfs,
+    audioContrastDb,
+    audioPeakDbfs,
+    audioClippedFraction,
+    audioReviewVerdict,
     createdAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1983,6 +2301,13 @@ class LiveDetectionEvent extends DataClass
           other.detectedAt == this.detectedAt &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
+          other.audioEvidenceLevel == this.audioEvidenceLevel &&
+          other.audioForegroundDbfs == this.audioForegroundDbfs &&
+          other.audioNoiseFloorDbfs == this.audioNoiseFloorDbfs &&
+          other.audioContrastDb == this.audioContrastDb &&
+          other.audioPeakDbfs == this.audioPeakDbfs &&
+          other.audioClippedFraction == this.audioClippedFraction &&
+          other.audioReviewVerdict == this.audioReviewVerdict &&
           other.createdAt == this.createdAt);
 }
 
@@ -2001,6 +2326,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
   final Value<DateTime?> detectedAt;
   final Value<double?> latitude;
   final Value<double?> longitude;
+  final Value<String?> audioEvidenceLevel;
+  final Value<double?> audioForegroundDbfs;
+  final Value<double?> audioNoiseFloorDbfs;
+  final Value<double?> audioContrastDb;
+  final Value<double?> audioPeakDbfs;
+  final Value<double?> audioClippedFraction;
+  final Value<String?> audioReviewVerdict;
   final Value<DateTime> createdAt;
   const LiveDetectionEventsCompanion({
     this.id = const Value.absent(),
@@ -2017,6 +2349,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     this.detectedAt = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
+    this.audioEvidenceLevel = const Value.absent(),
+    this.audioForegroundDbfs = const Value.absent(),
+    this.audioNoiseFloorDbfs = const Value.absent(),
+    this.audioContrastDb = const Value.absent(),
+    this.audioPeakDbfs = const Value.absent(),
+    this.audioClippedFraction = const Value.absent(),
+    this.audioReviewVerdict = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   LiveDetectionEventsCompanion.insert({
@@ -2034,6 +2373,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     this.detectedAt = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
+    this.audioEvidenceLevel = const Value.absent(),
+    this.audioForegroundDbfs = const Value.absent(),
+    this.audioNoiseFloorDbfs = const Value.absent(),
+    this.audioContrastDb = const Value.absent(),
+    this.audioPeakDbfs = const Value.absent(),
+    this.audioClippedFraction = const Value.absent(),
+    this.audioReviewVerdict = const Value.absent(),
     required DateTime createdAt,
   }) : sessionId = Value(sessionId),
        speciesId = Value(speciesId),
@@ -2058,6 +2404,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Expression<DateTime>? detectedAt,
     Expression<double>? latitude,
     Expression<double>? longitude,
+    Expression<String>? audioEvidenceLevel,
+    Expression<double>? audioForegroundDbfs,
+    Expression<double>? audioNoiseFloorDbfs,
+    Expression<double>? audioContrastDb,
+    Expression<double>? audioPeakDbfs,
+    Expression<double>? audioClippedFraction,
+    Expression<String>? audioReviewVerdict,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -2075,6 +2428,18 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       if (detectedAt != null) 'detected_at': detectedAt,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (audioEvidenceLevel != null)
+        'audio_evidence_level': audioEvidenceLevel,
+      if (audioForegroundDbfs != null)
+        'audio_foreground_dbfs': audioForegroundDbfs,
+      if (audioNoiseFloorDbfs != null)
+        'audio_noise_floor_dbfs': audioNoiseFloorDbfs,
+      if (audioContrastDb != null) 'audio_contrast_db': audioContrastDb,
+      if (audioPeakDbfs != null) 'audio_peak_dbfs': audioPeakDbfs,
+      if (audioClippedFraction != null)
+        'audio_clipped_fraction': audioClippedFraction,
+      if (audioReviewVerdict != null)
+        'audio_review_verdict': audioReviewVerdict,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -2094,6 +2459,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     Value<DateTime?>? detectedAt,
     Value<double?>? latitude,
     Value<double?>? longitude,
+    Value<String?>? audioEvidenceLevel,
+    Value<double?>? audioForegroundDbfs,
+    Value<double?>? audioNoiseFloorDbfs,
+    Value<double?>? audioContrastDb,
+    Value<double?>? audioPeakDbfs,
+    Value<double?>? audioClippedFraction,
+    Value<String?>? audioReviewVerdict,
     Value<DateTime>? createdAt,
   }) {
     return LiveDetectionEventsCompanion(
@@ -2111,6 +2483,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
       detectedAt: detectedAt ?? this.detectedAt,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      audioEvidenceLevel: audioEvidenceLevel ?? this.audioEvidenceLevel,
+      audioForegroundDbfs: audioForegroundDbfs ?? this.audioForegroundDbfs,
+      audioNoiseFloorDbfs: audioNoiseFloorDbfs ?? this.audioNoiseFloorDbfs,
+      audioContrastDb: audioContrastDb ?? this.audioContrastDb,
+      audioPeakDbfs: audioPeakDbfs ?? this.audioPeakDbfs,
+      audioClippedFraction: audioClippedFraction ?? this.audioClippedFraction,
+      audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -2160,6 +2539,33 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
     if (longitude.present) {
       map['longitude'] = Variable<double>(longitude.value);
     }
+    if (audioEvidenceLevel.present) {
+      map['audio_evidence_level'] = Variable<String>(audioEvidenceLevel.value);
+    }
+    if (audioForegroundDbfs.present) {
+      map['audio_foreground_dbfs'] = Variable<double>(
+        audioForegroundDbfs.value,
+      );
+    }
+    if (audioNoiseFloorDbfs.present) {
+      map['audio_noise_floor_dbfs'] = Variable<double>(
+        audioNoiseFloorDbfs.value,
+      );
+    }
+    if (audioContrastDb.present) {
+      map['audio_contrast_db'] = Variable<double>(audioContrastDb.value);
+    }
+    if (audioPeakDbfs.present) {
+      map['audio_peak_dbfs'] = Variable<double>(audioPeakDbfs.value);
+    }
+    if (audioClippedFraction.present) {
+      map['audio_clipped_fraction'] = Variable<double>(
+        audioClippedFraction.value,
+      );
+    }
+    if (audioReviewVerdict.present) {
+      map['audio_review_verdict'] = Variable<String>(audioReviewVerdict.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2183,6 +2589,13 @@ class LiveDetectionEventsCompanion extends UpdateCompanion<LiveDetectionEvent> {
           ..write('detectedAt: $detectedAt, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
+          ..write('audioEvidenceLevel: $audioEvidenceLevel, ')
+          ..write('audioForegroundDbfs: $audioForegroundDbfs, ')
+          ..write('audioNoiseFloorDbfs: $audioNoiseFloorDbfs, ')
+          ..write('audioContrastDb: $audioContrastDb, ')
+          ..write('audioPeakDbfs: $audioPeakDbfs, ')
+          ..write('audioClippedFraction: $audioClippedFraction, ')
+          ..write('audioReviewVerdict: $audioReviewVerdict, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -3332,6 +3745,13 @@ typedef $$LiveDetectionEventsTableCreateCompanionBuilder =
       Value<DateTime?> detectedAt,
       Value<double?> latitude,
       Value<double?> longitude,
+      Value<String?> audioEvidenceLevel,
+      Value<double?> audioForegroundDbfs,
+      Value<double?> audioNoiseFloorDbfs,
+      Value<double?> audioContrastDb,
+      Value<double?> audioPeakDbfs,
+      Value<double?> audioClippedFraction,
+      Value<String?> audioReviewVerdict,
       required DateTime createdAt,
     });
 typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
@@ -3350,6 +3770,13 @@ typedef $$LiveDetectionEventsTableUpdateCompanionBuilder =
       Value<DateTime?> detectedAt,
       Value<double?> latitude,
       Value<double?> longitude,
+      Value<String?> audioEvidenceLevel,
+      Value<double?> audioForegroundDbfs,
+      Value<double?> audioNoiseFloorDbfs,
+      Value<double?> audioContrastDb,
+      Value<double?> audioPeakDbfs,
+      Value<double?> audioClippedFraction,
+      Value<String?> audioReviewVerdict,
       Value<DateTime> createdAt,
     });
 
@@ -3429,6 +3856,41 @@ class $$LiveDetectionEventsTableFilterComposer
 
   ColumnFilters<double> get longitude => $composableBuilder(
     column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioEvidenceLevel => $composableBuilder(
+    column: $table.audioEvidenceLevel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get audioForegroundDbfs => $composableBuilder(
+    column: $table.audioForegroundDbfs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get audioNoiseFloorDbfs => $composableBuilder(
+    column: $table.audioNoiseFloorDbfs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get audioContrastDb => $composableBuilder(
+    column: $table.audioContrastDb,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get audioPeakDbfs => $composableBuilder(
+    column: $table.audioPeakDbfs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get audioClippedFraction => $composableBuilder(
+    column: $table.audioClippedFraction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioReviewVerdict => $composableBuilder(
+    column: $table.audioReviewVerdict,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3517,6 +3979,41 @@ class $$LiveDetectionEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get audioEvidenceLevel => $composableBuilder(
+    column: $table.audioEvidenceLevel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get audioForegroundDbfs => $composableBuilder(
+    column: $table.audioForegroundDbfs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get audioNoiseFloorDbfs => $composableBuilder(
+    column: $table.audioNoiseFloorDbfs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get audioContrastDb => $composableBuilder(
+    column: $table.audioContrastDb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get audioPeakDbfs => $composableBuilder(
+    column: $table.audioPeakDbfs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get audioClippedFraction => $composableBuilder(
+    column: $table.audioClippedFraction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audioReviewVerdict => $composableBuilder(
+    column: $table.audioReviewVerdict,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -3588,6 +4085,41 @@ class $$LiveDetectionEventsTableAnnotationComposer
   GeneratedColumn<double> get longitude =>
       $composableBuilder(column: $table.longitude, builder: (column) => column);
 
+  GeneratedColumn<String> get audioEvidenceLevel => $composableBuilder(
+    column: $table.audioEvidenceLevel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get audioForegroundDbfs => $composableBuilder(
+    column: $table.audioForegroundDbfs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get audioNoiseFloorDbfs => $composableBuilder(
+    column: $table.audioNoiseFloorDbfs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get audioContrastDb => $composableBuilder(
+    column: $table.audioContrastDb,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get audioPeakDbfs => $composableBuilder(
+    column: $table.audioPeakDbfs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get audioClippedFraction => $composableBuilder(
+    column: $table.audioClippedFraction,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get audioReviewVerdict => $composableBuilder(
+    column: $table.audioReviewVerdict,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
@@ -3649,6 +4181,13 @@ class $$LiveDetectionEventsTableTableManager
                 Value<DateTime?> detectedAt = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
+                Value<String?> audioEvidenceLevel = const Value.absent(),
+                Value<double?> audioForegroundDbfs = const Value.absent(),
+                Value<double?> audioNoiseFloorDbfs = const Value.absent(),
+                Value<double?> audioContrastDb = const Value.absent(),
+                Value<double?> audioPeakDbfs = const Value.absent(),
+                Value<double?> audioClippedFraction = const Value.absent(),
+                Value<String?> audioReviewVerdict = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => LiveDetectionEventsCompanion(
                 id: id,
@@ -3665,6 +4204,13 @@ class $$LiveDetectionEventsTableTableManager
                 detectedAt: detectedAt,
                 latitude: latitude,
                 longitude: longitude,
+                audioEvidenceLevel: audioEvidenceLevel,
+                audioForegroundDbfs: audioForegroundDbfs,
+                audioNoiseFloorDbfs: audioNoiseFloorDbfs,
+                audioContrastDb: audioContrastDb,
+                audioPeakDbfs: audioPeakDbfs,
+                audioClippedFraction: audioClippedFraction,
+                audioReviewVerdict: audioReviewVerdict,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -3683,6 +4229,13 @@ class $$LiveDetectionEventsTableTableManager
                 Value<DateTime?> detectedAt = const Value.absent(),
                 Value<double?> latitude = const Value.absent(),
                 Value<double?> longitude = const Value.absent(),
+                Value<String?> audioEvidenceLevel = const Value.absent(),
+                Value<double?> audioForegroundDbfs = const Value.absent(),
+                Value<double?> audioNoiseFloorDbfs = const Value.absent(),
+                Value<double?> audioContrastDb = const Value.absent(),
+                Value<double?> audioPeakDbfs = const Value.absent(),
+                Value<double?> audioClippedFraction = const Value.absent(),
+                Value<String?> audioReviewVerdict = const Value.absent(),
                 required DateTime createdAt,
               }) => LiveDetectionEventsCompanion.insert(
                 id: id,
@@ -3699,6 +4252,13 @@ class $$LiveDetectionEventsTableTableManager
                 detectedAt: detectedAt,
                 latitude: latitude,
                 longitude: longitude,
+                audioEvidenceLevel: audioEvidenceLevel,
+                audioForegroundDbfs: audioForegroundDbfs,
+                audioNoiseFloorDbfs: audioNoiseFloorDbfs,
+                audioContrastDb: audioContrastDb,
+                audioPeakDbfs: audioPeakDbfs,
+                audioClippedFraction: audioClippedFraction,
+                audioReviewVerdict: audioReviewVerdict,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

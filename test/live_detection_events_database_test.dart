@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/data/app_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -35,6 +36,14 @@ void main() {
       speciesStatus: 'localOrMigratory',
       latitude: 41.0082,
       longitude: 28.9784,
+      audioEvidence: const AudioEvidenceAssessment(
+        level: AudioEvidenceLevel.strong,
+        foregroundDbfs: -24,
+        noiseFloorDbfs: -48,
+        contrastDb: 24,
+        peakDbfs: -8,
+        clippedFraction: 0,
+      ),
       temporalContext: 'Gece etkinliği · yumuşak ağırlık %85',
     );
 
@@ -49,10 +58,22 @@ void main() {
     expect(events.single.latitude, 41.0082);
     expect(events.single.longitude, 28.9784);
     expect(events.single.speciesStatus, 'localOrMigratory');
+    expect(events.single.audioEvidenceLevel, AudioEvidenceLevel.strong.name);
+    expect(events.single.audioContrastDb, 24);
     expect(
       events.single.temporalContext,
       'Gece etkinliği · yumuşak ağırlık %85',
     );
+    await database.updateLiveDetectionAudioReview(
+      sessionId: sessionId,
+      speciesId: 'carduelis-carduelis',
+      startMs: 1250,
+      verdict: AudioReviewVerdict.audible,
+    );
+    final LiveDetectionEvent reviewed = (await database.eventsForLiveSession(
+      sessionId,
+    )).single;
+    expect(reviewed.audioReviewVerdict, AudioReviewVerdict.audible.name);
     final List<IdentificationRecord> summaries = await database
         .watchHistory()
         .first;

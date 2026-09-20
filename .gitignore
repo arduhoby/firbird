@@ -34,6 +34,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local diagnostics and field recordings
+/.codex_audio_analysis/
+/assets/voice/
+
 # Symbolication related
 app.*.symbols
 
@@ -48,6 +52,7 @@ app.*.map.json
 # Large, locally downloaded model and source-data artifacts. Release assets
 # are distributed separately, never through the source repository.
 /tools/model_staging/
+/tools/sex_model/
 assets/models/birdnet.onnx
 assets/models/birdnet_int8.onnx
 *.apk

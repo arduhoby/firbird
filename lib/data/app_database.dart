@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 
 part 'app_database.g.dart';
 
@@ -59,6 +60,13 @@ class LiveDetectionEvents extends Table {
   DateTimeColumn get detectedAt => dateTime().nullable()();
   RealColumn get latitude => real().nullable()();
   RealColumn get longitude => real().nullable()();
+  TextColumn get audioEvidenceLevel => text().nullable()();
+  RealColumn get audioForegroundDbfs => real().nullable()();
+  RealColumn get audioNoiseFloorDbfs => real().nullable()();
+  RealColumn get audioContrastDb => real().nullable()();
+  RealColumn get audioPeakDbfs => real().nullable()();
+  RealColumn get audioClippedFraction => real().nullable()();
+  TextColumn get audioReviewVerdict => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 }
 
@@ -85,7 +93,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration {
@@ -143,6 +151,36 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(
             identificationRecords,
             identificationRecords.repeatedHits,
+          );
+        }
+        if (from < 8) {
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioEvidenceLevel,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioForegroundDbfs,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioNoiseFloorDbfs,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioContrastDb,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioPeakDbfs,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioClippedFraction,
+          );
+          await m.addColumn(
+            liveDetectionEvents,
+            liveDetectionEvents.audioReviewVerdict,
           );
         }
       },
@@ -231,6 +269,7 @@ class AppDatabase extends _$AppDatabase {
     String? speciesStatus,
     double? latitude,
     double? longitude,
+    AudioEvidenceAssessment? audioEvidence,
   }) {
     return into(liveDetectionEvents).insert(
       LiveDetectionEventsCompanion.insert(
@@ -247,9 +286,34 @@ class AppDatabase extends _$AppDatabase {
         detectedAt: Value<DateTime?>(detectedAt),
         latitude: Value<double?>(latitude),
         longitude: Value<double?>(longitude),
+        audioEvidenceLevel: Value<String?>(audioEvidence?.level.name),
+        audioForegroundDbfs: Value<double?>(audioEvidence?.foregroundDbfs),
+        audioNoiseFloorDbfs: Value<double?>(audioEvidence?.noiseFloorDbfs),
+        audioContrastDb: Value<double?>(audioEvidence?.contrastDb),
+        audioPeakDbfs: Value<double?>(audioEvidence?.peakDbfs),
+        audioClippedFraction: Value<double?>(audioEvidence?.clippedFraction),
         createdAt: DateTime.now(),
       ),
     );
+  }
+
+  Future<void> updateLiveDetectionAudioReview({
+    required String sessionId,
+    required String speciesId,
+    required int startMs,
+    required AudioReviewVerdict verdict,
+  }) {
+    return (update(liveDetectionEvents)..where(
+          (LiveDetectionEvents table) =>
+              table.sessionId.equals(sessionId) &
+              table.speciesId.equals(speciesId) &
+              table.startMs.equals(startMs),
+        ))
+        .write(
+          LiveDetectionEventsCompanion(
+            audioReviewVerdict: Value<String?>(verdict.name),
+          ),
+        );
   }
 
   Future<List<LiveDetectionEvent>> eventsForLiveSession(String sessionId) {

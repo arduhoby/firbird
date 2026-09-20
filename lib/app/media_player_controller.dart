@@ -74,6 +74,7 @@ class MediaPlayerController extends ChangeNotifier {
     : _gateway = gateway ?? MethodChannelMediaPlaybackGateway();
 
   final MediaPlaybackGateway _gateway;
+  final ValueNotifier<double?> _playbackProgress = ValueNotifier<double?>(null);
   Timer? _pollTimer;
   String? _filePath;
   bool _isPlaying = false;
@@ -97,12 +98,14 @@ class MediaPlayerController extends ChangeNotifier {
   bool get isClipMode => _clipMode;
   int get clipStartMs => _clipStartMs;
   int get clipEndMs => _clipEndMs;
+  ValueListenable<double?> get playbackProgress => _playbackProgress;
 
   void attach(String? filePath) {
     if (_filePath == filePath) return;
     _filePath = filePath;
     _positionMs = 0;
     _durationMs = 0;
+    _syncPlaybackProgress();
     _error = null;
     notifyListeners();
   }
@@ -143,6 +146,7 @@ class MediaPlayerController extends ChangeNotifier {
     _isPlaying = false;
     _isPaused = false;
     _positionMs = 0;
+    _syncPlaybackProgress();
     _notify();
   }
 
@@ -150,6 +154,7 @@ class MediaPlayerController extends ChangeNotifier {
     if (_filePath == null) return;
     await _gateway.seekTo(positionMs);
     _positionMs = positionMs;
+    _syncPlaybackProgress();
     _notify();
   }
 
@@ -162,8 +167,17 @@ class MediaPlayerController extends ChangeNotifier {
     _clipMode = true;
     _clipStartMs = clipStartMs;
     _clipEndMs = clipEndMs;
+    // A new native player cannot seek until its source has been opened.
+    // Seeking before play is ignored by some Android devices and starts at
+    // 00:00, so open first and then jump to the inference window.
+    if (!_isPlaying) {
+      await toggle();
+      if (!_isPlaying) return;
+      await seek(clipStartMs);
+      return;
+    }
     await seek(clipStartMs);
-    if (!_isPlaying || _isPaused) {
+    if (_isPaused) {
       await toggle();
     }
   }
@@ -205,6 +219,7 @@ class MediaPlayerController extends ChangeNotifier {
         if (_disposed) return;
         _positionMs = state.positionMs;
         _durationMs = state.durationMs;
+        _syncPlaybackProgress();
         _notify();
         // Auto-pause when clip window end is reached
         if (_clipMode &&
@@ -234,11 +249,21 @@ class MediaPlayerController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void _syncPlaybackProgress() {
+    final double? progress = _durationMs > 0
+        ? (_positionMs / _durationMs).clamp(0.0, 1.0)
+        : null;
+    if (_playbackProgress.value != progress) {
+      _playbackProgress.value = progress;
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _pollTimer?.cancel();
     unawaited(_gateway.stop());
+    _playbackProgress.dispose();
     super.dispose();
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/detection/algorithm_settings.dart';
 import 'package:firbird/detection/detection_feedback_repository.dart';
 import 'package:firbird/detection/detection_record.dart';
@@ -38,6 +39,51 @@ class DetectionEvidenceService {
         direction: EvidenceDirection.neutral,
         points: 0,
         sourceLabel: record.modelVersion ?? 'Cihaz içi ses modeli',
+      ),
+    );
+
+    final AudioEvidenceAssessment? audioEvidence = record.audioEvidence;
+    final AudioReviewVerdict? audioReview = record.audioReviewVerdict;
+    final int audioPoints = switch (audioReview) {
+      AudioReviewVerdict.inaudible => -30,
+      AudioReviewVerdict.uncertain => -10,
+      AudioReviewVerdict.audible => 0,
+      null => switch (audioEvidence?.level) {
+        AudioEvidenceLevel.machineOnly => -20,
+        AudioEvidenceLevel.review => -5,
+        AudioEvidenceLevel.strong || null => 0,
+      },
+    };
+    factors.add(
+      DetectionEvidenceFactor(
+        id: 'audio_audibility',
+        title: 'Kaydın duyulabilirliği',
+        detail: switch (audioReview) {
+          AudioReviewVerdict.audible =>
+            'Kullanıcı hedef sesi kayıtta duyabildiğini belirtti. Bu, tür teşhisini tek başına doğrulamaz.',
+          AudioReviewVerdict.uncertain =>
+            'Kullanıcı sesin veya türün ayırt edilmesinden emin değil.',
+          AudioReviewVerdict.inaudible =>
+            'Kullanıcı hedef sesin kayıtta anlaşılmadığını belirtti; bu kayıt eBird ses delili değildir.',
+          null => switch (audioEvidence?.level) {
+            AudioEvidenceLevel.strong =>
+              'Kayıt seviyesi güçlü görünüyor; insan doğrulaması gerekiyor.',
+            AudioEvidenceLevel.review =>
+              'Kayıt zayıf veya gürültülü; dikkatle dinlenmesi gerekiyor.',
+            AudioEvidenceLevel.machineOnly =>
+              'Model bir örüntü buldu ancak kayıt insan kulağı için yetersiz görünüyor.',
+            null => 'Bu kayıt için ses kalitesi ölçümü bulunmuyor.',
+          },
+        },
+        direction: audioPoints < 0
+            ? EvidenceDirection.weakens
+            : audioEvidence == null
+            ? EvidenceDirection.unavailable
+            : EvidenceDirection.neutral,
+        points: audioPoints,
+        sourceLabel: audioReview == null
+            ? 'FirBird ses kalite ölçümü'
+            : 'Kullanıcı dinleme doğrulaması',
       ),
     );
 

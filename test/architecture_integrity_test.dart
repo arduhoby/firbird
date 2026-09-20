@@ -27,6 +27,111 @@ void main() {
     expect(allSource, isNot(contains('class _BirdPhoto')));
   });
 
+  test('Android and iOS expose parity for the shared playback gateway', () {
+    final String android = File(
+      'android/app/src/main/kotlin/org/firbird/app/MainActivity.kt',
+    ).readAsStringSync();
+    final String ios = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+
+    for (final String method in <String>[
+      'play',
+      'pause',
+      'resume',
+      'stop',
+      'seekTo',
+      'position',
+      'setVolume',
+    ]) {
+      expect(android, contains('"$method"'), reason: 'Android lacks $method');
+      expect(ios, contains('"$method"'), reason: 'iOS lacks $method');
+    }
+    expect(android, contains('org.firbird3.app/media_player'));
+    expect(ios, contains('org.firbird3.app/media_player'));
+  });
+
+  test(
+    'iOS inherits the Flutter release version and keeps microphone access',
+    () {
+      final String pubspec = File('pubspec.yaml').readAsStringSync();
+      final String plist = File('ios/Runner/Info.plist').readAsStringSync();
+
+      expect(pubspec, contains('version: 0.9.2+92'));
+      expect(plist, contains(r'$(FLUTTER_BUILD_NAME)'));
+      expect(plist, contains(r'$(FLUTTER_BUILD_NUMBER)'));
+      expect(plist, contains('NSMicrophoneUsageDescription'));
+    },
+  );
+
+  test('audio audibility has one evaluator and one shared review surface', () {
+    final List<File> dartFiles = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File file) => file.path.endsWith('.dart'))
+        .toList(growable: false);
+    final String allSource = dartFiles
+        .map((File file) => file.readAsStringSync())
+        .join('\n');
+    final String live = File(
+      'lib/app/live_audio_recording_screen.dart',
+    ).readAsStringSync();
+    final String player = File(
+      'lib/app/media_player_screen.dart',
+    ).readAsStringSync();
+    final String history = File(
+      'lib/app/history_and_settings_screens.dart',
+    ).readAsStringSync();
+
+    expect(
+      RegExp(
+        r'abstract final class AudioEvidenceEvaluator\b',
+      ).allMatches(allSource),
+      hasLength(1),
+    );
+    expect(
+      RegExp(r'class AudioEvidenceReviewControls\b').allMatches(allSource),
+      hasLength(1),
+    );
+    expect(live, contains('AudioEvidenceEvaluator.evaluatePcm16('));
+    expect(player, contains('AudioEvidenceClipPolicy.modelWindow('));
+    expect(player, contains('AudioEvidenceClipPolicy.evidenceWindow('));
+    expect(player, contains('playbackPositionListenable:'));
+    expect(player, contains('fixedReviewPanel'));
+    expect(live, contains('ValueListenableBuilder<double>('));
+    expect(history, contains('AudioEvidenceAssessment.fromStored('));
+  });
+
+  test('debug audio diagnostics stay in the canonical inference flow', () {
+    final String engine = File(
+      'lib/inference/audio_inference_engine.dart',
+    ).readAsStringSync();
+    final String live = File(
+      'lib/app/live_audio_recording_screen.dart',
+    ).readAsStringSync();
+
+    expect(engine, contains('FIRBIRD_DIAG raw_top'));
+    expect(engine, contains('FIRBIRD_DIAG exact_scores'));
+    for (final String scientificName in <String>[
+      'Gallus gallus',
+      'Corvus corax',
+      'Grus grus',
+      'Carduelis carduelis',
+      'Dog',
+      'Canis lupus',
+    ]) {
+      expect(engine, contains("'$scientificName'"));
+    }
+    expect(live, contains('FIRBIRD_DIAG window_input'));
+    expect(live, contains('FIRBIRD_DIAG decision'));
+    expect(
+      live,
+      contains(
+        "sourceUri: 'live://microphone/window/\$windowStartMs-\$windowEndMs'",
+      ),
+    );
+    expect(engine, contains('if (kDebugMode)'));
+    expect(live, contains('if (kDebugMode)'));
+  });
+
   test('all replay entry points use PlaybackSession and MediaPlayerScreen', () {
     final String routes = File('lib/app/firbird_app.dart').readAsStringSync();
     final String live = File(
@@ -96,6 +201,27 @@ void main() {
       lessThan(source.indexOf('await _audioRecorder.hasPermission()')),
     );
   });
+
+  test(
+    'live recording is persisted before optional post-processing and exit',
+    () {
+      final String source = File(
+        'lib/app/live_audio_recording_screen.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('Future<void> _persistCompletedSession('));
+      expect(source, contains('await database.transaction(() async {'));
+      expect(source, contains('await _persistCompletedSession(destPath);'));
+      expect(
+        source.indexOf('await _persistCompletedSession(destPath);'),
+        lessThan(source.indexOf('final List<List<double>> completedSpectrum')),
+      );
+      expect(source, contains('return PopScope<Object?>('));
+      expect(source, contains('canPop: !_isRecording && !_isStoppingSession'));
+      expect(source, contains(r"'${_detectedSpeciesList.length} tür'"));
+      expect(source, contains('tür tespit edildi'));
+    },
+  );
 
   test('all audio entry points use the shared detection card', () {
     for (final String path in <String>[

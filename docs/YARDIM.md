@@ -1,4 +1,14 @@
-# FirBird v0.8.6 Yardım
+# FirBird v0.9.2 Yardım
+
+## Ses delili rozetleri ne anlama geliyor?
+
+- **Ses güçlü · doğrula:** Kayıt seviyesi güçlüdür; yine de insan onayı gerekir.
+- **Ses zayıf · incele:** Kayıt dikkatle ve tekrar dinlenmelidir.
+- **Yalnız makine sinyali:** Model önerisidir; eBird ses delili değildir.
+
+Player'da kartın oynatma düğmesi modelin dinlediği tam üç saniyeyi açar.
+Ekranın altında sabit duran büyük düğmelerden **Duyuluyor**, **Emin değilim**
+veya **Anlaşılmıyor** kararını verin. Bu karar geçmiş oturumda saklanır.
 
 ## Kart renkleri ne anlama geliyor?
 

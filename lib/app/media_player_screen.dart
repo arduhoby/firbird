@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
+import 'package:firbird/audio/audio_evidence_clip_policy.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
 import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/bird_detection_card.dart';
@@ -50,6 +52,8 @@ class PlaybackDetection {
     this.longitude,
     this.modelVersion,
     this.statusCategory,
+    this.audioEvidence,
+    this.audioReviewVerdict,
   });
 
   final String speciesId;
@@ -68,8 +72,13 @@ class PlaybackDetection {
   final double? longitude;
   final String? modelVersion;
   final SpeciesStatusCategory? statusCategory;
+  final AudioEvidenceAssessment? audioEvidence;
+  final AudioReviewVerdict? audioReviewVerdict;
 
-  DetectionRecord toDetectionRecord(String filePath) {
+  DetectionRecord toDetectionRecord(
+    String filePath, {
+    AudioReviewVerdict? audioReviewVerdict,
+  }) {
     DateTime resolvedAt = detectedAt ?? DateTime.now();
     if (detectedAt == null) {
       try {
@@ -98,6 +107,8 @@ class PlaybackDetection {
       longitude: longitude,
       repeatedHits: repeatedHits,
       repetitionSupportPerHit: repetitionSupportPerHit,
+      audioEvidence: audioEvidence,
+      audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
     );
   }
 }
@@ -108,12 +119,18 @@ class PlaybackSession {
     required this.displayName,
     required this.detections,
     this.rareSpeciesCount = 0,
+    this.onAudioReview,
   });
 
   final String filePath;
   final String displayName;
   final List<PlaybackDetection> detections;
   final int rareSpeciesCount;
+  final Future<void> Function(
+    PlaybackDetection detection,
+    AudioReviewVerdict verdict,
+  )?
+  onAudioReview;
 }
 
 class MediaPlayerScreen extends StatefulWidget {
@@ -136,8 +153,12 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     with WidgetsBindingObserver {
   late final MediaPlayerController _controller;
   PlaybackSession? _session;
+  final Map<String, AudioReviewVerdict> _audioReviews =
+      <String, AudioReviewVerdict>{};
   List<List<double>> _spectrogram = const <List<double>>[];
   String? _loadError;
+  int _timelineDurationMs = 0;
+  int? _selectedDetectionIndex;
 
   @override
   void initState() {
@@ -157,7 +178,13 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     if (session == null) {
       _session = null;
       _controller.attach(null);
-      if (mounted) setState(() => _spectrogram = const <List<double>>[]);
+      if (mounted) {
+        setState(() {
+          _spectrogram = const <List<double>>[];
+          _timelineDurationMs = 0;
+          _selectedDetectionIndex = null;
+        });
+      }
       return;
     }
 
@@ -169,10 +196,13 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
       displayName: session.displayName,
       detections: session.detections,
       rareSpeciesCount: session.rareSpeciesCount,
+      onAudioReview: session.onAudioReview,
     );
 
     _session = activeSession;
     _controller.attach(resolvedPath);
+    _timelineDurationMs = WavClipExtractor.durationMsFromPath(resolvedPath);
+    _selectedDetectionIndex = activeSession.detections.isEmpty ? null : 0;
 
     if (resolvedPath.isNotEmpty && !File(resolvedPath).existsSync()) {
       if (!mounted || _session != activeSession) return;
@@ -216,18 +246,56 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     if (mounted) setState(() {});
   }
 
-  int? _highlightedIndex(List<PlaybackDetection> detections) {
-    if (!_controller.isPlaying || _controller.isPaused || detections.isEmpty) {
-      return null;
+  Future<void> _playDetection(int index) async {
+    final PlaybackSession? session = _session;
+    if (session == null || index < 0 || index >= session.detections.length) {
+      return;
     }
-    for (int i = 0; i < detections.length; i++) {
-      final PlaybackDetection detection = detections[i];
-      if (_controller.positionMs >= detection.startMs - 800 &&
-          _controller.positionMs <= detection.endMs + 800) {
-        return i;
-      }
+    final PlaybackDetection detection = session.detections[index];
+    if (mounted) setState(() => _selectedDetectionIndex = index);
+    final int durationMs = _timelineDurationMs > 0
+        ? _timelineDurationMs
+        : _controller.durationMs;
+    final ({int startMs, int endMs}) clip = AudioEvidenceClipPolicy.modelWindow(
+      detectionStartMs: detection.startMs,
+      durationMs: durationMs,
+    );
+    await _controller.playClip(
+      clipStartMs: clip.startMs,
+      clipEndMs: clip.endMs,
+    );
+  }
+
+  Future<void> _jumpDetection({required bool next}) async {
+    final List<PlaybackDetection> detections =
+        _session?.detections ?? const <PlaybackDetection>[];
+    if (detections.isEmpty) return;
+    final int current = _selectedDetectionIndex ?? 0;
+    final int target = next
+        ? (current + 1) % detections.length
+        : (current - 1 + detections.length) % detections.length;
+    await _playDetection(target);
+  }
+
+  String _audioReviewKey(String filePath, PlaybackDetection detection) =>
+      '$filePath|${detection.speciesId}|${detection.startMs}';
+
+  Future<void> _setAudioReview(
+    PlaybackSession session,
+    PlaybackDetection detection,
+    AudioReviewVerdict verdict,
+  ) async {
+    final String key = _audioReviewKey(session.filePath, detection);
+    setState(() => _audioReviews[key] = verdict);
+    try {
+      await session.onAudioReview?.call(detection, verdict);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _audioReviews.remove(key));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ses değerlendirmesi kaydedilemedi: $error')),
+      );
     }
-    return null;
   }
 
   String _time(int milliseconds) {
@@ -236,9 +304,28 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
         '${(seconds % 60).toString().padLeft(2, '0')}';
   }
 
+  ({int startMs, int endMs})? _selectedEvidenceWindow() {
+    final PlaybackSession? session = _session;
+    final int? index = _selectedDetectionIndex;
+    if (session == null ||
+        index == null ||
+        index < 0 ||
+        index >= session.detections.length) {
+      return null;
+    }
+    final int durationMs = _timelineDurationMs > 0
+        ? _timelineDurationMs
+        : _controller.durationMs;
+    return AudioEvidenceClipPolicy.evidenceWindow(
+      detectionStartMs: session.detections[index].startMs,
+      durationMs: durationMs,
+    );
+  }
+
   Future<void> _saveClip() async {
     final PlaybackSession? session = _session;
-    if (session == null || session.filePath.isEmpty) return;
+    final ({int startMs, int endMs})? evidence = _selectedEvidenceWindow();
+    if (session == null || session.filePath.isEmpty || evidence == null) return;
     try {
       final Directory docsDir = await getApplicationDocumentsDirectory();
       final Directory clipDir = Directory(path.join(docsDir.path, 'Clips'));
@@ -254,8 +341,8 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
 
       await WavClipExtractor.extract(
         session.filePath,
-        startMs: _controller.clipStartMs,
-        endMs: _controller.clipEndMs,
+        startMs: evidence.startMs,
+        endMs: evidence.endMs,
         outputPath: outPath,
       );
 
@@ -271,15 +358,16 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Klip kaydedilemedi: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Klip kaydedilemedi: $e')));
     }
   }
 
   Future<void> _shareClip() async {
     final PlaybackSession? session = _session;
-    if (session == null || session.filePath.isEmpty) return;
+    final ({int startMs, int endMs})? evidence = _selectedEvidenceWindow();
+    if (session == null || session.filePath.isEmpty || evidence == null) return;
     try {
       final Directory tempDir = await getTemporaryDirectory();
       final String timestampStr = DateTime.now()
@@ -292,24 +380,26 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
 
       await WavClipExtractor.extract(
         session.filePath,
-        startMs: _controller.clipStartMs,
-        endMs: _controller.clipEndMs,
+        startMs: evidence.startMs,
+        endMs: evidence.endMs,
         outputPath: outPath,
       );
 
       await _shareWavPath(outPath);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Klip paylaşılamadı: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Klip paylaşılamadı: $e')));
     }
   }
 
   Future<void> _shareWavPath(String wavPath) async {
-    await Share.shareXFiles(
-      <XFile>[XFile(wavPath, mimeType: 'audio/wav')],
-      text: 'FirBird 3 Kuş Sesi Klipi',
+    await SharePlus.instance.share(
+      ShareParams(
+        files: <XFile>[XFile(wavPath, mimeType: 'audio/wav')],
+        text: 'FirBird 3 Kuş Sesi Klipi',
+      ),
     );
   }
 
@@ -327,272 +417,338 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (BuildContext context, _) {
-        final ThemeData theme = Theme.of(context);
-        final PlaybackSession? session = _session;
-        final List<PlaybackDetection> detections =
-            session?.detections ?? const <PlaybackDetection>[];
-        final int? highlightedIndex = _highlightedIndex(detections);
-        final List<SpectrogramMarker> markers = detections
-            .map(
-              (PlaybackDetection item) => SpectrogramMarker(
-                position: _controller.durationMs > 0
-                    ? item.startMs / _controller.durationMs
-                    : 0,
-                label: item.turkishName,
-              ),
-            )
-            .toList(growable: false);
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(session?.displayName ?? 'Ses oynatıcı'),
-            actions: const <Widget>[AppBarHelpButton()],
+    final PlaybackSession? session = _session;
+    final List<PlaybackDetection> detections =
+        session?.detections ?? const <PlaybackDetection>[];
+    final int durationMs = _timelineDurationMs > 0
+        ? _timelineDurationMs
+        : _controller.durationMs;
+    final List<SpectrogramMarker> markers = detections
+        .map(
+          (PlaybackDetection item) => SpectrogramMarker(
+            position: durationMs > 0 ? item.startMs / durationMs : 0,
+            label: item.turkishName,
           ),
-          body: Column(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.55,
+        )
+        .toList(growable: false);
+    final int? selectedIndex =
+        _selectedDetectionIndex != null &&
+            _selectedDetectionIndex! < detections.length
+        ? _selectedDetectionIndex
+        : null;
+    final PlaybackDetection? selectedDetection = selectedIndex == null
+        ? null
+        : detections[selectedIndex];
+
+    final Widget staticSpectrogram = ScrollableAudioSpectrogram(
+      columns: _spectrogram,
+      markers: markers,
+      durationMs: durationMs > 0 ? durationMs : null,
+      playbackPositionListenable: _controller.playbackProgress,
+      onSeek: durationMs <= 0
+          ? null
+          : (double value) => _controller.seek((durationMs * value).round()),
+      height: 220,
+      secondsPerScreen: 30.0,
+    );
+
+    final Widget detectionBody = detections.isEmpty
+        ? Expanded(
+            child: Center(
+              child: session == null
+                  ? FilledButton.icon(
+                      onPressed: _chooseFile,
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('Ses dosyası seç'),
+                    )
+                  : const Text('Bu oturumda kuş tespiti bulunmuyor.'),
+            ),
+          )
+        : Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              itemCount: detections.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
+              itemBuilder: (BuildContext context, int index) {
+                final PlaybackDetection item = detections[index];
+                final String reviewKey = _audioReviewKey(
+                  session!.filePath,
+                  item,
+                );
+                final AudioReviewVerdict? reviewVerdict =
+                    _audioReviews[reviewKey] ?? item.audioReviewVerdict;
+                return BirdDetectionCard(
+                  record: item.toDetectionRecord(
+                    session.filePath,
+                    audioReviewVerdict: reviewVerdict,
+                  ),
+                  isHighlighted: selectedIndex == index,
+                  onSeek: () => _playDetection(index),
+                );
+              },
+            ),
+          );
+
+    final Widget fixedReviewPanel =
+        session?.onAudioReview == null || selectedDetection == null
+        ? const SizedBox.shrink()
+        : SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
                 ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Stack(
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        ScrollableAudioSpectrogram(
-                          columns: _spectrogram,
-                          markers: markers,
-                          durationMs: _controller.durationMs,
-                          playbackPosition: _controller.durationMs > 0
-                              ? _controller.positionMs / _controller.durationMs
-                              : null,
-                          onSeek: _controller.durationMs == 0
-                              ? null
-                              : (double value) => _controller.seek(
-                                  (_controller.durationMs * value).round(),
-                                ),
-                          height: 220,
-                          secondsPerScreen: 30.0,
-                        ),
-                        if (session != null)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              IconButton.filledTonal(
-                                tooltip: 'Önceki kuş sesi',
-                                onPressed: detections.isEmpty
-                                    ? null
-                                    : () => _controller.jumpTo(
-                                        detections.map((item) => item.startMs),
-                                        next: false,
-                                      ),
-                                icon: const Icon(Icons.skip_previous_rounded),
-                              ),
-                              IconButton.filled(
-                                tooltip:
-                                    _controller.isPlaying &&
-                                        !_controller.isPaused
-                                    ? 'Duraklat'
-                                    : 'Oynat',
-                                onPressed: _controller.toggle,
-                                iconSize: 38,
-                                icon: Icon(
-                                  _controller.isPlaying && !_controller.isPaused
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                ),
-                              ),
-                              IconButton.filledTonal(
-                                tooltip: 'Sonraki kuş sesi',
-                                onPressed: detections.isEmpty
-                                    ? null
-                                    : () => _controller.jumpTo(
-                                        detections.map((item) => item.startMs),
-                                        next: true,
-                                      ),
-                                icon: const Icon(Icons.skip_next_rounded),
-                              ),
-                            ],
-                          ),
-                      ],
+                    Text(
+                      '${selectedDetection.turkishName} · 3 saniyeyi değerlendir',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          _time(_controller.positionMs),
-                          style: theme.textTheme.labelSmall,
-                        ),
-                        const Spacer(),
-                        Flexible(
-                          child: Text(
-                            session?.displayName ?? 'Ses dosyası seçin',
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _time(_controller.durationMs),
-                          style: theme.textTheme.labelSmall,
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: <Widget>[
-                        const Icon(Icons.volume_down_rounded, size: 18),
-                        Expanded(
-                          child: Slider(
-                            min: 0.5,
-                            max: 4,
-                            divisions: 14,
-                            value: _controller.gain,
-                            label: '%${(_controller.gain * 100).round()}',
-                            onChanged: _controller.setGain,
-                          ),
-                        ),
-                        SizedBox(
-                          width: 54,
-                          child: Text(
-                            '%${(_controller.gain * 100).round()}',
-                            textAlign: TextAlign.end,
-                            style: theme.textTheme.labelSmall,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    AudioEvidenceReviewControls(
+                      selected:
+                          _audioReviews[_audioReviewKey(
+                            session!.filePath,
+                            selectedDetection,
+                          )] ??
+                          selectedDetection.audioReviewVerdict,
+                      expanded: true,
+                      onChanged: (AudioReviewVerdict verdict) =>
+                          _setAudioReview(session, selectedDetection, verdict),
                     ),
                   ],
                 ),
               ),
-              if (_loadError != null || _controller.error != null)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(_loadError ?? _controller.error!),
-                ),
-              if ((session?.rareSpeciesCount ?? 0) > 0)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Chip(
-                      avatar: const Icon(Icons.notification_important_outlined),
-                      label: Text(
-                        '${session!.rareSpeciesCount} nadir tür tespiti',
-                      ),
-                    ),
-                  ),
-                ),
-              if (_controller.isClipMode)
-                Container(
-                  color: theme.colorScheme.primaryContainer,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
+            ),
+          );
+
+    final ThemeData theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(session?.displayName ?? 'Ses oynatıcı'),
+        actions: const <Widget>[AppBarHelpButton()],
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.55,
+            ),
+            child: AnimatedBuilder(
+              animation: _controller,
+              child: staticSpectrogram,
+              builder: (BuildContext context, Widget? spectrogram) => Column(
+                children: <Widget>[
+                  Stack(
+                    alignment: Alignment.center,
                     children: <Widget>[
-                      Icon(
-                        Icons.content_cut,
-                        size: 20,
-                        color: theme.colorScheme.onPrimaryContainer,
+                      spectrogram!,
+                      if (session != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton.filledTonal(
+                              tooltip: 'Önceki kuş sesi',
+                              onPressed: detections.isEmpty
+                                  ? null
+                                  : () => _jumpDetection(next: false),
+                              icon: const Icon(Icons.skip_previous_rounded),
+                            ),
+                            IconButton.filled(
+                              tooltip:
+                                  _controller.isPlaying && !_controller.isPaused
+                                  ? 'Duraklat'
+                                  : 'Oynat',
+                              onPressed: _controller.toggle,
+                              iconSize: 38,
+                              icon: Icon(
+                                _controller.isPlaying && !_controller.isPaused
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                              ),
+                            ),
+                            IconButton.filledTonal(
+                              tooltip: 'Sonraki kuş sesi',
+                              onPressed: detections.isEmpty
+                                  ? null
+                                  : () => _jumpDetection(next: true),
+                              icon: const Icon(Icons.skip_next_rounded),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        _time(_controller.positionMs),
+                        style: theme.textTheme.labelSmall,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
+                      const Spacer(),
+                      Flexible(
                         child: Text(
-                          'Klip Modu: ${_time(_controller.clipStartMs)} – ${_time(_controller.clipEndMs)}',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          session?.displayName ?? 'Ses dosyası seçin',
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall,
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Klip Kaydet',
-                        icon: const Icon(Icons.download_rounded),
-                        onPressed: _saveClip,
-                      ),
-                      IconButton(
-                        tooltip: 'Klip Paylaş',
-                        icon: const Icon(Icons.share_rounded),
-                        onPressed: _shareClip,
-                      ),
-                      IconButton(
-                        tooltip: 'Klip Modundan Çık',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: _controller.clearClipMode,
+                      const Spacer(),
+                      Text(
+                        _time(
+                          _controller.durationMs > 0
+                              ? _controller.durationMs
+                              : durationMs,
+                        ),
+                        style: theme.textTheme.labelSmall,
                       ),
                     ],
                   ),
-                ),
-              if (detections.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: session == null
-                        ? FilledButton.icon(
-                            onPressed: _chooseFile,
-                            icon: const Icon(Icons.folder_open),
-                            label: const Text('Ses dosyası seç'),
-                          )
-                        : const Text('Bu oturumda kuş tespiti bulunmuyor.'),
+                  Row(
+                    children: <Widget>[
+                      const Icon(Icons.volume_down_rounded, size: 18),
+                      Expanded(
+                        child: Slider(
+                          min: 0.5,
+                          max: 4,
+                          divisions: 14,
+                          value: _controller.gain,
+                          label: '%${(_controller.gain * 100).round()}',
+                          onChanged: _controller.setGain,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 54,
+                        child: Text(
+                          '%${(_controller.gain * 100).round()}',
+                          textAlign: TextAlign.end,
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                    itemCount: detections.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (BuildContext context, int index) {
-                      final PlaybackDetection item = detections[index];
-                      return BirdDetectionCard(
-                        record: item.toDetectionRecord(session!.filePath),
-                        isHighlighted: highlightedIndex == index,
-                        onSeek: () {
-                          final int duration = _controller.durationMs;
-                          final int start = (item.startMs - 10000).clamp(0, duration > 0 ? duration : 0);
-                          final int end = (item.endMs + 10000).clamp(start + 1000, duration > 0 ? duration : start + 20000);
-                          _controller.playClip(clipStartMs: start, clipEndMs: end);
-                        },
-                      );
-                    },
-                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext context, _) {
+              final String? error = _loadError ?? _controller.error;
+              return error == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(error),
+                    );
+            },
+          ),
+          if ((session?.rareSpeciesCount ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Chip(
+                  avatar: const Icon(Icons.notification_important_outlined),
+                  label: Text('${session!.rareSpeciesCount} nadir tür tespiti'),
                 ),
-              if (widget.onClose != null || widget.onSaveCopy != null)
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              ),
+            ),
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext context, _) => !_controller.isClipMode
+                ? const SizedBox.shrink()
+                : Container(
+                    color: theme.colorScheme.primaryContainer,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: <Widget>[
-                        if (widget.onClose != null)
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: widget.onClose,
-                              icon: const Icon(Icons.close),
-                              label: const Text('Kapat'),
+                        Icon(
+                          Icons.graphic_eq,
+                          size: 20,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Modelin dinlediği 3 saniye: '
+                            '${_time(_controller.clipStartMs)} – '
+                            '${_time(_controller.clipEndMs)}\n'
+                            'Kaydet / paylaş: 10 sn öncesi + 10 sn sonrası',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        if (widget.onClose != null && widget.onSaveCopy != null)
-                          const SizedBox(width: 12),
-                        if (widget.onSaveCopy != null)
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton.icon(
-                              onPressed: widget.onSaveCopy,
-                              icon: const Icon(Icons.save_alt_outlined),
-                              label: const Text('Farklı adla kaydet'),
-                            ),
-                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Klibi kaydet',
+                          icon: const Icon(Icons.download_rounded),
+                          onPressed: _saveClip,
+                        ),
+                        IconButton(
+                          tooltip: 'Klibi paylaş',
+                          icon: const Icon(Icons.share_rounded),
+                          onPressed: _shareClip,
+                        ),
+                        IconButton(
+                          tooltip: 'Klip Modundan Çık',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: _controller.clearClipMode,
+                        ),
                       ],
                     ),
                   ),
-                ),
-            ],
           ),
-        );
-      },
+          detectionBody,
+          fixedReviewPanel,
+          if (widget.onClose != null || widget.onSaveCopy != null)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  children: <Widget>[
+                    if (widget.onClose != null)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: widget.onClose,
+                          icon: const Icon(Icons.close),
+                          label: const Text('Kapat'),
+                        ),
+                      ),
+                    if (widget.onClose != null && widget.onSaveCopy != null)
+                      const SizedBox(width: 12),
+                    if (widget.onSaveCopy != null)
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: widget.onSaveCopy,
+                          icon: const Icon(Icons.save_alt_outlined),
+                          label: const Text('Farklı adla kaydet'),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

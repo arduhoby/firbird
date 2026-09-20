@@ -192,7 +192,7 @@ class AudioInferenceEngine implements BirdInferenceEngine {
 
       // 3. Extract PCM float data
       final Float32List pcmData = _parseWavToFloat32(wavBytes);
-      return _identifyPcmData(pcmData, sourceUri: audio.uri);
+      return await _identifyPcmData(pcmData, sourceUri: audio.uri);
     } finally {
       final File tempFile = File(tempWavPath);
       if (tempFile.existsSync()) tempFile.deleteSync();
@@ -270,16 +270,49 @@ class AudioInferenceEngine implements BirdInferenceEngine {
         maxProbabilities.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
 
-    final List<String> rawTopLabels = sortedProbs
-        .take(20)
-        .map((MapEntry<int, double> entry) {
-          final String label = entry.key < _labels.length
-              ? _labels[entry.key]
-              : 'Unknown-${entry.key}';
-          return '$label=${entry.value.toStringAsFixed(3)}';
-        })
-        .toList(growable: false);
-    debugPrint('BirdNET raw top: ${rawTopLabels.join(', ')}');
+    if (kDebugMode) {
+      final List<String> rawTopLabels = sortedProbs
+          .take(20)
+          .map((MapEntry<int, double> entry) {
+            final String label = entry.key < _labels.length
+                ? _labels[entry.key]
+                : 'Unknown-${entry.key}';
+            return '$label=${entry.value.toStringAsFixed(6)}';
+          })
+          .toList(growable: false);
+      for (int start = 0; start < rawTopLabels.length; start += 5) {
+        final int end = min(start + 5, rawTopLabels.length);
+        debugPrint(
+          'FIRBIRD_DIAG raw_top source=$sourceUri '
+          'part=${(start ~/ 5) + 1} ${rawTopLabels.sublist(start, end).join(', ')}',
+        );
+      }
+
+      const Map<String, String> diagnosticClasses = <String, String>{
+        'Gallus gallus': 'domestic_fowl',
+        'Corvus corax': 'raven',
+        'Grus grus': 'common_crane',
+        'Carduelis carduelis': 'goldfinch',
+        'Dog': 'dog',
+        'Canis lupus': 'canid',
+      };
+      final Map<String, double> diagnosticScores = <String, double>{};
+      for (final MapEntry<int, double> entry in sortedProbs) {
+        final String label = entry.key < _labels.length
+            ? _labels[entry.key]
+            : 'Unknown-${entry.key}';
+        final String scientificName = birdNetScientificName(label);
+        final String? diagnosticName = diagnosticClasses[scientificName];
+        if (diagnosticName != null) {
+          diagnosticScores[diagnosticName] = entry.value;
+          if (diagnosticScores.length == diagnosticClasses.length) break;
+        }
+      }
+      debugPrint(
+        'FIRBIRD_DIAG exact_scores source=$sourceUri '
+        '${diagnosticClasses.values.map((String name) => '$name=${(diagnosticScores[name] ?? 0).toStringAsFixed(6)}').join(' ')}',
+      );
+    }
 
     final List<SpeciesPrediction> predictions = [];
     for (final entry in sortedProbs.take(20)) {
@@ -350,9 +383,12 @@ class AudioInferenceEngine implements BirdInferenceEngine {
       );
     }
 
-    debugPrint(
-      'BirdNET Turkiye candidates: ${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(3)}').join(', ')}',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        'FIRBIRD_DIAG turkey_candidates source=$sourceUri '
+        '${predictions.map((SpeciesPrediction item) => '${item.scientificName}=${item.score.toStringAsFixed(6)}').join(', ')}',
+      );
+    }
 
     return InferenceResult(
       predictions: predictions,

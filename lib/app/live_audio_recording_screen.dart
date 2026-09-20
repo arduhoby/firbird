@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/audio/pcm16_wav.dart';
 import 'package:firbird/audio/noise_filter.dart';
 import 'package:firbird/audio/noise_filter_provider.dart';
@@ -41,6 +43,7 @@ class LiveDetectionEntry {
     required this.scoreAggregate,
     required this.firstDetectedAt,
     required this.lastDetectedAt,
+    required this.audioEvidence,
     this.regionalContext,
     this.temporalContext,
     this.isProvisional = false,
@@ -50,6 +53,7 @@ class LiveDetectionEntry {
   DetectionScoreAggregate scoreAggregate;
   final DateTime firstDetectedAt;
   DateTime lastDetectedAt;
+  AudioEvidenceAssessment audioEvidence;
   int get detectionCount => scoreAggregate.independentEventCount;
   RegionalSpeciesContext? regionalContext;
   TemporalDetectionContext? temporalContext;
@@ -61,11 +65,13 @@ class _DetectionMoment {
     required this.prediction,
     required this.startedAt,
     required this.endedAt,
+    required this.audioEvidence,
   });
 
   SpeciesPrediction prediction;
   final DateTime startedAt;
   DateTime endedAt;
+  AudioEvidenceAssessment audioEvidence;
 }
 
 enum _LiveSessionPhase { preparing, ready, starting, listening, ended, failed }
@@ -112,6 +118,8 @@ class _LiveAudioRecordingScreenState
   static const int _analysisHopBytes = _bytesPerSecond;
   final Uint8List _pcmRingBuffer = Uint8List(_analysisWindowBytes);
   String? _savedFilePath;
+  String? _savedSessionId;
+  bool _historySaved = false;
   DateTime? _sessionStartTime;
   Position? _sessionPosition;
   RegionalObservationContextEngine? _observationContextEngine;
@@ -127,7 +135,7 @@ class _LiveAudioRecordingScreenState
   static const MethodChannel _downloadsChannel = MethodChannel(
     'org.firbird3.app/downloads',
   );
-  double _currentDb = -60.0;
+  final ValueNotifier<double> _currentDb = ValueNotifier<double>(-60.0);
   final List<List<double>> _spectrogramColumns = <List<double>>[];
   final List<LiveDetectionEntry> _detectedSpeciesList = <LiveDetectionEntry>[];
   final List<_DetectionMoment> _detectionMoments = <_DetectionMoment>[];
@@ -172,6 +180,7 @@ class _LiveAudioRecordingScreenState
       ..removeListener(_onRareAlertChanged)
       ..dispose();
     _noiseFilter.reset();
+    _currentDb.dispose();
     super.dispose();
   }
 
@@ -204,6 +213,7 @@ class _LiveAudioRecordingScreenState
   void _markDetectionFeedback(
     SpeciesPrediction prediction,
     DateTime detectedAt,
+    AudioEvidenceAssessment audioEvidence,
   ) {
     final String key = prediction.scientificName.toLowerCase();
     _detectionMoments.add(
@@ -211,6 +221,7 @@ class _LiveAudioRecordingScreenState
         prediction: prediction,
         startedAt: detectedAt,
         endedAt: detectedAt.add(const Duration(seconds: 3)),
+        audioEvidence: audioEvidence,
       ),
     );
     _highlightTimer?.cancel();
@@ -225,6 +236,7 @@ class _LiveAudioRecordingScreenState
   void _extendLatestDetectionMoment(
     SpeciesPrediction prediction,
     DateTime detectedAt,
+    AudioEvidenceAssessment audioEvidence,
   ) {
     final String key = prediction.scientificName.toLowerCase();
     for (final _DetectionMoment moment in _detectionMoments.reversed) {
@@ -233,6 +245,7 @@ class _LiveAudioRecordingScreenState
           moment.prediction = prediction;
         }
         moment.endedAt = detectedAt.add(const Duration(seconds: 3));
+        moment.audioEvidence = moment.audioEvidence.bestOf(audioEvidence);
         return;
       }
     }
@@ -400,20 +413,25 @@ class _LiveAudioRecordingScreenState
       _amplitudeSubscription = _audioRecorder
           .onAmplitudeChanged(const Duration(milliseconds: 120))
           .listen((amp) {
-            if (mounted) {
-              final double db = amp.current;
-              setState(() {
-                _currentDb = db;
-              });
-            }
+            if (mounted) _currentDb.value = amp.current;
           });
 
       setState(() {
         _isRecording = true;
+        _historySaved = false;
+        _savedFilePath = null;
+        _savedSessionId = null;
         _sessionPhase = _LiveSessionPhase.listening;
         _sessionStartTime = DateTime.now();
         _statusText = 'Ortam dinleniyor...';
       });
+      if (kDebugMode) {
+        debugPrint(
+          'FIRBIRD_DIAG session_start '
+          'startedAt=${_sessionStartTime!.toIso8601String()} '
+          'sampleRate=$_sampleRate channels=1 windowMs=3000',
+        );
+      }
       await _setKeepScreenOn(true);
 
       _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -593,6 +611,16 @@ class _LiveAudioRecordingScreenState
     return snapshot;
   }
 
+  void _sortDetectionsByAudioEvidence() {
+    _detectedSpeciesList.sort((LiveDetectionEntry a, LiveDetectionEntry b) {
+      final int quality = b.audioEvidence.priority.compareTo(
+        a.audioEvidence.priority,
+      );
+      if (quality != 0) return quality;
+      return b.lastDetectedAt.compareTo(a.lastDetectedAt);
+    });
+  }
+
   Future<void> _analyzePcmWindow(
     Uint8List pcmWindow, {
     required Duration windowStart,
@@ -624,11 +652,43 @@ class _LiveAudioRecordingScreenState
     if (mounted) setState(() => _statusText = 'Analiz ediliyor...');
 
     try {
+      final AudioEvidenceAssessment audioEvidence =
+          AudioEvidenceEvaluator.evaluatePcm16(
+            pcmWindow,
+            sampleRate: _sampleRate,
+          );
       // Apply real-time noise filter before model inference.
       final NoiseFilterSettings filterSettings =
           ref.read(noiseFilterProvider).value ?? NoiseFilterSettings.off;
-      final Uint8List filteredPcm =
-          _noiseFilter.apply(pcmWindow, filterSettings);
+      final Uint8List filteredPcm = _noiseFilter.apply(
+        pcmWindow,
+        filterSettings,
+      );
+
+      final int windowStartMs = windowStart.inMilliseconds;
+      final int windowEndMs = windowStartMs + 3000;
+      if (kDebugMode) {
+        final AudioEvidenceAssessment filteredEvidence =
+            AudioEvidenceEvaluator.evaluatePcm16(
+              filteredPcm,
+              sampleRate: _sampleRate,
+            );
+        debugPrint(
+          'FIRBIRD_DIAG window_input startMs=$windowStartMs '
+          'endMs=$windowEndMs bytes=${pcmWindow.length} '
+          'rawLevel=${audioEvidence.level.name} '
+          'rawForeground=${audioEvidence.foregroundDbfs.toStringAsFixed(3)} '
+          'rawNoiseFloor=${audioEvidence.noiseFloorDbfs.toStringAsFixed(3)} '
+          'rawContrast=${audioEvidence.contrastDb.toStringAsFixed(3)} '
+          'rawPeak=${audioEvidence.peakDbfs.toStringAsFixed(3)} '
+          'filteredForeground=${filteredEvidence.foregroundDbfs.toStringAsFixed(3)} '
+          'filterEnabled=${filterSettings.enabled} '
+          'filterPreset=${filterSettings.preset.name} '
+          'windHz=${filterSettings.windCutoffHz.toStringAsFixed(1)} '
+          'water=${filterSettings.waterReduction.toStringAsFixed(3)} '
+          'gain=${filterSettings.gainMultiplier.toStringAsFixed(3)}',
+        );
+      }
 
       final InferenceResult result = await _audioEngine!.identifyPcm16(
         filteredPcm,
@@ -636,6 +696,7 @@ class _LiveAudioRecordingScreenState
           countryCode: 'TR',
           observationDate: DateTime.now(),
         ),
+        sourceUri: 'live://microphone/window/$windowStartMs-$windowEndMs',
       );
 
       if (!mounted) return;
@@ -668,6 +729,13 @@ class _LiveAudioRecordingScreenState
           .take(8)
           .where((pred) => pred.score >= 0.03)
           .toList();
+      if (kDebugMode) {
+        debugPrint(
+          'FIRBIRD_DIAG window_candidates startMs=$windowStartMs '
+          'cicadaLike=$cicadaLike count=${candidates.length} '
+          '${candidates.map((SpeciesPrediction pred) => '${pred.scientificName}=${pred.score.toStringAsFixed(6)}').join(', ')}',
+        );
+      }
       final Set<String> windowKeys = candidates
           .map((pred) => pred.scientificName.toLowerCase())
           .toSet();
@@ -700,16 +768,20 @@ class _LiveAudioRecordingScreenState
           configuredMinimum: _liveMinScore,
           temporalMultiplier: temporalContext.confidenceMultiplier,
         );
-        debugPrint(
-          'Live candidate: ${pred.turkishName} score=${pred.score.toStringAsFixed(3)} '
-          'hits=$hits required=${decision.requiredHits} '
-          'min=${decision.minimumScore.toStringAsFixed(3)} '
-          'temporal=${decision.temporalScore.toStringAsFixed(3)} '
-          'regional=${regionalContext?.supportLevel.name ?? 'unknown'} '
-          'provisional=${decision.isProvisional} '
-          'time=${temporalContext.displayLabel} '
-          'accepted=${decision.accepted}',
-        );
+        if (kDebugMode) {
+          debugPrint(
+            'FIRBIRD_DIAG decision startMs=$windowStartMs '
+            'name=${pred.turkishName} scientific=${pred.scientificName} '
+            'score=${pred.score.toStringAsFixed(6)} '
+            'hits=$hits required=${decision.requiredHits} '
+            'min=${decision.minimumScore.toStringAsFixed(3)} '
+            'temporal=${decision.temporalScore.toStringAsFixed(3)} '
+            'regional=${regionalContext?.supportLevel.name ?? 'unknown'} '
+            'provisional=${decision.isProvisional} '
+            'time=${temporalContext.displayLabel} '
+            'accepted=${decision.accepted}',
+          );
+        }
         if (!decision.accepted) continue;
         if (isRare) _rareAlerts.register(candidateKey);
 
@@ -732,16 +804,19 @@ class _LiveAudioRecordingScreenState
           if (sameAcousticEvent) {
             existing.scoreAggregate = existing.scoreAggregate
                 .updateCurrentEventPeak(pred.score);
-            _extendLatestDetectionMoment(pred, now);
+            _extendLatestDetectionMoment(pred, now, audioEvidence);
           } else {
             existing.scoreAggregate = existing.scoreAggregate
                 .addIndependentEvent(pred.score);
           }
+          existing.audioEvidence = existing.audioEvidence.bestOf(audioEvidence);
           existing.regionalContext = regionalContext;
           existing.temporalContext = temporalContext;
           existing.isProvisional = decision.isProvisional;
           _detectedSpeciesList.insert(0, existing);
-          if (!sameAcousticEvent) _markDetectionFeedback(pred, now);
+          if (!sameAcousticEvent) {
+            _markDetectionFeedback(pred, now, audioEvidence);
+          }
           listChanged = true;
         } else {
           // New species — insert at top
@@ -752,22 +827,26 @@ class _LiveAudioRecordingScreenState
               scoreAggregate: DetectionScoreAggregate.first(pred.score),
               firstDetectedAt: now,
               lastDetectedAt: now,
+              audioEvidence: audioEvidence,
               regionalContext: regionalContext,
               temporalContext: temporalContext,
               isProvisional: decision.isProvisional,
             ),
           );
-          _markDetectionFeedback(pred, now);
+          _markDetectionFeedback(pred, now, audioEvidence);
           listChanged = true;
         }
       }
 
-      if (listChanged && mounted) setState(() {});
+      if (listChanged && mounted) {
+        _sortDetectionsByAudioEvidence();
+        setState(() {});
+      }
     } catch (e) {
       debugPrint('Continuous window inference error: $e');
     } finally {
       if (mounted) {
-        final bool hasSound = _currentDb > -45.0;
+        final bool hasSound = _currentDb.value > -45.0;
         setState(
           () => _statusText = hasSound ? '🎙️ Ses algılandı' : 'Dinleniyor...',
         );
@@ -838,6 +917,75 @@ class _LiveAudioRecordingScreenState
     return null;
   }
 
+  Future<void> _persistCompletedSession(String audioPath) async {
+    if (_historySaved || _detectedSpeciesList.isEmpty) return;
+    final AppDatabase database = ref.read(appDatabaseProvider);
+    if (!await database.isHistoryEnabled()) return;
+
+    final DateTime sessionStart = _sessionStartTime ?? DateTime.now();
+    final String sessionId = 'live_${sessionStart.millisecondsSinceEpoch}';
+    final String sessionLabel = DateFormat(
+      'dd.MM.yyyy HH:mm',
+      'tr_TR',
+    ).format(sessionStart);
+    final int recordingDurationMs = _capturedPcmBytes * 1000 ~/ _bytesPerSecond;
+
+    await database.transaction(() async {
+      for (final LiveDetectionEntry entry in _detectedSpeciesList) {
+        final String timeRange = _relativeTimeRange(entry);
+        final int combinedScore = entry.scoreAggregate.combinedPercent(
+          pointsPerAdditionalEvent: _algorithmSettings.repeatedDetectionSupport,
+        );
+        await database.addIdentification(
+          speciesId: entry.prediction.speciesId,
+          turkishName: entry.prediction.turkishName,
+          scientificName: entry.prediction.scientificName,
+          confidence: '%$combinedScore · $timeRange',
+          modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
+          imageUri: audioPath,
+          packageId: sessionId,
+          speciesStatus: entry.prediction.statusCategory.name,
+          modelConfidence: entry.scoreAggregate.averageConfidence,
+          repeatedHits: entry.scoreAggregate.independentEventCount,
+          predictionMethod: 'aggregate-v1',
+        );
+      }
+
+      for (final _DetectionMoment moment in _detectionMoments) {
+        final int startMs = moment.startedAt
+            .difference(sessionStart)
+            .inMilliseconds
+            .clamp(0, recordingDurationMs);
+        final int endMs = moment.endedAt
+            .difference(sessionStart)
+            .inMilliseconds
+            .clamp(startMs, recordingDurationMs);
+        final LiveDetectionEntry? speciesEntry = _entryForPrediction(
+          moment.prediction,
+        );
+        await database.addLiveDetectionEvent(
+          sessionId: sessionId,
+          speciesId: moment.prediction.speciesId,
+          turkishName: moment.prediction.turkishName,
+          scientificName: moment.prediction.scientificName,
+          confidence: moment.prediction.score,
+          startMs: startMs,
+          endMs: endMs,
+          detectedAt: moment.startedAt,
+          regionalSupport: speciesEntry?.regionalContext?.supportLevel.name,
+          temporalContext: speciesEntry?.temporalContext?.displayLabel,
+          speciesStatus: moment.prediction.statusCategory.name,
+          latitude: _sessionPosition?.latitude,
+          longitude: _sessionPosition?.longitude,
+          audioEvidence: moment.audioEvidence,
+        );
+      }
+    });
+
+    _savedSessionId = sessionId;
+    _historySaved = true;
+  }
+
   Future<void> _stopSession() async {
     if (_isStoppingSession) return;
     _isStoppingSession = true;
@@ -869,11 +1017,13 @@ class _LiveAudioRecordingScreenState
       final int pcmLength = pcmFile != null && await pcmFile.exists()
           ? await pcmFile.length()
           : 0;
-      if (pcmFile == null || pcmLength < _bytesPerSample || !mounted) {
-        setState(() {
-          _isSessionEnded = true;
-          _sessionPhase = _LiveSessionPhase.ended;
-        });
+      if (pcmFile == null || pcmLength < _bytesPerSample) {
+        if (mounted) {
+          setState(() {
+            _isSessionEnded = true;
+            _sessionPhase = _LiveSessionPhase.ended;
+          });
+        }
         return;
       }
 
@@ -900,6 +1050,14 @@ class _LiveAudioRecordingScreenState
         pcmLength: pcmLength,
         destination: destPath,
       );
+      _savedFilePath = destPath;
+      if (kDebugMode) {
+        debugPrint(
+          'FIRBIRD_DIAG session_audio_saved path=$destPath '
+          'durationMs=${(pcmLength ~/ _bytesPerSample) * 1000 ~/ _sampleRate}',
+        );
+      }
+      await _persistCompletedSession(destPath);
       final List<List<double>> completedSpectrum = await WavSpectrogram.analyze(
         destPath,
         maxColumns: 240,
@@ -918,79 +1076,10 @@ class _LiveAudioRecordingScreenState
         }
       }
 
-      // Save each detected species to history
-      if (_detectedSpeciesList.isNotEmpty) {
-        final bool historyEnabled = await ref
-            .read(appDatabaseProvider)
-            .isHistoryEnabled();
-        if (historyEnabled) {
-          final AppDatabase database = ref.read(appDatabaseProvider);
-          final DateTime sessionStart = _sessionStartTime ?? DateTime.now();
-          final String sessionId =
-              'live_${sessionStart.millisecondsSinceEpoch}';
-          final String sessionLabel = DateFormat(
-            'dd.MM.yyyy HH:mm',
-            'tr_TR',
-          ).format(sessionStart);
-          for (final entry in _detectedSpeciesList) {
-            final String timeRange = _relativeTimeRange(entry);
-            final int combinedScore = entry.scoreAggregate.combinedPercent(
-              pointsPerAdditionalEvent:
-                  _algorithmSettings.repeatedDetectionSupport,
-            );
-            await database.addIdentification(
-              speciesId: entry.prediction.speciesId,
-              turkishName: entry.prediction.turkishName,
-              scientificName: entry.prediction.scientificName,
-              confidence: '%$combinedScore · $timeRange',
-              modelVersion: '🎙️ Canlı Oturum · $sessionLabel',
-              imageUri: destPath,
-              packageId: sessionId,
-              speciesStatus: entry.prediction.statusCategory.name,
-              modelConfidence: entry.scoreAggregate.averageConfidence,
-              repeatedHits: entry.scoreAggregate.independentEventCount,
-              predictionMethod: 'aggregate-v1',
-            );
-          }
-
-          final int recordingDurationMs =
-              _capturedPcmBytes * 1000 ~/ _bytesPerSecond;
-          for (final _DetectionMoment moment in _detectionMoments) {
-            final int startMs = moment.startedAt
-                .difference(sessionStart)
-                .inMilliseconds
-                .clamp(0, recordingDurationMs);
-            final int endMs = moment.endedAt
-                .difference(sessionStart)
-                .inMilliseconds
-                .clamp(startMs, recordingDurationMs);
-            final LiveDetectionEntry? speciesEntry = _entryForPrediction(
-              moment.prediction,
-            );
-            await database.addLiveDetectionEvent(
-              sessionId: sessionId,
-              speciesId: moment.prediction.speciesId,
-              turkishName: moment.prediction.turkishName,
-              scientificName: moment.prediction.scientificName,
-              confidence: moment.prediction.score,
-              startMs: startMs,
-              endMs: endMs,
-              detectedAt: moment.startedAt,
-              regionalSupport: speciesEntry?.regionalContext?.supportLevel.name,
-              temporalContext: speciesEntry?.temporalContext?.displayLabel,
-              speciesStatus: moment.prediction.statusCategory.name,
-              latitude: _sessionPosition?.latitude,
-              longitude: _sessionPosition?.longitude,
-            );
-          }
-        }
-      }
-
       if (!mounted) return;
       setState(() {
         _isSessionEnded = true;
         _sessionPhase = _LiveSessionPhase.ended;
-        _savedFilePath = destPath;
         _spectrogramColumns
           ..clear()
           ..addAll(completedSpectrum);
@@ -1185,7 +1274,24 @@ class _LiveAudioRecordingScreenState
       longitude: _sessionPosition?.longitude,
       repeatedHits: entry.detectionCount,
       repetitionSupportPerHit: _algorithmSettings.repeatedDetectionSupport,
+      audioEvidence: entry.audioEvidence,
     );
+  }
+
+  Future<void> _saveAudioReview(
+    PlaybackDetection detection,
+    AudioReviewVerdict verdict,
+  ) async {
+    final String? sessionId = _savedSessionId;
+    if (sessionId == null) return;
+    await ref
+        .read(appDatabaseProvider)
+        .updateLiveDetectionAudioReview(
+          sessionId: sessionId,
+          speciesId: detection.speciesId,
+          startMs: detection.startMs,
+          verdict: verdict,
+        );
   }
 
   PlaybackSession? _completedPlaybackSession() {
@@ -1196,6 +1302,7 @@ class _LiveAudioRecordingScreenState
       filePath: filePath,
       displayName: path.basename(filePath),
       rareSpeciesCount: _rareAlerts.detectedSpeciesCount,
+      onAudioReview: _saveAudioReview,
       detections: _detectionMoments
           .map((moment) {
             final int startMs = math.max(
@@ -1230,10 +1337,25 @@ class _LiveAudioRecordingScreenState
               longitude: _sessionPosition?.longitude,
               modelVersion: 'BirdNET canlı ses',
               statusCategory: moment.prediction.statusCategory,
+              audioEvidence: moment.audioEvidence,
             );
           })
           .toList(growable: false),
     );
+  }
+
+  Future<void> _handlePopInvoked(bool didPop, Object? result) async {
+    if (didPop) return;
+    if (_isStoppingSession) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kayıt geçmişe ekleniyor, lütfen bekleyin.'),
+        ),
+      );
+      return;
+    }
+    if (_isRecording) await _stopSession();
+    if (mounted) context.pop(result);
   }
 
   @override
@@ -1247,453 +1369,480 @@ class _LiveAudioRecordingScreenState
       );
     }
     final theme = Theme.of(context);
-    final bool hasSound = _currentDb > -45.0;
-
-    return Scaffold(
-      drawer: const AppDrawer(),
-      appBar: AppBar(
-        title: const Text('Canlı Ses Tespit Modu'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            tooltip: 'Menü',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        actions: [
-          const AppBarHelpButton(),
-          IconButton(
-            tooltip: _isRecording
-                ? 'Harita (canlı dinleme devam eder)'
-                : 'Yakındaki gözlem noktaları',
-            icon: const Icon(Icons.map_outlined),
-            onPressed: () => showNearbyHotspotMapSheet(
-              context,
-              latitude: _sessionPosition?.latitude,
-              longitude: _sessionPosition?.longitude,
+    return PopScope<Object?>(
+      canPop: !_isRecording && !_isStoppingSession,
+      onPopInvokedWithResult: _handlePopInvoked,
+      child: Scaffold(
+        drawer: const AppDrawer(),
+        appBar: AppBar(
+          title: const Text('Canlı Ses Tespit Modu'),
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              tooltip: 'Menü',
+              onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           ),
-          if (_detectedSpeciesList.isNotEmpty)
-            Tooltip(
-              message: '${_detectedSpeciesList.length} kuş türü tespit edildi',
-              child: Padding(
+          actions: [
+            const AppBarHelpButton(),
+            IconButton(
+              tooltip: _isRecording
+                  ? 'Harita (canlı dinleme devam eder)'
+                  : 'Yakındaki gözlem noktaları',
+              icon: const Icon(Icons.map_outlined),
+              onPressed: () => showNearbyHotspotMapSheet(
+                context,
+                latitude: _sessionPosition?.latitude,
+                longitude: _sessionPosition?.longitude,
+              ),
+            ),
+            if (_isRecording || _detectedSpeciesList.isNotEmpty)
+              Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: Badge(
-                  label: Text('${_detectedSpeciesList.length}'),
-                  child: const Icon(Icons.flutter_dash_outlined),
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ── Equalizer Header ─────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.6,
-              ),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-            ),
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    AudioSpectrogram(
-                      columns: _spectrogramColumns,
-                      markers: _liveMarkers(),
-                      liveCenter: true,
-                      height: 128,
-                    ),
-                    if (_isRecording)
-                      Positioned(
-                        right: 10,
-                        bottom: 8,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 5,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Tooltip(
-                                  message: _statusText,
-                                  child: Icon(
-                                    hasSound ? Icons.mic : Icons.mic_none,
-                                    color: hasSound
-                                        ? Colors.greenAccent
-                                        : Colors.white70,
-                                    size: 15,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  _formatDuration(_secondsRecorded),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.flutter_dash_outlined, size: 18),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_detectedSpeciesList.length} tür',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _sessionLocationText(),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // ── Section Label ─────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    _sessionPhase == _LiveSessionPhase.ready
-                        ? 'DİNLEMEYE HAZIR'
-                        : _sessionPhase == _LiveSessionPhase.preparing ||
-                              _sessionPhase == _LiveSessionPhase.starting
-                        ? 'HAZIRLANIYOR'
-                        : 'CANLI TESPİT',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.1,
-                      color: theme.colorScheme.primary,
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Flexible(
-                  flex: 3,
-                  child: Text(
-                    _isRecording
-                        ? '${_detectedSpeciesList.length} Kuş${_rareAlerts.detectedSpeciesCount > 0 ? ' · ${_rareAlerts.detectedSpeciesCount} nadir tür tespiti' : ''} · ${_formatDuration(_secondsRecorded)}'
-                        : _statusText,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // ── Detection Table ───────────────────────────────────────
-          Expanded(
-            child: _detectedSpeciesList.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_sessionPhase == _LiveSessionPhase.preparing ||
-                              _sessionPhase == _LiveSessionPhase.starting)
-                            const CircularProgressIndicator()
-                          else if (_sessionPhase == _LiveSessionPhase.ready)
-                            Semantics(
-                              button: true,
-                              label: 'Canlı dinlemeyi başlat',
-                              child: IconButton.filled(
-                                tooltip: 'Canlı dinlemeyi başlat',
-                                onPressed: _startListening,
-                                icon: const Icon(Icons.mic, size: 34),
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(72, 72),
-                                ),
-                              ),
-                            )
-                          else
-                            Icon(
-                              _sessionPhase == _LiveSessionPhase.failed
-                                  ? Icons.error_outline
-                                  : Icons.graphic_eq,
-                              size: 64,
-                              color: theme.colorScheme.primary.withValues(
-                                alpha: 0.3,
-                              ),
-                            ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _sessionPhase == _LiveSessionPhase.ready
-                                ? 'Dinlemeyi başlatmak için mikrofona dokunun'
-                                : _sessionPhase == _LiveSessionPhase.failed
-                                ? 'Canlı dinleme hazırlanamadı'
-                                : _isRecording
-                                ? 'Kuş sesleri bekleniyor...'
-                                : 'Model yükleniyor, lütfen bekleyin...',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          if (_sessionPhase == _LiveSessionPhase.ready)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'Mikrofon ve konum izinleri bu dokunuştan sonra istenir.',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            )
-                          else if (_isRecording)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'Kesintisiz ses, her saniye son 3 saniyelik pencerede analiz ediliyor.',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          if (_sessionPhase == _LiveSessionPhase.failed) ...[
-                            const SizedBox(height: 12),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  _sessionPhase = _LiveSessionPhase.preparing;
-                                  _statusText = 'Model yeniden hazırlanıyor...';
-                                });
-                                unawaited(_prepareSession());
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Tekrar dene'),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                          child: Text(
-                            'Son tespitler',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        // Table rows
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _detectedSpeciesList.length,
-                            separatorBuilder: (context, _) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final item = _detectedSpeciesList[index];
-                              final pred = item.prediction;
-                              final bool isFreshDetection =
-                                  _highlightedSpeciesKey ==
-                                  pred.scientificName.toLowerCase();
-
-                              return Dismissible(
-                                key: ValueKey<String>(pred.scientificName),
-                                direction: DismissDirection.startToEnd,
-                                confirmDismiss: (_) => _reviewDetection(item),
-                                background: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 8,
-                                  ),
-                                  padding: const EdgeInsets.only(left: 22),
-                                  alignment: Alignment.centerLeft,
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primaryContainer,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Row(
-                                    children: [
-                                      Icon(Icons.fact_check_outlined),
-                                      SizedBox(width: 8),
-                                      Text('Doğrula'),
-                                    ],
-                                  ),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 8,
-                                  ),
-                                  child: BirdDetectionCard(
-                                    record: _detectionRecordFor(item),
-                                    isHighlighted: isFreshDetection,
-                                    isRareAlertActive: _rareAlerts.isUnresolved(
-                                      pred.scientificName,
-                                    ),
-                                    isRareAlertPulse:
-                                        _rareAlerts.isPulseVisible,
-                                    onVerdict: (DetectionVerdict verdict) =>
-                                        _applyVerdict(item, verdict),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                        // Tablo Açıklama Notu (Küçük Fontlu)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant
-                                    .withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 12,
-                              runSpacing: 6,
-                              children: [
-                                _buildLegendNoteItem(
-                                  Colors.green,
-                                  'Yerel / Göçmen',
-                                ),
-                                _buildLegendNoteItem(
-                                  Colors.grey,
-                                  'Bölge Dışı / Zor',
-                                ),
-                                _buildLegendNoteItem(
-                                  Colors.blue,
-                                  'Yeni / aktif tespit',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-          ),
-
-          // ── Bottom Action Panel ───────────────────────────────────
-          if (_isRecording || _isSessionEnded)
+              ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // ── Equalizer Header ─────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -4),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.6,
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      AudioSpectrogram(
+                        columns: _spectrogramColumns,
+                        markers: _liveMarkers(),
+                        liveCenter: true,
+                        height: 128,
+                      ),
+                      if (_isRecording)
+                        Positioned(
+                          right: 10,
+                          bottom: 8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Tooltip(
+                                    message: _statusText,
+                                    child: ValueListenableBuilder<double>(
+                                      valueListenable: _currentDb,
+                                      builder:
+                                          (BuildContext context, double db, _) {
+                                            final bool hasSound = db > -45.0;
+                                            return Icon(
+                                              hasSound
+                                                  ? Icons.mic
+                                                  : Icons.mic_none,
+                                              color: hasSound
+                                                  ? Colors.greenAccent
+                                                  : Colors.white70,
+                                              size: 15,
+                                            );
+                                          },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    _formatDuration(_secondsRecorded),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _sessionLocationText(),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
-              child: _isSessionEnded
-                  ? Column(
-                      children: [
-                        Row(
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Section Label ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      _sessionPhase == _LiveSessionPhase.ready
+                          ? 'DİNLEMEYE HAZIR'
+                          : _sessionPhase == _LiveSessionPhase.preparing ||
+                                _sessionPhase == _LiveSessionPhase.starting
+                          ? 'HAZIRLANIYOR'
+                          : 'CANLI TESPİT',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.1,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 3,
+                    child: Text(
+                      _isRecording
+                          ? '${_detectedSpeciesList.length} tür tespit edildi${_rareAlerts.detectedSpeciesCount > 0 ? ' · ${_rareAlerts.detectedSpeciesCount} nadir' : ''} · ${_formatDuration(_secondsRecorded)}'
+                          : _statusText,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // ── Detection Table ───────────────────────────────────────
+            Expanded(
+              child: _detectedSpeciesList.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => context.pop(),
-                                icon: const Icon(Icons.close),
-                                label: const Text('Kapat'),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
+                            if (_sessionPhase == _LiveSessionPhase.preparing ||
+                                _sessionPhase == _LiveSessionPhase.starting)
+                              const CircularProgressIndicator()
+                            else if (_sessionPhase == _LiveSessionPhase.ready)
+                              Semantics(
+                                button: true,
+                                label: 'Canlı dinlemeyi başlat',
+                                child: IconButton.filled(
+                                  tooltip: 'Canlı dinlemeyi başlat',
+                                  onPressed: _startListening,
+                                  icon: const Icon(Icons.mic, size: 34),
+                                  style: IconButton.styleFrom(
+                                    minimumSize: const Size(72, 72),
+                                  ),
+                                ),
+                              )
+                            else
+                              Icon(
+                                _sessionPhase == _LiveSessionPhase.failed
+                                    ? Icons.error_outline
+                                    : Icons.graphic_eq,
+                                size: 64,
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _sessionPhase == _LiveSessionPhase.ready
+                                  ? 'Dinlemeyi başlatmak için mikrofona dokunun'
+                                  : _sessionPhase == _LiveSessionPhase.failed
+                                  ? 'Canlı dinleme hazırlanamadı'
+                                  : _isRecording
+                                  ? 'Kuş sesleri bekleniyor...'
+                                  : 'Model yükleniyor, lütfen bekleyin...',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (_sessionPhase == _LiveSessionPhase.ready)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  'Mikrofon ve konum izinleri bu dokunuştan sonra istenir.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              )
+                            else if (_isRecording)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  'Kesintisiz ses, her saniye son 3 saniyelik pencerede analiz ediliyor.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: FilledButton.icon(
-                                onPressed: _savedFilePath == null
-                                    ? null
-                                    : _saveRecordingWithName,
-                                icon: const Icon(Icons.save_alt_outlined),
-                                label: const Text('Farklı adla kaydet'),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                ),
+                            if (_sessionPhase == _LiveSessionPhase.failed) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _sessionPhase = _LiveSessionPhase.preparing;
+                                    _statusText =
+                                        'Model yeniden hazırlanıyor...';
+                                  });
+                                  unawaited(_prepareSession());
+                                },
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Tekrar dene'),
                               ),
-                            ),
+                            ],
                           ],
                         ),
-                      ],
+                      ),
                     )
-                  : SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _stopSession,
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        label: const Text('Oturumu Bitir'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          backgroundColor: theme.colorScheme.error,
-                          foregroundColor: theme.colorScheme.onError,
-                        ),
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                            child: Text(
+                              'Son tespitler',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          // Table rows
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _detectedSpeciesList.length,
+                              separatorBuilder: (context, _) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final item = _detectedSpeciesList[index];
+                                final pred = item.prediction;
+                                final bool isFreshDetection =
+                                    _highlightedSpeciesKey ==
+                                    pred.scientificName.toLowerCase();
+
+                                return Dismissible(
+                                  key: ValueKey<String>(pred.scientificName),
+                                  direction: DismissDirection.startToEnd,
+                                  confirmDismiss: (_) => _reviewDetection(item),
+                                  background: Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 8,
+                                    ),
+                                    padding: const EdgeInsets.only(left: 22),
+                                    alignment: Alignment.centerLeft,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.fact_check_outlined),
+                                        SizedBox(width: 8),
+                                        Text('Doğrula'),
+                                      ],
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 8,
+                                    ),
+                                    child: BirdDetectionCard(
+                                      record: _detectionRecordFor(item),
+                                      isHighlighted: isFreshDetection,
+                                      isRareAlertActive: _rareAlerts
+                                          .isUnresolved(pred.scientificName),
+                                      isRareAlertPulse:
+                                          _rareAlerts.isPulseVisible,
+                                      onVerdict: (DetectionVerdict verdict) =>
+                                          _applyVerdict(item, verdict),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+
+                          // Tablo Açıklama Notu (Küçük Fontlu)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, bottom: 4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 12,
+                                runSpacing: 6,
+                                children: [
+                                  _buildLegendNoteItem(
+                                    Colors.green,
+                                    'Yerel / Göçmen',
+                                  ),
+                                  _buildLegendNoteItem(
+                                    Colors.grey,
+                                    'Bölge Dışı / Zor',
+                                  ),
+                                  _buildLegendNoteItem(
+                                    Colors.blue,
+                                    'Yeni / aktif tespit',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
             ),
-        ],
+
+            // ── Bottom Action Panel ───────────────────────────────────
+            if (_isRecording || _isSessionEnded)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: _isSessionEnded
+                    ? Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => context.pop(),
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Kapat'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: FilledButton.icon(
+                                  onPressed: _savedFilePath == null
+                                      ? null
+                                      : _saveRecordingWithName,
+                                  icon: const Icon(Icons.save_alt_outlined),
+                                  label: const Text('Farklı adla kaydet'),
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _stopSession,
+                          icon: const Icon(Icons.stop_circle_outlined),
+                          label: const Text('Oturumu Bitir'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: theme.colorScheme.error,
+                            foregroundColor: theme.colorScheme.onError,
+                          ),
+                        ),
+                      ),
+              ),
+          ],
+        ),
       ),
     );
   }

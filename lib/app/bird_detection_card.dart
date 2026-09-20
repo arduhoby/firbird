@@ -1,5 +1,6 @@
 import 'package:firbird/app/bird_photo.dart';
 import 'package:firbird/app/detection_evidence_sheet.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/detection/detection_record.dart';
 import 'package:firbird/detection/detection_score_aggregate.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
@@ -15,6 +16,7 @@ class BirdDetectionCard extends StatelessWidget {
     this.isRareAlertPulse = false,
     this.onSeek,
     this.onVerdict,
+    this.onAudioReview,
   });
 
   final DetectionRecord record;
@@ -23,6 +25,7 @@ class BirdDetectionCard extends StatelessWidget {
   final bool isRareAlertPulse;
   final VoidCallback? onSeek;
   final ValueChanged<DetectionVerdict>? onVerdict;
+  final Future<void> Function(AudioReviewVerdict verdict)? onAudioReview;
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +150,33 @@ class BirdDetectionCard extends StatelessWidget {
                             label: 'Yeni / aktif',
                             color: Colors.blue,
                           ),
+                        if (record.audioEvidence != null)
+                          _DetectionBadge(
+                            label: _audioEvidenceLabel(record.audioEvidence!),
+                            color: _audioEvidenceColor(
+                              record.audioEvidence!,
+                              theme,
+                            ),
+                          ),
+                        if (record.audioReviewVerdict != null)
+                          _DetectionBadge(
+                            label: _audioReviewLabel(
+                              record.audioReviewVerdict!,
+                            ),
+                            color: _audioReviewColor(
+                              record.audioReviewVerdict!,
+                              theme,
+                            ),
+                          ),
                       ],
                     ),
+                    if (onAudioReview != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      AudioEvidenceReviewControls(
+                        selected: record.audioReviewVerdict,
+                        onChanged: onAudioReview!,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -193,6 +221,88 @@ class BirdDetectionCard extends StatelessWidget {
     );
   }
 }
+
+class AudioEvidenceReviewControls extends StatelessWidget {
+  const AudioEvidenceReviewControls({
+    required this.selected,
+    required this.onChanged,
+    this.expanded = false,
+    super.key,
+  });
+
+  final AudioReviewVerdict? selected;
+  final Future<void> Function(AudioReviewVerdict verdict) onChanged;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> controls = AudioReviewVerdict.values
+        .map(
+          (AudioReviewVerdict verdict) => ChoiceChip(
+            label: SizedBox(
+              width: expanded ? double.infinity : null,
+              child: Text(
+                _audioReviewActionLabel(verdict),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
+            ),
+            selected: selected == verdict,
+            padding: expanded
+                ? const EdgeInsets.symmetric(horizontal: 6, vertical: 12)
+                : null,
+            onSelected: (_) => onChanged(verdict),
+          ),
+        )
+        .toList(growable: false);
+    if (!expanded) {
+      return Wrap(spacing: 6, runSpacing: 6, children: controls);
+    }
+    return Row(
+      children: <Widget>[
+        for (int index = 0; index < controls.length; index++) ...<Widget>[
+          if (index > 0) const SizedBox(width: 8),
+          Expanded(child: controls[index]),
+        ],
+      ],
+    );
+  }
+}
+
+String _audioEvidenceLabel(AudioEvidenceAssessment assessment) =>
+    switch (assessment.level) {
+      AudioEvidenceLevel.strong => 'Ses güçlü · doğrula',
+      AudioEvidenceLevel.review => 'Ses zayıf · incele',
+      AudioEvidenceLevel.machineOnly => 'Yalnız makine sinyali',
+    };
+
+Color _audioEvidenceColor(
+  AudioEvidenceAssessment assessment,
+  ThemeData theme,
+) => switch (assessment.level) {
+  AudioEvidenceLevel.strong => Colors.green,
+  AudioEvidenceLevel.review => Colors.orange,
+  AudioEvidenceLevel.machineOnly => theme.colorScheme.outline,
+};
+
+String _audioReviewLabel(AudioReviewVerdict verdict) => switch (verdict) {
+  AudioReviewVerdict.audible => 'İnsan doğruladı: duyuluyor',
+  AudioReviewVerdict.uncertain => 'İnsan değerlendirmesi: belirsiz',
+  AudioReviewVerdict.inaudible => 'İnsan doğruladı: anlaşılmıyor',
+};
+
+String _audioReviewActionLabel(AudioReviewVerdict verdict) => switch (verdict) {
+  AudioReviewVerdict.audible => 'Duyuluyor',
+  AudioReviewVerdict.uncertain => 'Emin değilim',
+  AudioReviewVerdict.inaudible => 'Anlaşılmıyor',
+};
+
+Color _audioReviewColor(AudioReviewVerdict verdict, ThemeData theme) =>
+    switch (verdict) {
+      AudioReviewVerdict.audible => Colors.green,
+      AudioReviewVerdict.uncertain => Colors.orange,
+      AudioReviewVerdict.inaudible => theme.colorScheme.error,
+    };
 
 class _DetectionBadge extends StatelessWidget {
   const _DetectionBadge({required this.label, required this.color});

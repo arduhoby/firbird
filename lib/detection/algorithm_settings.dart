@@ -12,7 +12,7 @@ class AlgorithmSettings {
     required this.deviceRejectedPenalty,
   });
 
-  static const String version = 'evidence-v2';
+  static const String version = 'evidence-v3';
   static const AlgorithmSettings defaults = AlgorithmSettings(
     timeMismatchPenalty: 30,
     nearbySameTimeSupport: 30,

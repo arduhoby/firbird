@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:firbird/audio/fft_util.dart';
@@ -80,7 +80,7 @@ class WavSpectrogram {
   }) {
     final int requestedColumns = columnsPerSecond == null
         ? maxColumns
-        : math.max(
+        : math.min(
             maxColumns,
             (sampleCount / math.max(sampleRate, 1) * columnsPerSecond).ceil(),
           );
@@ -188,7 +188,7 @@ class ScrollableAudioSpectrogram extends StatefulWidget {
     super.key,
     required this.columns,
     this.markers = const <SpectrogramMarker>[],
-    this.playbackPosition,
+    this.playbackPositionListenable,
     this.onSeek,
     this.height = 200,
     this.durationMs,
@@ -199,7 +199,7 @@ class ScrollableAudioSpectrogram extends StatefulWidget {
 
   final List<List<double>> columns;
   final List<SpectrogramMarker> markers;
-  final double? playbackPosition;
+  final ValueListenable<double?>? playbackPositionListenable;
   final ValueChanged<double>? onSeek;
   final double height;
   final int? durationMs;
@@ -220,15 +220,25 @@ class _ScrollableAudioSpectrogramState
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    widget.playbackPositionListenable?.addListener(_handlePlaybackPosition);
   }
 
   @override
   void didUpdateWidget(covariant ScrollableAudioSpectrogram oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.playbackPosition != null &&
-        widget.playbackPosition != oldWidget.playbackPosition &&
-        _scrollController.hasClients) {
-      _autoScrollToPlayback(widget.playbackPosition!);
+    if (oldWidget.playbackPositionListenable !=
+        widget.playbackPositionListenable) {
+      oldWidget.playbackPositionListenable?.removeListener(
+        _handlePlaybackPosition,
+      );
+      widget.playbackPositionListenable?.addListener(_handlePlaybackPosition);
+    }
+  }
+
+  void _handlePlaybackPosition() {
+    final double? position = widget.playbackPositionListenable?.value;
+    if (position != null && _scrollController.hasClients) {
+      _autoScrollToPlayback(position);
     }
   }
 
@@ -251,6 +261,7 @@ class _ScrollableAudioSpectrogramState
 
   @override
   void dispose() {
+    widget.playbackPositionListenable?.removeListener(_handlePlaybackPosition);
     _scrollController.dispose();
     super.dispose();
   }
@@ -261,32 +272,63 @@ class _ScrollableAudioSpectrogramState
       final double screenWidth = constraints.maxWidth;
       final double totalSeconds =
           (widget.durationMs != null && widget.durationMs! > 0)
-              ? widget.durationMs! / 1000.0
-              : (widget.columns.length / widget.columnsPerSecond);
+          ? widget.durationMs! / 1000.0
+          : (widget.columns.length / widget.columnsPerSecond);
 
-      final double calculatedWidth =
-          widget.pixelsPerColumn != null
-              ? math.max(
-                screenWidth,
-                widget.columns.length * widget.pixelsPerColumn!,
-              )
-              : math.max(
-                screenWidth,
-                screenWidth * (totalSeconds / widget.secondsPerScreen),
-              );
+      final double calculatedWidth = widget.pixelsPerColumn != null
+          ? math.max(
+              screenWidth,
+              widget.columns.length * widget.pixelsPerColumn!,
+            )
+          : math.max(
+              screenWidth,
+              screenWidth * (totalSeconds / widget.secondsPerScreen),
+            );
 
       return SizedBox(
         height: widget.height,
         child: SingleChildScrollView(
           controller: _scrollController,
           scrollDirection: Axis.horizontal,
-          child: AudioSpectrogram(
-            columns: widget.columns,
-            markers: widget.markers,
-            playbackPosition: widget.playbackPosition,
-            onSeek: widget.onSeek,
-            height: widget.height,
+          child: SizedBox(
             width: calculatedWidth,
+            height: widget.height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                RepaintBoundary(
+                  child: AudioSpectrogram(
+                    columns: widget.columns,
+                    markers: widget.markers,
+                    onSeek: widget.onSeek,
+                    height: widget.height,
+                    width: calculatedWidth,
+                  ),
+                ),
+                if (widget.playbackPositionListenable != null)
+                  ValueListenableBuilder<double?>(
+                    valueListenable: widget.playbackPositionListenable!,
+                    builder: (BuildContext context, double? position, _) {
+                      if (position == null) return const SizedBox.shrink();
+                      final double left =
+                          (position.clamp(0.0, 1.0) * calculatedWidth - 1.25)
+                              .clamp(0.0, calculatedWidth - 2.5);
+                      return IgnorePointer(
+                        child: Stack(
+                          children: <Widget>[
+                            Positioned(
+                              left: left,
+                              top: 0,
+                              bottom: 0,
+                              child: Container(width: 2.5, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       );

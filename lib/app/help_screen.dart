@@ -129,7 +129,7 @@ class HelpScreen extends StatelessWidget {
             ],
           ),
           Text(
-            'FirBird v0.8.9',
+            'FirBird v0.9.2',
             textAlign: TextAlign.center,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

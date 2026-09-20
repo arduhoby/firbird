@@ -1,4 +1,5 @@
 import 'package:firbird/inference/bird_inference_engine.dart';
+import 'package:firbird/audio/audio_evidence_assessment.dart';
 
 enum DetectionSource { live, audioFile, photo, replay }
 
@@ -68,6 +69,8 @@ class DetectionRecord {
     this.repetitionSupportPerHit = 0,
     this.evidence,
     this.verdict,
+    this.audioEvidence,
+    this.audioReviewVerdict,
   });
 
   final String id;
@@ -89,10 +92,14 @@ class DetectionRecord {
   final int repetitionSupportPerHit;
   final DetectionEvidenceBundle? evidence;
   final DetectionVerdict? verdict;
+  final AudioEvidenceAssessment? audioEvidence;
+  final AudioReviewVerdict? audioReviewVerdict;
 
   DetectionRecord copyWith({
     DetectionEvidenceBundle? evidence,
     DetectionVerdict? verdict,
+    AudioEvidenceAssessment? audioEvidence,
+    AudioReviewVerdict? audioReviewVerdict,
   }) => DetectionRecord(
     id: id,
     speciesId: speciesId,
@@ -113,5 +120,7 @@ class DetectionRecord {
     repetitionSupportPerHit: repetitionSupportPerHit,
     evidence: evidence ?? this.evidence,
     verdict: verdict ?? this.verdict,
+    audioEvidence: audioEvidence ?? this.audioEvidence,
+    audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
   );
 }

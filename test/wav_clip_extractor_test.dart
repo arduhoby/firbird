@@ -1,7 +1,6 @@
 // ignore_for_file: avoid_print
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,10 +22,19 @@ Future<String> _writeTempWav(
   final ByteData bd = ByteData.sublistView(bytes);
 
   // RIFF header
-  bytes[0] = 0x52; bytes[1] = 0x49; bytes[2] = 0x46; bytes[3] = 0x46;
+  bytes[0] = 0x52;
+  bytes[1] = 0x49;
+  bytes[2] = 0x46;
+  bytes[3] = 0x46;
   bd.setUint32(4, 36 + dataBytes, Endian.little);
-  bytes[8] = 0x57; bytes[9] = 0x41; bytes[10] = 0x56; bytes[11] = 0x45;
-  bytes[12] = 0x66; bytes[13] = 0x6D; bytes[14] = 0x74; bytes[15] = 0x20;
+  bytes[8] = 0x57;
+  bytes[9] = 0x41;
+  bytes[10] = 0x56;
+  bytes[11] = 0x45;
+  bytes[12] = 0x66;
+  bytes[13] = 0x6D;
+  bytes[14] = 0x74;
+  bytes[15] = 0x20;
   bd.setUint32(16, 16, Endian.little);
   bd.setUint16(20, 1, Endian.little); // PCM
   bd.setUint16(22, numChannels, Endian.little);
@@ -34,7 +42,10 @@ Future<String> _writeTempWav(
   bd.setUint32(28, sampleRate * numChannels * 2, Endian.little);
   bd.setUint16(32, numChannels * 2, Endian.little);
   bd.setUint16(34, 16, Endian.little);
-  bytes[36] = 0x64; bytes[37] = 0x61; bytes[38] = 0x74; bytes[39] = 0x61;
+  bytes[36] = 0x64;
+  bytes[37] = 0x61;
+  bytes[38] = 0x74;
+  bytes[39] = 0x61;
   bd.setUint32(40, dataBytes, Endian.little);
 
   // Fill with ramp signal so we can verify correct slice
@@ -60,7 +71,9 @@ void main() {
 
     tearDown(() {
       for (final String p in <String>[sourcePath, outputPath]) {
-        try { File(p).deleteSync(); } catch (_) {}
+        try {
+          File(p).deleteSync();
+        } catch (_) {}
       }
     });
 
@@ -89,8 +102,7 @@ void main() {
         outputPath: outputPath,
       );
 
-      final int durationMs =
-          WavClipExtractor.durationMsFromPath(outputPath);
+      final int durationMs = WavClipExtractor.durationMsFromPath(outputPath);
       // Allow ±50ms rounding tolerance
       expect(durationMs, greaterThanOrEqualTo(950));
       expect(durationMs, lessThanOrEqualTo(1050));
@@ -104,10 +116,10 @@ void main() {
         outputPath: outputPath,
       );
 
-      final int sourceDuration =
-          WavClipExtractor.durationMsFromPath(sourcePath);
-      final int clipDuration =
-          WavClipExtractor.durationMsFromPath(outputPath);
+      final int sourceDuration = WavClipExtractor.durationMsFromPath(
+        sourcePath,
+      );
+      final int clipDuration = WavClipExtractor.durationMsFromPath(outputPath);
       expect(clipDuration, lessThan(sourceDuration));
     });
 
@@ -119,8 +131,7 @@ void main() {
         outputPath: outputPath,
       );
 
-      final int clipDuration =
-          WavClipExtractor.durationMsFromPath(outputPath);
+      final int clipDuration = WavClipExtractor.durationMsFromPath(outputPath);
       // Should get ~1 second (2000–3000)
       expect(clipDuration, greaterThan(500));
       expect(clipDuration, lessThanOrEqualTo(1100));
@@ -146,8 +157,11 @@ void main() {
     });
 
     test('stereo file extracts correctly', () async {
-      final String stereoPath =
-          await _writeTempWav('stereo', numChannels: 2, numSamples: 96000);
+      final String stereoPath = await _writeTempWav(
+        'stereo',
+        numChannels: 2,
+        numSamples: 96000,
+      );
       try {
         await WavClipExtractor.extract(
           stereoPath,
@@ -155,11 +169,12 @@ void main() {
           endMs: 1000,
           outputPath: outputPath,
         );
-        final int durationMs =
-            WavClipExtractor.durationMsFromPath(outputPath);
+        final int durationMs = WavClipExtractor.durationMsFromPath(outputPath);
         expect(durationMs, closeTo(1000, 50));
       } finally {
-        try { File(stereoPath).deleteSync(); } catch (_) {}
+        try {
+          File(stereoPath).deleteSync();
+        } catch (_) {}
       }
     });
   });

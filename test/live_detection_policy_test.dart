@@ -31,17 +31,42 @@ void main() {
     },
   );
 
-  test('repetition alone cannot promote an unsupported regional candidate', () {
-    final LiveDetectionDecision decision = evaluateLiveDetection(
-      score: 0.51,
-      hits: 3,
-      isRare: false,
-      regionalSupport: RegionalSupportLevel.none,
-      configuredMinimum: 0,
-    );
+  test(
+    'repeated evidence can display a candidate without regional records',
+    () {
+      final LiveDetectionDecision decision = evaluateLiveDetection(
+        score: 0.51,
+        hits: 3,
+        isRare: false,
+        regionalSupport: RegionalSupportLevel.none,
+        configuredMinimum: 0,
+      );
 
-    expect(decision.accepted, isFalse);
-    expect(decision.instantScore, 0.90);
+      expect(decision.accepted, isTrue);
+      expect(decision.instantScore, 0.90);
+    },
+  );
+
+  test('unsupported candidates still require enough score and windows', () {
+    for (final bool isRare in <bool>[false, true]) {
+      final double floor = isRare ? 0.35 : 0.25;
+      LiveDetectionDecision decide(
+        double score,
+        int hits, {
+        double minimum = 0,
+      }) => evaluateLiveDetection(
+        score: score,
+        hits: hits,
+        isRare: isRare,
+        regionalSupport: RegionalSupportLevel.none,
+        configuredMinimum: minimum,
+      );
+
+      expect(decide(floor, 3).accepted, isTrue);
+      expect(decide(floor - 0.01, 3).accepted, isFalse);
+      expect(decide(0.51, 2).accepted, isFalse);
+      expect(decide(0.51, 3, minimum: 0.60).accepted, isFalse);
+    }
   });
 
   test('accepts a repeated candidate with strong regional support', () {

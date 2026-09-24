@@ -5,7 +5,7 @@ FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android ve iO
 sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
 gönderilmez.
 
-> Güncel sürüm: **v0.9.2 (build 92)**
+> Güncel sürüm: **v1.1.0 (build 110)**
 
 Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
 fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
@@ -203,6 +203,8 @@ kullanılmış ara sürümlerdir.
 | `v0.8.1` | İndirme yarıçapı/tarihi durumu, yenileme davranışı, yüksek kontrastlı harita kaplamaları, küçültme düğmesi ve kuzey pusulası. |
 | `v0.8.5` | Güven ve bölgesel durum renklerinin ayrılması; 15 saniyelik çözümlenmemiş nadir tür uyarısı ve kalıcı nadir raporu; çevrimdışı uygulama içi kullanım kılavuzu. |
 | `v0.8.6` | Canlı tespitlerde ilk skora kilitlenme hatasının düzeltilmesi; bağımsız ses olaylarının ortalaması, sınırlı tekrar desteği ve canlı–geçmiş–replay skor bütünlüğü. |
+| `v1.0.0` | Canlı ve tekrar izlemede odaklanan kuşu büyüten ortak kart destesi, dikey tür geçişi, yatay kullanıcı onayı ve hafifletilmiş spektrogram. |
+| `v1.1.0` | Canlı dinlemede kaydedilen ses seviyesini -0.45 dBFS tepe noktasına normalize eden, parazit dirençli ve yumuşak sınırlayıcılı (soft-limiter) dinamik ses kazancı motoru. |
 | `v0.9.2` | Saha seslerini ham BirdNET puanlarıyla eşleştiren debug tanısı ve 10 saniye önce/sonra delil klibi. |
 | `v0.9.1` | Modelin tam üç saniyelik penceresini oynatma, sabit büyük dinleme kararları ve player/canlı ekran yeniden çizim optimizasyonu. |
 | `v0.9.0` | Duyulabilirlik kalite katmanı, eBird adayı–inceleme–makine sinyali ayrımı, tespit anına odaklı ortak player ve kalıcı insan dinleme kararı. |

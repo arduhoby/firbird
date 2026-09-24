@@ -5,6 +5,37 @@ import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('DC-biased headset flatline is measured as near silence', () {
+    final ByteData data = ByteData(48000 * 3 * 2);
+    for (int i = 0; i < data.lengthInBytes ~/ 2; i++) {
+      data.setInt16(i * 2, 68 + (i.isEven ? 2 : -2), Endian.little);
+    }
+    final Uint8List pcm = data.buffer.asUint8List();
+    final Uint8List original = Uint8List.fromList(pcm);
+    final result = AudioEvidenceEvaluator.evaluatePcm16(pcm);
+    expect(result.foregroundDbfs, lessThan(-80));
+    expect(result.peakDbfs, lessThan(-80));
+    expect(result.level, AudioEvidenceLevel.machineOnly);
+    expect(result.hasSignal, isFalse);
+    expect(pcm, orderedEquals(original));
+  });
+
+  test('constant DC offset does not change audible evidence', () {
+    final Uint8List pcm = _pcmWithEvent(
+      backgroundAmplitude: 80,
+      eventAmplitude: 12000,
+    );
+    final before = AudioEvidenceEvaluator.evaluatePcm16(pcm);
+    final ByteData data = ByteData.sublistView(pcm);
+    for (int i = 0; i < pcm.length; i += 2) {
+      data.setInt16(i, data.getInt16(i, Endian.little) + 2000, Endian.little);
+    }
+    final after = AudioEvidenceEvaluator.evaluatePcm16(pcm);
+    expect(after.foregroundDbfs, closeTo(before.foregroundDbfs, 0.01));
+    expect(after.noiseFloorDbfs, closeTo(before.noiseFloorDbfs, 0.01));
+    expect(after.peakDbfs, closeTo(before.peakDbfs, 0.01));
+  });
+
   test('separates a strong audible event from a quiet machine-only signal', () {
     final AudioEvidenceAssessment strong = AudioEvidenceEvaluator.evaluatePcm16(
       _pcmWithEvent(backgroundAmplitude: 80, eventAmplitude: 12000),
@@ -17,6 +48,8 @@ void main() {
     expect(strong.priority, greaterThan(quiet.priority));
     expect(strong.contrastDb, greaterThan(6));
     expect(quiet.level, AudioEvidenceLevel.machineOnly);
+    expect(quiet.hasSignal, isTrue);
+    expect(strong.hasSignal, isTrue);
   });
 
   test('bestOf preserves the strongest evidence across repeated events', () {

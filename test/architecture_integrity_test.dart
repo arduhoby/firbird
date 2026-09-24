@@ -3,6 +3,24 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('microphone routing has one shared channel on Android and iOS', () {
+    const String name = 'org.firbird3.app/microphone_input';
+    expect(
+      File('lib/audio/microphone_selection.dart').readAsStringSync(),
+      contains(name),
+    );
+    expect(
+      File(
+        'android/app/src/main/kotlin/org/firbird/app/MainActivity.kt',
+      ).readAsStringSync(),
+      contains(name),
+    );
+    expect(
+      File('ios/Runner/AppDelegate.swift').readAsStringSync(),
+      contains(name),
+    );
+  });
+
   test('media playback has one channel and one state machine', () async {
     final List<File> dartFiles = Directory('lib')
         .listSync(recursive: true)
@@ -55,7 +73,12 @@ void main() {
       final String pubspec = File('pubspec.yaml').readAsStringSync();
       final String plist = File('ios/Runner/Info.plist').readAsStringSync();
 
-      expect(pubspec, contains('version: 0.9.2+92'));
+      expect(pubspec, contains('version: 1.1.0+110'));
+      expect(plist, contains('<string>firbird4</string>'));
+      expect(
+        File('android/app/src/main/AndroidManifest.xml').readAsStringSync(),
+        contains('android:label="firbird4"'),
+      );
       expect(plist, contains(r'$(FLUTTER_BUILD_NAME)'));
       expect(plist, contains(r'$(FLUTTER_BUILD_NUMBER)'));
       expect(plist, contains('NSMicrophoneUsageDescription'));
@@ -95,7 +118,11 @@ void main() {
     expect(player, contains('AudioEvidenceClipPolicy.modelWindow('));
     expect(player, contains('AudioEvidenceClipPolicy.evidenceWindow('));
     expect(player, contains('playbackPositionListenable:'));
-    expect(player, contains('fixedReviewPanel'));
+    expect(player, contains('BirdDetectionDeck('));
+    expect(player, contains('height: 60'));
+    expect(player, isNot(contains('fixedReviewPanel')));
+    expect(live, contains('BirdDetectionDeck('));
+    expect(live, contains('_detectedSpeciesList.isEmpty ? 128 : 56'));
     expect(live, contains('ValueListenableBuilder<double>('));
     expect(history, contains('AudioEvidenceAssessment.fromStored('));
   });
@@ -148,6 +175,8 @@ void main() {
     expect(live, contains('return MediaPlayerScreen('));
     expect(live, contains('session: completedSession'));
     expect(history, contains('extra: PlaybackSession('));
+    expect(history, contains('onTap: () => _openLiveSessionPlayback('));
+    expect(history, isNot(contains('TESPİT EDİLEN TÜRLER TABLOSU')));
     expect(history, isNot(contains("c['speciesId']")));
   });
 
@@ -223,7 +252,7 @@ void main() {
     },
   );
 
-  test('all audio entry points use the shared detection card', () {
+  test('all audio entry points use the shared detection deck', () {
     for (final String path in <String>[
       'lib/app/identification_screens.dart',
       'lib/app/live_audio_recording_screen.dart',
@@ -231,17 +260,35 @@ void main() {
     ]) {
       expect(
         File(path).readAsStringSync(),
-        contains('BirdDetectionCard('),
-        reason: '$path must use the canonical audio detection card.',
+        contains('BirdDetectionDeck('),
+        reason: '$path must use the canonical audio detection deck.',
       );
     }
     final String source = File(
       'lib/app/live_audio_recording_screen.dart',
     ).readAsStringSync();
+    final String identification = File(
+      'lib/app/identification_screens.dart',
+    ).readAsStringSync();
     expect(source, isNot(contains('_showRegionalEvidence')));
     expect(source, isNot(contains('class _EvidenceMetric')));
+    expect(identification, contains('class _CandidateTableState'));
+    expect(identification, contains('BirdDetectionDeck('));
     expect(
       RegExp(r'class BirdDetectionCard\b')
+          .allMatches(
+            Directory('lib')
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((File file) => file.path.endsWith('.dart'))
+                .map((File file) => file.readAsStringSync())
+                .join('\n'),
+          )
+          .length,
+      1,
+    );
+    expect(
+      RegExp(r'class BirdDetectionDeck\b')
           .allMatches(
             Directory('lib')
                 .listSync(recursive: true)

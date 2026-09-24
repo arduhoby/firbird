@@ -276,7 +276,7 @@ class FirBirdApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeMode themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
-      title: 'FirBird 3',
+      title: 'firbird4',
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -346,7 +346,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('FirBird 3'),
+        title: const Text('firbird4'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -441,7 +441,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'FirBird 3 v0.4.0, Türkiye’deki 503 kuş türünü fotoğraf ve ses kaydından cihaz üzerinde tanımlar. Fotoğraf, ses ve konum verileri tanımlama için cihazından ayrılmaz. Harita yalnızca sen açmayı seçersen internet kullanır.',
+                      'firbird4 v1.1.0, Türkiye’deki 503 kuş türünü fotoğraf ve ses kaydından cihaz üzerinde tanımlar. Fotoğraf, ses ve konum verileri tanımlama için cihazından ayrılmaz. Harita yalnızca sen açmayı seçersen internet kullanır.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         height: 1.35,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,

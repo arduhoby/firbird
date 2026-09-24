@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 class Pcm16WavData {
@@ -117,3 +118,85 @@ Pcm16WavData? parsePcm16Wav(Uint8List bytes) {
 
 String _ascii(Uint8List bytes, int offset, int length) =>
     String.fromCharCodes(bytes.sublist(offset, offset + length));
+
+/// Scales 16-bit PCM little-endian audio samples by [gainMultiplier].
+/// Samples above 30000 amplitude use smooth soft-saturation to avoid harsh clipping.
+Uint8List applyPcm16Gain(Uint8List pcmBytes, double gainMultiplier) {
+  if (gainMultiplier == 1.0 || pcmBytes.length < 2) return pcmBytes;
+  final int sampleCount = pcmBytes.length ~/ 2;
+  final ByteData src = ByteData.sublistView(pcmBytes);
+  final Uint8List outBytes = Uint8List(sampleCount * 2);
+  final ByteData dst = ByteData.sublistView(outBytes);
+
+  for (int i = 0; i < sampleCount; i++) {
+    final int sample = src.getInt16(i * 2, Endian.little);
+    final double scaled = sample * gainMultiplier;
+    final int result;
+    if (scaled > 30000) {
+      final double excess = scaled - 30000;
+      result = (30000 + 2767 * (excess / (excess + 2767))).round().clamp(-32768, 32767);
+    } else if (scaled < -30000) {
+      final double excess = -scaled - 30000;
+      result = (-30000 - 2767 * (excess / (excess + 2767))).round().clamp(-32768, 32767);
+    } else {
+      result = scaled.round().clamp(-32768, 32767);
+    }
+    dst.setInt16(i * 2, result, Endian.little);
+  }
+
+  return outBytes;
+}
+
+/// Normalizes 16-bit PCM little-endian audio samples so that the effective peak amplitude
+/// reaches [targetPeakFraction] (default 0.95 ≈ -0.45 dBFS for clear, loud audibility).
+///
+/// Uses robust 99.9th percentile estimation across samples so single stray transient clicks
+/// (e.g. phone touch, tap) do not suppress the amplification of faint bird calls.
+/// A [maxGainMultiplier] safeguard (default 16.0 = +24 dB) prevents excessive noise floor amplification.
+Uint8List normalizePcm16Gain(
+  Uint8List pcmBytes, {
+  double targetPeakFraction = 0.95,
+  double maxGainMultiplier = 16.0,
+}) {
+  if (pcmBytes.length < 2) return pcmBytes;
+  final int sampleCount = pcmBytes.length ~/ 2;
+  final ByteData src = ByteData.sublistView(pcmBytes);
+
+  // 1. Build an amplitude histogram to find robust peak (99.9th percentile) and absolute peak
+  final Int32List hist = Int32List(32769);
+  int absPeak = 0;
+
+  for (int i = 0; i < sampleCount; i++) {
+    final int sample = src.getInt16(i * 2, Endian.little).abs();
+    if (sample > absPeak) absPeak = sample;
+    hist[sample > 32768 ? 32768 : sample]++;
+  }
+
+  if (absPeak <= 0) return pcmBytes; // Silence — do not alter
+
+  // Find 99.9th percentile amplitude
+  final int targetCount = math.max(1, (sampleCount * 0.999).ceil());
+  int accumulated = 0;
+  int robustPeak = absPeak;
+  for (int bin = 0; bin <= 32768; bin++) {
+    accumulated += hist[bin];
+    if (accumulated >= targetCount) {
+      robustPeak = math.max(bin, 1);
+      break;
+    }
+  }
+
+  final double currentFraction = robustPeak / 32768.0;
+  if (currentFraction >= targetPeakFraction && absPeak / 32768.0 >= targetPeakFraction) {
+    return pcmBytes;
+  }
+
+  final double requiredGain = (targetPeakFraction / currentFraction).clamp(
+    1.0,
+    maxGainMultiplier,
+  );
+  if (requiredGain <= 1.001) return pcmBytes;
+
+  return applyPcm16Gain(pcmBytes, requiredGain);
+}
+

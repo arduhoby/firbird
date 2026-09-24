@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appName.
   ///
   /// In en, this message translates to:
-  /// **'FirBird 3'**
+  /// **'firbird4'**
   String get appName;
 
   /// No description provided for @homeTagline.

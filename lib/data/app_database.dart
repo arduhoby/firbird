@@ -270,6 +270,7 @@ class AppDatabase extends _$AppDatabase {
     double? latitude,
     double? longitude,
     AudioEvidenceAssessment? audioEvidence,
+    AudioReviewVerdict? audioReviewVerdict,
   }) {
     return into(liveDetectionEvents).insert(
       LiveDetectionEventsCompanion.insert(
@@ -292,22 +293,21 @@ class AppDatabase extends _$AppDatabase {
         audioContrastDb: Value<double?>(audioEvidence?.contrastDb),
         audioPeakDbfs: Value<double?>(audioEvidence?.peakDbfs),
         audioClippedFraction: Value<double?>(audioEvidence?.clippedFraction),
+        audioReviewVerdict: Value<String?>(audioReviewVerdict?.name),
         createdAt: DateTime.now(),
       ),
     );
   }
 
-  Future<void> updateLiveDetectionAudioReview({
+  Future<void> updateLiveSpeciesAudioReview({
     required String sessionId,
     required String speciesId,
-    required int startMs,
     required AudioReviewVerdict verdict,
   }) {
     return (update(liveDetectionEvents)..where(
           (LiveDetectionEvents table) =>
               table.sessionId.equals(sessionId) &
-              table.speciesId.equals(speciesId) &
-              table.startMs.equals(startMs),
+              table.speciesId.equals(speciesId),
         ))
         .write(
           LiveDetectionEventsCompanion(

@@ -44,6 +44,7 @@ void main() {
         peakDbfs: -8,
         clippedFraction: 0,
       ),
+      audioReviewVerdict: AudioReviewVerdict.inaudible,
       temporalContext: 'Gece etkinliği · yumuşak ağırlık %85',
     );
 
@@ -59,15 +60,15 @@ void main() {
     expect(events.single.longitude, 28.9784);
     expect(events.single.speciesStatus, 'localOrMigratory');
     expect(events.single.audioEvidenceLevel, AudioEvidenceLevel.strong.name);
+    expect(events.single.audioReviewVerdict, AudioReviewVerdict.inaudible.name);
     expect(events.single.audioContrastDb, 24);
     expect(
       events.single.temporalContext,
       'Gece etkinliği · yumuşak ağırlık %85',
     );
-    await database.updateLiveDetectionAudioReview(
+    await database.updateLiveSpeciesAudioReview(
       sessionId: sessionId,
       speciesId: 'carduelis-carduelis',
-      startMs: 1250,
       verdict: AudioReviewVerdict.audible,
     );
     final LiveDetectionEvent reviewed = (await database.eventsForLiveSession(

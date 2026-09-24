@@ -540,7 +540,7 @@ class _ContextEffect extends StatelessWidget {
   }
 }
 
-class _CandidateTable extends StatelessWidget {
+class _CandidateTable extends StatefulWidget {
   const _CandidateTable({
     required this.predictions,
     required this.sourceUri,
@@ -553,8 +553,15 @@ class _CandidateTable extends StatelessWidget {
   final String modelVersion;
   final DateTime detectedAt;
 
+  @override
+  State<_CandidateTable> createState() => _CandidateTableState();
+}
+
+class _CandidateTableState extends State<_CandidateTable> {
+  int _focusedIndex = 0;
+
   bool get _isAudio {
-    final String extension = p.extension(sourceUri ?? '').toLowerCase();
+    final String extension = p.extension(widget.sourceUri ?? '').toLowerCase();
     return const <String>{
       '.mp3',
       '.m4a',
@@ -566,30 +573,32 @@ class _CandidateTable extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: <Widget>[
-      for (int index = 0; index < predictions.length; index++) ...<Widget>[
-        BirdDetectionCard(
-          record: DetectionRecord(
-            id: '${sourceUri ?? 'analysis'}|${predictions[index].speciesId}|${detectedAt.millisecondsSinceEpoch}',
-            speciesId: predictions[index].speciesId,
-            turkishName: predictions[index].turkishName,
-            scientificName: predictions[index].scientificName,
-            modelConfidence: predictions[index].score,
-            detectedAt: detectedAt,
+  Widget build(BuildContext context) {
+    final List<DetectionRecord> records = widget.predictions
+        .map(
+          (SpeciesPrediction prediction) => DetectionRecord(
+            id: '${widget.sourceUri ?? 'analysis'}|${prediction.speciesId}|${widget.detectedAt.millisecondsSinceEpoch}',
+            speciesId: prediction.speciesId,
+            turkishName: prediction.turkishName,
+            scientificName: prediction.scientificName,
+            modelConfidence: prediction.score,
+            detectedAt: widget.detectedAt,
             source: _isAudio
                 ? DetectionSource.audioFile
                 : DetectionSource.photo,
-            statusCategory: predictions[index].statusCategory,
-            modelVersion: modelVersion,
-            thumbnailUrl: predictions[index].thumbnailUrl,
-            audioUri: _isAudio ? sourceUri : null,
+            statusCategory: prediction.statusCategory,
+            modelVersion: widget.modelVersion,
+            thumbnailUrl: prediction.thumbnailUrl,
+            audioUri: _isAudio ? widget.sourceUri : null,
           ),
-        ),
-        if (index != predictions.length - 1) const SizedBox(height: 8),
-      ],
-    ],
-  );
+        )
+        .toList(growable: false);
+    return BirdDetectionDeck(
+      records: records,
+      focusedIndex: _focusedIndex,
+      onFocusChanged: (int index) => setState(() => _focusedIndex = index),
+    );
+  }
 }
 
 class _OriginBadge extends StatelessWidget {

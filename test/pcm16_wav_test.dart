@@ -32,4 +32,50 @@ void main() {
     expect(parsed, isNotNull);
     expect(parsed!.pcmBytes, orderedEquals(pcm));
   });
+
+  test('scales PCM16 samples using applyPcm16Gain', () {
+    final ByteData pcm = ByteData(4);
+    pcm.setInt16(0, 1000, Endian.little);
+    pcm.setInt16(2, -2000, Endian.little);
+
+    final Uint8List scaled = applyPcm16Gain(pcm.buffer.asUint8List(), 2.0);
+    final ByteData result = ByteData.sublistView(scaled);
+
+    expect(result.getInt16(0, Endian.little), 2000);
+    expect(result.getInt16(2, Endian.little), -4000);
+  });
+
+  test('normalizes low level PCM16 samples using normalizePcm16Gain', () {
+    final ByteData pcm = ByteData(2);
+    // Peak = 3276 (~ -20 dBFS)
+    pcm.setInt16(0, 3276, Endian.little);
+
+    final Uint8List normalized = normalizePcm16Gain(
+      pcm.buffer.asUint8List(),
+      targetPeakFraction: 0.7071, // ~23170 peak (~ -3 dBFS)
+    );
+    final ByteData result = ByteData.sublistView(normalized);
+    final int newPeak = result.getInt16(0, Endian.little);
+
+    expect(newPeak, closeTo(23170, 100));
+  });
+
+  test('normalizes with default 0.95 target and ignores transient outlier clicks', () {
+    // 1000 samples: 999 quiet samples at 500, 1 stray click at 20000
+    final ByteData pcm = ByteData(2000);
+    for (int i = 0; i < 999; i++) {
+      pcm.setInt16(i * 2, 500, Endian.little);
+    }
+    pcm.setInt16(999 * 2, 20000, Endian.little);
+
+    final Uint8List normalized = normalizePcm16Gain(pcm.buffer.asUint8List());
+    final ByteData result = ByteData.sublistView(normalized);
+
+    // Without robust estimation, gain would be (31129 / 20000) = 1.55x -> 500 becomes 775.
+    // With robust estimation, gain targets 500 up to max 16x -> 500 becomes 8000!
+    final int quietSampleResult = result.getInt16(0, Endian.little);
+    expect(quietSampleResult, greaterThan(5000));
+  });
 }
+
+

@@ -5,6 +5,7 @@ import 'package:firbird/app/firbird_app.dart';
 import 'package:firbird/app/back_to_home_button.dart';
 import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/audio/audio_evidence_assessment.dart';
+import 'package:firbird/audio/microphone_selection.dart';
 import 'package:firbird/audio/noise_filter_provider.dart';
 import 'package:firbird/audio/noise_filter_settings.dart';
 import 'package:firbird/data/app_database.dart';
@@ -17,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as path;
+import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HistoryScreen extends ConsumerWidget {
@@ -224,9 +226,8 @@ class HistoryScreen extends ConsumerWidget {
                             Icons.chevron_right,
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          onTap: () => _showLiveSessionDetails(
+                          onTap: () => _openLiveSessionPlayback(
                             context,
-                            dateStr,
                             groupRecords,
                             database,
                           ),
@@ -324,537 +325,108 @@ class HistoryScreen extends ConsumerWidget {
     );
   }
 
-  /// Opens the full session summary table in a modal bottom sheet
-  void _showLiveSessionDetails(
+  Future<void> _openLiveSessionPlayback(
     BuildContext context,
-    String dateStr,
     List<IdentificationRecord> records,
     AppDatabase database,
-  ) {
-    final theme = Theme.of(context);
+  ) async {
     final String? audioPath = records.first.imageUri;
-    final int rareCount = records
+    if (audioPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bu oturumun ses kaydı bulunamadı.')),
+      );
+      return;
+    }
+    final String resolvedAudioPath = await resolveExistingAudioPath(audioPath);
+    final String sessionId = records.first.packageId!;
+    final List<LiveDetectionEvent> events = await database.eventsForLiveSession(
+      sessionId,
+    );
+    final AlgorithmSettings algorithmSettings =
+        await AlgorithmSettingsRepository().load();
+    if (!context.mounted) return;
+    if (events.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bu oturumda oynatılabilir tespit olayı yok.'),
+        ),
+      );
+      return;
+    }
+    final int rareEventCount = events
         .where(
-          (IdentificationRecord record) =>
-              _statusCategory(record.speciesStatus, record.scientificName) ==
+          (LiveDetectionEvent event) =>
+              _statusCategory(event.speciesStatus, event.scientificName) ==
               SpeciesStatusCategory.rare,
         )
+        .map((LiveDetectionEvent event) => event.scientificName.toLowerCase())
+        .toSet()
         .length;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: theme.colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.75,
-          maxChildSize: 0.92,
-          minChildSize: 0.4,
-          builder: (context, scrollController) {
-            return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Header
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        radius: 20,
-                        child: Icon(
-                          Icons.mic,
-                          color: theme.colorScheme.primary,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Canlı Oturum Detayı',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              dateStr,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            if (rareCount > 0)
-                              Text(
-                                '$rareCount nadir tür tespiti',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.flutter_dash, size: 16),
-                        label: Text('${records.length} Tür'),
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                      ),
-                    ],
-                  ),
-
-                  if (audioPath != null) ...[
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () async {
-                        final String resolvedAudioPath =
-                            await resolveExistingAudioPath(audioPath);
-                        final String sessionId = records.first.packageId!;
-                        final List<LiveDetectionEvent> events = await database
-                            .eventsForLiveSession(sessionId);
-                        final AlgorithmSettings algorithmSettings =
-                            await AlgorithmSettingsRepository().load();
-                        if (!context.mounted) return;
-                        if (events.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Bu oturumda oynatılabilir tespit olayı yok.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        if (!context.mounted) return;
-                        final int rareEventCount = events
-                            .where(
-                              (LiveDetectionEvent event) =>
-                                  _statusCategory(
-                                    event.speciesStatus,
-                                    event.scientificName,
-                                  ) ==
-                                  SpeciesStatusCategory.rare,
-                            )
-                            .map(
-                              (LiveDetectionEvent event) =>
-                                  event.scientificName.toLowerCase(),
-                            )
-                            .toSet()
-                            .length;
-                        final Map<String, DetectionScoreAggregate> aggregates =
-                            aggregateDetectionScores(
-                              events.map(
-                                (LiveDetectionEvent event) =>
-                                    DetectionScoreSample(
-                                      key: event.scientificName,
-                                      confidence: event.confidence,
-                                    ),
-                              ),
-                            );
-                        context.push(
-                          '/player',
-                          extra: PlaybackSession(
-                            filePath: resolvedAudioPath,
-                            displayName: path.basename(resolvedAudioPath),
-                            rareSpeciesCount: rareEventCount,
-                            onAudioReview:
-                                (
-                                  PlaybackDetection detection,
-                                  AudioReviewVerdict verdict,
-                                ) => database.updateLiveDetectionAudioReview(
-                                  sessionId: sessionId,
-                                  speciesId: detection.speciesId,
-                                  startMs: detection.startMs,
-                                  verdict: verdict,
-                                ),
-                            detections: events
-                                .map((LiveDetectionEvent event) {
-                                  final DetectionScoreAggregate aggregate =
-                                      aggregates[event.scientificName
-                                          .toLowerCase()]!;
-                                  return PlaybackDetection(
-                                    speciesId: event.speciesId,
-                                    turkishName: event.turkishName,
-                                    scientificName: event.scientificName,
-                                    startMs: event.startMs,
-                                    endMs: event.endMs,
-                                    modelConfidence:
-                                        aggregate.averageConfidence,
-                                    repeatedHits:
-                                        aggregate.independentEventCount,
-                                    repetitionSupportPerHit: algorithmSettings
-                                        .repeatedDetectionSupport,
-                                    regionalSupport: event.regionalSupport,
-                                    temporalContext: event.temporalContext,
-                                    detectedAt:
-                                        event.detectedAt ??
-                                        records.first.createdAt.add(
-                                          Duration(milliseconds: event.startMs),
-                                        ),
-                                    latitude: event.latitude,
-                                    longitude: event.longitude,
-                                    modelVersion: 'BirdNET geçmiş kaydı',
-                                    statusCategory: _statusCategory(
-                                      event.speciesStatus,
-                                      event.scientificName,
-                                    ),
-                                    audioEvidence:
-                                        AudioEvidenceAssessment.fromStored(
-                                          level: event.audioEvidenceLevel,
-                                          foregroundDbfs:
-                                              event.audioForegroundDbfs,
-                                          noiseFloorDbfs:
-                                              event.audioNoiseFloorDbfs,
-                                          contrastDb: event.audioContrastDb,
-                                          peakDbfs: event.audioPeakDbfs,
-                                          clippedFraction:
-                                              event.audioClippedFraction,
-                                        ),
-                                    audioReviewVerdict:
-                                        audioReviewVerdictFromName(
-                                          event.audioReviewVerdict,
-                                        ),
-                                  );
-                                })
-                                .toList(growable: false),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.audio_file_outlined, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                path.basename(audioPath),
-                                style: theme.textTheme.bodySmall,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const Icon(Icons.play_circle_fill, size: 30),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 16),
-                  Text(
-                    'TESPİT EDİLEN TÜRLER TABLOSU',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Detailed Table
-                  Expanded(
-                    child: Column(
-                      children: [
-                        // Table header
-                        Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12),
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  'TÜR',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  'ZAMAN ARALIĞI',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 72,
-                                child: Text(
-                                  'TAH. ORAN',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Table content
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                              borderRadius: const BorderRadius.vertical(
-                                bottom: Radius.circular(12),
-                              ),
-                            ),
-                            child: ListView.separated(
-                              controller: scrollController,
-                              itemCount: records.length,
-                              separatorBuilder: (context, _) =>
-                                  const SizedBox(height: 2),
-                              itemBuilder: (context, index) {
-                                final record = records[index];
-                                // Parse confidence format "%89 · 01:00 – 01:35"
-                                String pctStr = record.confidence;
-                                String timeRange = '—';
-                                if (record.confidence.contains('·')) {
-                                  final parts = record.confidence.split('·');
-                                  pctStr = parts.first.trim();
-                                  timeRange = parts.last.trim();
-                                }
-
-                                final int pct =
-                                    int.tryParse(
-                                      pctStr.replaceAll('%', '').trim(),
-                                    ) ??
-                                    0;
-                                final Color pctColor = pct >= 70
-                                    ? Colors.green
-                                    : pct >= 40
-                                    ? Colors.orange
-                                    : Colors.red;
-
-                                // Typed v0.8.6 records carry the independent
-                                // event count. Keep the legacy parser only for
-                                // older local rows.
-                                int count = record.repeatedHits;
-                                if (record.predictionMethod?.startsWith(
-                                      'count:',
-                                    ) ==
-                                    true) {
-                                  count =
-                                      int.tryParse(
-                                        record.predictionMethod!.replaceAll(
-                                          'count:',
-                                          '',
-                                        ),
-                                      ) ??
-                                      1;
-                                }
-
-                                final SpeciesStatusCategory statusCat =
-                                    _statusCategory(
-                                      record.speciesStatus,
-                                      record.scientificName,
-                                    );
-                                final Color borderColor = statusCat.borderColor;
-
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 2,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: index.isEven
-                                        ? theme.colorScheme.surface
-                                        : theme
-                                              .colorScheme
-                                              .surfaceContainerLowest,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: borderColor,
-                                      width: 1.8,
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 3,
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              record.turkishName,
-                                              style: theme.textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
-                                            Text(
-                                              record.scientificName,
-                                              style: theme.textTheme.labelSmall
-                                                  ?.copyWith(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                            ),
-                                            if (count > 1)
-                                              Text(
-                                                '$count× duyuldu',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: Colors.green.shade700,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 3,
-                                        child: Text(
-                                          timeRange,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                fontFeatures: [
-                                                  const FontFeature.tabularFigures(),
-                                                ],
-                                              ),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 72,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: pctColor.withValues(
-                                              alpha: 0.12,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '%$pct',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: pctColor,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-
-                        // Tablo Açıklama Notu (Küçük Fontlu)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant
-                                    .withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildModalLegendNoteItem(
-                                  context,
-                                  Colors.green,
-                                  'Yerel / Göçmen',
-                                ),
-                                _buildModalLegendNoteItem(
-                                  context,
-                                  Colors.grey,
-                                  'Bölge Dışı / Zor',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Kapat'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+    final Map<String, DetectionScoreAggregate> aggregates =
+        aggregateDetectionScores(
+          events.map(
+            (LiveDetectionEvent event) => DetectionScoreSample(
+              key: event.scientificName,
+              confidence: event.confidence,
+            ),
+          ),
         );
-      },
+    context.push(
+      '/player',
+      extra: PlaybackSession(
+        filePath: resolvedAudioPath,
+        displayName: path.basename(resolvedAudioPath),
+        rareSpeciesCount: rareEventCount,
+        onAudioReview:
+            (PlaybackDetection detection, AudioReviewVerdict verdict) =>
+                database.updateLiveSpeciesAudioReview(
+                  sessionId: sessionId,
+                  speciesId: detection.speciesId,
+                  verdict: verdict,
+                ),
+        detections: events
+            .map((LiveDetectionEvent event) {
+              final DetectionScoreAggregate aggregate =
+                  aggregates[event.scientificName.toLowerCase()]!;
+              return PlaybackDetection(
+                speciesId: event.speciesId,
+                turkishName: event.turkishName,
+                scientificName: event.scientificName,
+                startMs: event.startMs,
+                endMs: event.endMs,
+                modelConfidence: aggregate.averageConfidence,
+                repeatedHits: aggregate.independentEventCount,
+                repetitionSupportPerHit:
+                    algorithmSettings.repeatedDetectionSupport,
+                regionalSupport: event.regionalSupport,
+                temporalContext: event.temporalContext,
+                detectedAt:
+                    event.detectedAt ??
+                    records.first.createdAt.add(
+                      Duration(milliseconds: event.startMs),
+                    ),
+                latitude: event.latitude,
+                longitude: event.longitude,
+                modelVersion: 'BirdNET geçmiş kaydı',
+                statusCategory: _statusCategory(
+                  event.speciesStatus,
+                  event.scientificName,
+                ),
+                audioEvidence: AudioEvidenceAssessment.fromStored(
+                  level: event.audioEvidenceLevel,
+                  foregroundDbfs: event.audioForegroundDbfs,
+                  noiseFloorDbfs: event.audioNoiseFloorDbfs,
+                  contrastDb: event.audioContrastDb,
+                  peakDbfs: event.audioPeakDbfs,
+                  clippedFraction: event.audioClippedFraction,
+                ),
+                audioReviewVerdict: audioReviewVerdictFromName(
+                  event.audioReviewVerdict,
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
     );
   }
 }
@@ -882,7 +454,9 @@ class _HistoryListItem {
 }
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.ebirdLiveService});
+
+  final EbirdLiveObservationService? ebirdLiveService;
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -899,8 +473,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   AlgorithmSettings _algorithmSettings = AlgorithmSettings.defaults;
   final AlgorithmSettingsRepository _algorithmSettingsRepository =
       AlgorithmSettingsRepository();
-  final EbirdLiveObservationService _ebirdLiveService =
-      EbirdLiveObservationService();
+  late final EbirdLiveObservationService _ebirdLiveService =
+      widget.ebirdLiveService ?? EbirdLiveObservationService();
 
   @override
   void initState() {
@@ -940,8 +514,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _editEbirdApiKey() async {
-    final TextEditingController controller = TextEditingController();
+    String enteredKey = '';
     bool testing = false;
+    String? errorText;
     final bool? saved = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => StatefulBuilder(
@@ -953,7 +528,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   TextField(
-                    controller: controller,
+                    onChanged: (String value) => enteredKey = value,
                     obscureText: true,
                     autocorrect: false,
                     enableSuggestions: false,
@@ -978,6 +553,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const SizedBox(height: 6),
                     const Text('Anahtar eBird ile doğrulanıyor…'),
                   ],
+                  if (errorText != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               actions: <Widget>[
@@ -1001,27 +585,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onPressed: testing
                       ? null
                       : () async {
-                          setDialogState(() => testing = true);
+                          bool completed = false;
+                          setDialogState(() {
+                            testing = true;
+                            errorText = null;
+                          });
                           try {
-                            await _ebirdLiveService.testApiKey(controller.text);
-                            await _ebirdLiveService.saveApiKey(controller.text);
+                            await _ebirdLiveService.testApiKey(enteredKey);
+                            await _ebirdLiveService.saveApiKey(enteredKey);
                             if (dialogContext.mounted) {
+                              completed = true;
                               Navigator.pop(dialogContext, true);
                             }
                           } on FormatException catch (error) {
                             if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                SnackBar(content: Text(error.message)),
-                              );
+                              setDialogState(() => errorText = error.message);
                             }
                           } on EbirdLiveDataException catch (error) {
                             if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                SnackBar(content: Text(error.message)),
+                              setDialogState(() => errorText = error.message);
+                            }
+                          } on Exception {
+                            if (dialogContext.mounted) {
+                              setDialogState(
+                                () => errorText =
+                                    'Anahtar kaydedilemedi. Lütfen tekrar deneyin.',
                               );
                             }
                           } finally {
-                            if (dialogContext.mounted) {
+                            if (dialogContext.mounted && !completed) {
                               setDialogState(() => testing = false);
                             }
                           }
@@ -1032,7 +624,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
       ),
     );
-    controller.dispose();
     if (saved == true) {
       final DateTime now = DateTime.now();
       await ref.read(appDatabaseProvider).setEBirdApiKeyLastVerifiedAt(now);
@@ -1209,6 +800,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: const Text('Türkiye 0.1.0 · uygulamaya dahil'),
               ),
             ],
+          ),
+          _SettingsSection(
+            title: 'Mikrofon',
+            icon: Icons.mic,
+            children: const <Widget>[_MicrophoneSettingsSection()],
           ),
           _SettingsSection(
             title: 'Ses Filtresi',
@@ -1507,36 +1103,6 @@ class _AlgorithmSlider extends StatelessWidget {
   );
 }
 
-Widget _buildModalLegendNoteItem(
-  BuildContext context,
-  Color color,
-  String label,
-) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.25),
-          shape: BoxShape.circle,
-          border: Border.all(color: color, width: 2),
-        ),
-      ),
-      const SizedBox(width: 5),
-      Text(
-        label,
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-    ],
-  );
-}
-
 SpeciesStatusCategory _statusCategory(
   String? storedValue,
   String scientificName,
@@ -1550,6 +1116,130 @@ SpeciesStatusCategory _statusCategory(
 /// Noise filter settings section shown inside the Settings screen.
 /// Uses [noiseFilterProvider] so that live changes are immediately reflected
 /// in the active recording session without a restart.
+class _MicrophoneSettingsSection extends StatefulWidget {
+  const _MicrophoneSettingsSection();
+
+  @override
+  State<_MicrophoneSettingsSection> createState() =>
+      _MicrophoneSettingsSectionState();
+}
+
+class _MicrophoneSettingsSectionState
+    extends State<_MicrophoneSettingsSection> {
+  final AudioRecorder _recorder = AudioRecorder();
+  late final MicrophoneSelection _microphones = MicrophoneSelection(_recorder);
+  MicrophoneChoice _choice = MicrophoneChoice.main;
+  bool _bluetoothAvailable = false;
+  bool _wiredAvailable = false;
+  bool _mainAvailable = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    _recorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final MicrophoneChoice choice = await _microphones.load();
+      final List<InputDevice> devices = await _microphones.devices();
+      final String? bottomId = await _microphones.bottomInputId();
+      final bool wired = devices.any(
+        (device) =>
+            device.type == InputDeviceType.wiredHeadset ||
+            device.type == InputDeviceType.usb,
+      );
+      if (!mounted) return;
+      setState(() {
+        _choice = choice == MicrophoneChoice.wired && !wired
+            ? MicrophoneChoice.main
+            : choice;
+        _mainAvailable = devices.any((device) => device.id == bottomId);
+        _wiredAvailable = wired;
+        _bluetoothAvailable = devices.any(
+          (device) =>
+              device.type == InputDeviceType.bluetoothSco ||
+              device.type == InputDeviceType.bluetoothLe,
+        );
+        _error = null;
+      });
+      if (choice == MicrophoneChoice.wired && !wired) {
+        await _microphones.save(MicrophoneChoice.main);
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Mikrofonlar okunamadı: $error');
+    }
+  }
+
+  Future<void> _select(MicrophoneChoice choice) async {
+    await _microphones.save(choice);
+    if (mounted) setState(() => _choice = choice);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final MicrophoneChoice shown =
+        _choice == MicrophoneChoice.main && _wiredAvailable
+        ? MicrophoneChoice.wired
+        : _choice;
+    return RadioGroup<MicrophoneChoice>(
+      groupValue: shown,
+      onChanged: (MicrophoneChoice? choice) {
+        if (choice != null) {
+          _select(
+            choice == MicrophoneChoice.wired ? MicrophoneChoice.main : choice,
+          );
+        }
+      },
+      child: Column(
+        children: <Widget>[
+          RadioListTile<MicrophoneChoice>(
+            title: const Text('Alt/ana mikrofon (varsayılan)'),
+            value: MicrophoneChoice.main,
+            enabled: _mainAvailable,
+          ),
+          RadioListTile<MicrophoneChoice>(
+            title: const Text('Bluetooth mikrofon'),
+            subtitle: Text(
+              _bluetoothAvailable ? 'Bağlı' : 'Mikrofon girişi bulunamadı',
+            ),
+            value: MicrophoneChoice.bluetooth,
+            enabled: _bluetoothAvailable,
+          ),
+          RadioListTile<MicrophoneChoice>(
+            title: const Text('Kablolu mikrofon'),
+            subtitle: Text(
+              _wiredAvailable ? 'Bağlıysa otomatik kullanılır' : 'Bağlı değil',
+            ),
+            value: MicrophoneChoice.wired,
+            enabled: _wiredAvailable,
+          ),
+          ListTile(
+            title: const Text('Bağlı mikrofonları yenile'),
+            trailing: const Icon(Icons.refresh),
+            onTap: _refresh,
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NoiseFilterSection extends ConsumerWidget {
   const _NoiseFilterSection();
 

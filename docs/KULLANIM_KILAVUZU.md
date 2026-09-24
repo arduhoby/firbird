@@ -1,6 +1,6 @@
 # FirBird 3 Kullanım Kılavuzu
 
-Bu kılavuz FirBird 3'ün v0.9.2 sürümü içindir. Uygulama kuş gözlemi için
+Bu kılavuz FirBird 3'ün v1.0.0 sürümü içindir. Uygulama kuş gözlemi için
 yardımcı bir araçtır; uzman doğrulamasının yerine geçmez.
 
 Kılavuz uygulamaya gömülüdür ve internet bağlantısı gerektirmez. Sol menüdeki

@@ -57,14 +57,16 @@ class DetectionEvidenceService {
     factors.add(
       DetectionEvidenceFactor(
         id: 'audio_audibility',
-        title: 'Kaydın duyulabilirliği',
+        title: audioReview == null
+            ? 'Kaydın duyulabilirliği'
+            : 'Kullanıcı tür doğrulaması',
         detail: switch (audioReview) {
           AudioReviewVerdict.audible =>
-            'Kullanıcı hedef sesi kayıtta duyabildiğini belirtti. Bu, tür teşhisini tek başına doğrulamaz.',
+            'Kullanıcı kayıttaki sesin bu kuşa ait olduğunu belirtti.',
           AudioReviewVerdict.uncertain =>
             'Kullanıcı sesin veya türün ayırt edilmesinden emin değil.',
           AudioReviewVerdict.inaudible =>
-            'Kullanıcı hedef sesin kayıtta anlaşılmadığını belirtti; bu kayıt eBird ses delili değildir.',
+            'Kullanıcı kayıttaki sesin bu kuşa ait olmadığını belirtti; bu kayıt tür için ses delili değildir.',
           null => switch (audioEvidence?.level) {
             AudioEvidenceLevel.strong =>
               'Kayıt seviyesi güçlü görünüyor; insan doğrulaması gerekiyor.',

@@ -21,7 +21,7 @@ class LiveDetectionDecision {
 }
 
 /// A conservative display gate. BirdNET's raw probability remains visible in
-/// logs, while the user-facing list requires temporal and regional support.
+/// logs. Regional observations strengthen evidence; their absence is not a veto.
 LiveDetectionDecision evaluateLiveDetection({
   required double score,
   required int hits,
@@ -48,8 +48,7 @@ LiveDetectionDecision evaluateLiveDetection({
   final int requiredHits = regionalSupport == RegionalSupportLevel.none ? 3 : 2;
   final double minimumScore = math.max(configuredMinimum, baseMinimum);
   // Repeated local evidence may be quieter than a single clean recording.
-  // Keep a small floor for it, while leaving unsupported species behind the
-  // strong-score gate above.
+  // Unsupported species retain a higher floor and require three windows.
   final double repeatedEvidenceMinimum = switch (regionalSupport) {
     RegionalSupportLevel.strong || RegionalSupportLevel.moderate => 0.05,
     RegionalSupportLevel.weak || null => 0.08,
@@ -61,9 +60,7 @@ LiveDetectionDecision evaluateLiveDetection({
   );
   // A strong raw model score is always allowed through. Time is a soft prior,
   // never a hard filter that can erase an unusual but well-supported call.
-  final bool hasEnoughEvidence =
-      score >= instantScore ||
-      (regionalSupport != RegionalSupportLevel.none && hits >= requiredHits);
+  final bool hasEnoughEvidence = score >= instantScore || hits >= requiredHits;
   // A familiar, non-rare local species at the expected time is useful to
   // show immediately, but is explicitly marked until a second window agrees.
   final bool isProvisional =

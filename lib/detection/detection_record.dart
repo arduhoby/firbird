@@ -71,6 +71,8 @@ class DetectionRecord {
     this.verdict,
     this.audioEvidence,
     this.audioReviewVerdict,
+    this.regionalSupport,
+    this.temporalContext,
   });
 
   final String id;
@@ -94,6 +96,8 @@ class DetectionRecord {
   final DetectionVerdict? verdict;
   final AudioEvidenceAssessment? audioEvidence;
   final AudioReviewVerdict? audioReviewVerdict;
+  final String? regionalSupport;
+  final String? temporalContext;
 
   DetectionRecord copyWith({
     DetectionEvidenceBundle? evidence,
@@ -122,5 +126,7 @@ class DetectionRecord {
     verdict: verdict ?? this.verdict,
     audioEvidence: audioEvidence ?? this.audioEvidence,
     audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
+    regionalSupport: regionalSupport,
+    temporalContext: temporalContext,
   );
 }

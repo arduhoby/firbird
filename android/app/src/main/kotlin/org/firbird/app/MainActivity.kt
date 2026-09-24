@@ -3,6 +3,9 @@ package org.firbird3.app
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.content.Context
 import android.media.audiofx.LoudnessEnhancer
 import android.content.ContentValues
 import android.os.Build
@@ -32,6 +35,37 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.firbird3.app/microphone_input")
+            .setMethodCallHandler { call, result ->
+                val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                when (call.method) {
+                    "bottomInputId" -> {
+                        val bottom = audio.getDevices(AudioManager.GET_DEVICES_INPUTS)
+                            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC && it.address == "bottom" }
+                        result.success(bottom?.id?.toString())
+                    }
+                    "activeInput" -> {
+                        val recordings = audio.activeRecordingConfigurations
+                        val device = if (recordings.size == 1) recordings.first().audioDevice else null
+                        result.success(device?.let {
+                            mapOf(
+                                "id" to it.id.toString(),
+                                "label" to it.productName.toString(),
+                                "kind" to when (it.type) {
+                                    AudioDeviceInfo.TYPE_BUILTIN_MIC -> "main"
+                                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                                    AudioDeviceInfo.TYPE_BLE_HEADSET -> "bluetooth"
+                                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                                    AudioDeviceInfo.TYPE_USB_HEADSET,
+                                    AudioDeviceInfo.TYPE_USB_DEVICE -> "wired"
+                                    else -> "unknown"
+                                },
+                            )
+                        })
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {

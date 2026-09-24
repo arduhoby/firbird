@@ -15,6 +15,7 @@ import AVFoundation
 
     if let controller = window?.rootViewController as? FlutterViewController {
       setupMediaChannel(messenger: controller.binaryMessenger)
+      setupMicrophoneChannel(messenger: controller.binaryMessenger)
     }
 
     return result
@@ -24,6 +25,7 @@ import AVFoundation
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "FirBirdMediaPlayerPlugin") {
       setupMediaChannel(messenger: registrar.messenger())
+      setupMicrophoneChannel(messenger: registrar.messenger())
     }
   }
 
@@ -32,6 +34,57 @@ import AVFoundation
     channel.setMethodCallHandler { [weak self] (call, result) in
       self?.handleMediaCall(call, result: result)
     }
+  }
+
+  private func bottomMicrophone() throws -> (AVAudioSessionPortDescription, AVAudioSessionDataSourceDescription)? {
+    let session = AVAudioSession.sharedInstance()
+    if session.category != .playAndRecord && session.category != .record {
+      try session.setCategory(.playAndRecord, options: [.allowBluetooth, .defaultToSpeaker])
+    }
+    guard let port = session.availableInputs?.first(where: { $0.portType == .builtInMic }),
+          let source = port.dataSources?.first(where: { $0.location == .lower }) else {
+      return nil
+    }
+    return (port, source)
+  }
+
+  private func setupMicrophoneChannel(messenger: FlutterBinaryMessenger) {
+    FlutterMethodChannel(name: "org.firbird3.app/microphone_input", binaryMessenger: messenger)
+      .setMethodCallHandler { [weak self] call, result in
+        guard let self else { result(nil); return }
+        do {
+          let session = AVAudioSession.sharedInstance()
+          switch call.method {
+          case "bottomInputId":
+            result(try self.bottomMicrophone()?.0.uid)
+          case "preferBottom":
+            guard let (port, source) = try self.bottomMicrophone() else {
+              throw NSError(domain: "FirBird", code: 1, userInfo: [NSLocalizedDescriptionKey: "Alt mikrofon seçilemiyor"])
+            }
+            try port.setPreferredDataSource(source)
+            try session.setPreferredInput(port)
+            result(nil)
+          case "activeInput":
+            guard let port = session.currentRoute.inputs.first else { result(nil); return }
+            let kind: String
+            switch port.portType {
+            case .builtInMic:
+              kind = port.selectedDataSource?.location == .lower ? "main" : "unknown"
+            case .headsetMic, .usbAudio:
+              kind = "wired"
+            case .bluetoothHFP, .bluetoothLE:
+              kind = "bluetooth"
+            default:
+              kind = "unknown"
+            }
+            result(["id": port.uid, "kind": kind, "label": port.portName])
+          default:
+            result(FlutterMethodNotImplemented)
+          }
+        } catch {
+          result(FlutterError(code: "MICROPHONE_FAILED", message: error.localizedDescription, details: nil))
+        }
+      }
   }
 
   private func handleMediaCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

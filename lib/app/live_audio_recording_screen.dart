@@ -16,13 +16,13 @@ import 'package:record/record.dart';
 import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/audio/pcm16_wav.dart';
 import 'package:firbird/audio/noise_filter.dart';
+import 'package:firbird/audio/microphone_selection.dart';
 import 'package:firbird/audio/noise_filter_provider.dart';
 import 'package:firbird/audio/noise_filter_settings.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/audio_spectrogram.dart';
 import 'package:firbird/app/bird_detection_card.dart';
-import 'package:firbird/app/detection_evidence_sheet.dart';
 import 'package:firbird/app/media_player_screen.dart';
 import 'package:firbird/app/nearby_birds_screen.dart';
 import 'package:firbird/data/app_database.dart';
@@ -87,6 +87,12 @@ class LiveAudioRecordingScreen extends ConsumerStatefulWidget {
 class _LiveAudioRecordingScreenState
     extends ConsumerState<LiveAudioRecordingScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
+  late final MicrophoneSelection _microphones = MicrophoneSelection(
+    _audioRecorder,
+  );
+  SelectedMicrophone? _selectedMicrophone;
+  String? _activeMicrophoneLabel;
+  bool _checkingMicrophone = false;
   AudioInferenceEngine? _audioEngine;
 
   bool _isRecording = false;
@@ -127,8 +133,7 @@ class _LiveAudioRecordingScreenState
   String? _observationContextMessage;
 
   // A single PCM microphone stream feeds both the saved recording and the
-  // rolling BirdNET analysis window. The recorder is never stopped between
-  // model windows.
+  // rolling BirdNET analysis window. It only restarts if the input changes.
   static const MethodChannel _screenChannel = MethodChannel(
     'org.firbird3.app/screen',
   );
@@ -141,10 +146,12 @@ class _LiveAudioRecordingScreenState
   final List<_DetectionMoment> _detectionMoments = <_DetectionMoment>[];
   final Set<String> _rejectedSpecies = <String>{};
   final Set<String> _confirmedSpecies = <String>{};
+  final Set<String> _uncertainSpecies = <String>{};
   final RareDetectionAlertController _rareAlerts =
       RareDetectionAlertController();
   final List<Set<String>> _recentCandidateWindows = <Set<String>>[];
   String? _highlightedSpeciesKey;
+  String? _focusedSpeciesKey;
   Timer? _highlightTimer;
 
   /// Loaded from settings — minimum confidence to show in live table (0.0 = all)
@@ -418,6 +425,8 @@ class _LiveAudioRecordingScreenState
 
       setState(() {
         _isRecording = true;
+        _selectedMicrophone = null;
+        _activeMicrophoneLabel = null;
         _historySaved = false;
         _savedFilePath = null;
         _savedSessionId = null;
@@ -444,6 +453,9 @@ class _LiveAudioRecordingScreenState
             showTenMinuteCheck = true;
           }
         });
+        if (_secondsRecorded > 0) {
+          unawaited(_checkMicrophoneRoute());
+        }
         if (showTenMinuteCheck) unawaited(_showTenMinuteCheck());
       });
 
@@ -506,19 +518,40 @@ class _LiveAudioRecordingScreenState
   }
 
   Future<void> _startContinuousRecording() async {
+    final SelectedMicrophone selected = await _microphones.resolve(
+      await _microphones.load(),
+    );
+    _selectedMicrophone = selected;
     final Directory tempDirectory = await getTemporaryDirectory();
     _sessionPcmPath = path.join(
       tempDirectory.path,
       'firbird_live_${DateTime.now().millisecondsSinceEpoch}.pcm',
     );
     _sessionPcmSink = File(_sessionPcmPath!).openWrite();
-    final Stream<Uint8List> stream = await _audioRecorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: _sampleRate,
-        numChannels: 1,
-      ),
+    try {
+      final String label = await _openMicrophoneStream(selected);
+      if (mounted) setState(() => _activeMicrophoneLabel = label);
+    } catch (_) {
+      try {
+        await _audioRecorder.stop();
+      } catch (error) {
+        debugPrint('Mikrofon başlatma temizliği: $error');
+      }
+      await _audioStreamSubscription?.cancel();
+      _audioStreamSubscription = null;
+      await _sessionPcmSink?.close();
+      _sessionPcmSink = null;
+      rethrow;
+    }
+    if (mounted) setState(() => _statusText = 'Dinleniyor...');
+  }
+
+  Future<String> _openMicrophoneStream(SelectedMicrophone selected) async {
+    final RecordConfig config = _microphones.recordingConfig(
+      selected,
+      sampleRate: _sampleRate,
     );
+    final Stream<Uint8List> stream = await _audioRecorder.startStream(config);
     _audioStreamDone = Completer<void>();
     _audioStreamSubscription = stream.listen(
       _handlePcmChunk,
@@ -533,7 +566,75 @@ class _LiveAudioRecordingScreenState
       },
       cancelOnError: false,
     );
-    if (mounted) setState(() => _statusText = 'Dinleniyor...');
+    await _microphones.applyAfterStart(selected);
+    final String label = await _microphones.verifyRoute(selected);
+    if (kDebugMode) {
+      debugPrint(
+        'FIRBIRD_DIAG capture_input choice=${selected.choice.name} '
+        'deviceId=${selected.device.id} verifiedLabel=$label '
+        'autoGain=${config.autoGain} source=${config.androidConfig.audioSource.name} '
+        'noiseSuppress=${config.noiseSuppress} echoCancel=${config.echoCancel}',
+      );
+    }
+    return label;
+  }
+
+  Future<void> _switchMicrophone(SelectedMicrophone next) async {
+    final Stopwatch gap = Stopwatch()..start();
+    await _audioRecorder.stop();
+    await _audioStreamDone?.future.timeout(const Duration(seconds: 5));
+    await _audioStreamSubscription?.cancel();
+    _audioStreamSubscription = null;
+    if (_isStoppingSession || !_isRecording) return;
+    _analysisPending = false;
+    await _analysisTask;
+    final int silentBytes =
+        ((gap.elapsedMicroseconds * _bytesPerSecond ~/ 1000000) ~/ 2) * 2;
+    if (silentBytes > 0) {
+      _sessionPcmSink?.add(Uint8List(silentBytes));
+      _capturedPcmBytes += silentBytes;
+    }
+    _ringLength = 0;
+    _ringWriteOffset = 0;
+    _nextAnalysisAtByte = _capturedPcmBytes + _analysisWindowBytes;
+    _recentCandidateWindows.clear();
+    if (_isStoppingSession || !_isRecording) return;
+    final String label = await _openMicrophoneStream(next);
+    _selectedMicrophone = next;
+    if (mounted) setState(() => _activeMicrophoneLabel = label);
+  }
+
+  Future<void> _checkMicrophoneRoute() async {
+    final SelectedMicrophone? selected = _selectedMicrophone;
+    if (!_isRecording ||
+        _isStoppingSession ||
+        _checkingMicrophone ||
+        selected == null) {
+      return;
+    }
+    _checkingMicrophone = true;
+    try {
+      final SelectedMicrophone desired = await _microphones.resolve(
+        await _microphones.load(),
+      );
+      if (desired.device.id != selected.device.id) {
+        await _switchMicrophone(desired);
+        return;
+      }
+      final String label = await _microphones.verifyRoute(selected);
+      if (mounted && label != _activeMicrophoneLabel) {
+        setState(() => _activeMicrophoneLabel = label);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+      await _stopSession();
+    } finally {
+      _checkingMicrophone = false;
+    }
   }
 
   void _handlePcmChunk(Uint8List chunk) {
@@ -649,14 +750,30 @@ class _LiveAudioRecordingScreenState
       });
     }
 
+    final AudioEvidenceAssessment audioEvidence =
+        AudioEvidenceEvaluator.evaluatePcm16(
+          pcmWindow,
+          sampleRate: _sampleRate,
+        );
+    if (!audioEvidence.hasSignal) {
+      if (mounted) {
+        setState(
+          () => _statusText =
+              'Mikrofon sinyali çok düşük. Bağlantıyı kontrol edin; kuş analizi bekliyor.',
+        );
+      }
+      if (kDebugMode) {
+        debugPrint(
+          'FIRBIRD_DIAG capture_no_signal startMs=${windowStart.inMilliseconds} '
+          'foreground=${audioEvidence.foregroundDbfs.toStringAsFixed(3)} '
+          'peak=${audioEvidence.peakDbfs.toStringAsFixed(3)}',
+        );
+      }
+      return;
+    }
     if (mounted) setState(() => _statusText = 'Analiz ediliyor...');
 
     try {
-      final AudioEvidenceAssessment audioEvidence =
-          AudioEvidenceEvaluator.evaluatePcm16(
-            pcmWindow,
-            sampleRate: _sampleRate,
-          );
       // Apply real-time noise filter before model inference.
       final NoiseFilterSettings filterSettings =
           ref.read(noiseFilterProvider).value ?? NoiseFilterSettings.off;
@@ -833,6 +950,7 @@ class _LiveAudioRecordingScreenState
               isProvisional: decision.isProvisional,
             ),
           );
+          _focusedSpeciesKey ??= candidateKey;
           _markDetectionFeedback(pred, now, audioEvidence);
           listChanged = true;
         }
@@ -917,6 +1035,14 @@ class _LiveAudioRecordingScreenState
     return null;
   }
 
+  AudioReviewVerdict? _audioReviewForSpecies(String scientificName) {
+    final String key = scientificName.toLowerCase();
+    if (_rejectedSpecies.contains(key)) return AudioReviewVerdict.inaudible;
+    if (_confirmedSpecies.contains(key)) return AudioReviewVerdict.audible;
+    if (_uncertainSpecies.contains(key)) return AudioReviewVerdict.uncertain;
+    return null;
+  }
+
   Future<void> _persistCompletedSession(String audioPath) async {
     if (_historySaved || _detectedSpeciesList.isEmpty) return;
     final AppDatabase database = ref.read(appDatabaseProvider);
@@ -978,6 +1104,9 @@ class _LiveAudioRecordingScreenState
           latitude: _sessionPosition?.latitude,
           longitude: _sessionPosition?.longitude,
           audioEvidence: moment.audioEvidence,
+          audioReviewVerdict: _audioReviewForSpecies(
+            moment.prediction.scientificName,
+          ),
         );
       }
     });
@@ -1118,15 +1247,26 @@ class _LiveAudioRecordingScreenState
     required int pcmLength,
     required String destination,
   }) async {
+    final Uint8List rawPcm = await pcmFile.readAsBytes();
+    final NoiseFilterSettings filterSettings =
+        ref.read(noiseFilterProvider).value ?? NoiseFilterSettings.off;
+
+    Uint8List processedPcm = rawPcm;
+    if (filterSettings.enabled && filterSettings.gainMultiplier != 1.0) {
+      processedPcm = applyPcm16Gain(processedPcm, filterSettings.gainMultiplier);
+    }
+
+    processedPcm = normalizePcm16Gain(processedPcm);
+
     final IOSink output = File(destination).openWrite();
     output.add(
       pcm16WavHeader(
-        pcmByteLength: pcmLength,
+        pcmByteLength: processedPcm.length,
         sampleRate: _sampleRate,
         channels: 1,
       ),
     );
-    await output.addStream(pcmFile.openRead());
+    output.add(processedPcm);
     await output.close();
   }
 
@@ -1215,15 +1355,6 @@ class _LiveAudioRecordingScreenState
         .toList();
   }
 
-  Future<bool?> _reviewDetection(LiveDetectionEntry entry) async {
-    final DetectionVerdict? verdict = await showDetectionEvidenceSheet(
-      context,
-      _detectionRecordFor(entry),
-    );
-    if (verdict != null && mounted) _applyVerdict(entry, verdict);
-    return false;
-  }
-
   void _applyVerdict(LiveDetectionEntry entry, DetectionVerdict verdict) {
     final String key = entry.prediction.scientificName.toLowerCase();
     _rareAlerts.resolve(key);
@@ -1231,6 +1362,7 @@ class _LiveAudioRecordingScreenState
       setState(() {
         _confirmedSpecies.add(key);
         _rejectedSpecies.remove(key);
+        _uncertainSpecies.remove(key);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1243,7 +1375,28 @@ class _LiveAudioRecordingScreenState
     }
     setState(() {
       _rejectedSpecies.add(key);
-      _detectedSpeciesList.remove(entry);
+      _confirmedSpecies.remove(key);
+      _uncertainSpecies.remove(key);
+    });
+  }
+
+  Future<void> _applyAudioReview(
+    LiveDetectionEntry entry,
+    AudioReviewVerdict verdict,
+  ) async {
+    if (verdict == AudioReviewVerdict.audible) {
+      _applyVerdict(entry, DetectionVerdict.correct);
+      return;
+    }
+    if (verdict == AudioReviewVerdict.inaudible) {
+      _applyVerdict(entry, DetectionVerdict.incorrect);
+      return;
+    }
+    final String key = entry.prediction.scientificName.toLowerCase();
+    setState(() {
+      _uncertainSpecies.add(key);
+      _confirmedSpecies.remove(key);
+      _rejectedSpecies.remove(key);
     });
   }
 
@@ -1275,6 +1428,21 @@ class _LiveAudioRecordingScreenState
       repeatedHits: entry.detectionCount,
       repetitionSupportPerHit: _algorithmSettings.repeatedDetectionSupport,
       audioEvidence: entry.audioEvidence,
+      audioReviewVerdict: _audioReviewForSpecies(
+        entry.prediction.scientificName,
+      ),
+      regionalSupport: entry.regionalContext?.supportLevel.name,
+      temporalContext: entry.temporalContext?.displayLabel,
+      verdict:
+          _rejectedSpecies.contains(
+            entry.prediction.scientificName.toLowerCase(),
+          )
+          ? DetectionVerdict.incorrect
+          : _confirmedSpecies.contains(
+              entry.prediction.scientificName.toLowerCase(),
+            )
+          ? DetectionVerdict.correct
+          : null,
     );
   }
 
@@ -1286,10 +1454,9 @@ class _LiveAudioRecordingScreenState
     if (sessionId == null) return;
     await ref
         .read(appDatabaseProvider)
-        .updateLiveDetectionAudioReview(
+        .updateLiveSpeciesAudioReview(
           sessionId: sessionId,
           speciesId: detection.speciesId,
-          startMs: detection.startMs,
           verdict: verdict,
         );
   }
@@ -1338,6 +1505,9 @@ class _LiveAudioRecordingScreenState
               modelVersion: 'BirdNET canlı ses',
               statusCategory: moment.prediction.statusCategory,
               audioEvidence: moment.audioEvidence,
+              audioReviewVerdict: _audioReviewForSpecies(
+                moment.prediction.scientificName,
+              ),
             );
           })
           .toList(growable: false),
@@ -1369,6 +1539,16 @@ class _LiveAudioRecordingScreenState
       );
     }
     final theme = Theme.of(context);
+    final List<DetectionRecord> detectionRecords = _detectedSpeciesList
+        .map(_detectionRecordFor)
+        .toList(growable: false);
+    final int focusedIndex = math.max(
+      0,
+      _detectedSpeciesList.indexWhere(
+        (LiveDetectionEntry entry) =>
+            entry.prediction.scientificName.toLowerCase() == _focusedSpeciesKey,
+      ),
+    );
     return PopScope<Object?>(
       canPop: !_isRecording && !_isStoppingSession,
       onPopInvokedWithResult: _handlePopInvoked,
@@ -1447,7 +1627,7 @@ class _LiveAudioRecordingScreenState
                         columns: _spectrogramColumns,
                         markers: _liveMarkers(),
                         liveCenter: true,
-                        height: 128,
+                        height: _detectedSpeciesList.isEmpty ? 128 : 56,
                       ),
                       if (_isRecording)
                         Positioned(
@@ -1559,6 +1739,17 @@ class _LiveAudioRecordingScreenState
             ),
             const SizedBox(height: 8),
 
+            if (_activeMicrophoneLabel != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Kullanılan mikrofon: $_activeMicrophoneLabel',
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
             // ── Detection Table ───────────────────────────────────────
             Expanded(
               child: _detectedSpeciesList.isEmpty
@@ -1650,126 +1841,39 @@ class _LiveAudioRecordingScreenState
                         ),
                       ),
                     )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                            child: Text(
-                              'Son tespitler',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: BirdDetectionDeck(
+                          records: detectionRecords,
+                          focusedIndex: focusedIndex,
+                          height: constraints.maxHeight,
+                          onFocusChanged: (int index) => setState(
+                            () =>
+                                _focusedSpeciesKey = _detectedSpeciesList[index]
+                                    .prediction
+                                    .scientificName
+                                    .toLowerCase(),
                           ),
-                          // Table rows
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
+                          onVerdict: (int index, DetectionVerdict verdict) =>
+                              _applyVerdict(
+                                _detectedSpeciesList[index],
+                                verdict,
                               ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _detectedSpeciesList.length,
-                              separatorBuilder: (context, _) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (context, index) {
-                                final item = _detectedSpeciesList[index];
-                                final pred = item.prediction;
-                                final bool isFreshDetection =
-                                    _highlightedSpeciesKey ==
-                                    pred.scientificName.toLowerCase();
-
-                                return Dismissible(
-                                  key: ValueKey<String>(pred.scientificName),
-                                  direction: DismissDirection.startToEnd,
-                                  confirmDismiss: (_) => _reviewDetection(item),
-                                  background: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 8,
-                                    ),
-                                    padding: const EdgeInsets.only(left: 22),
-                                    alignment: Alignment.centerLeft,
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: const Row(
-                                      children: [
-                                        Icon(Icons.fact_check_outlined),
-                                        SizedBox(width: 8),
-                                        Text('Doğrula'),
-                                      ],
-                                    ),
+                          onAudioReview:
+                              (int index, AudioReviewVerdict verdict) =>
+                                  _applyAudioReview(
+                                    _detectedSpeciesList[index],
+                                    verdict,
                                   ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 8,
-                                    ),
-                                    child: BirdDetectionCard(
-                                      record: _detectionRecordFor(item),
-                                      isHighlighted: isFreshDetection,
-                                      isRareAlertActive: _rareAlerts
-                                          .isUnresolved(pred.scientificName),
-                                      isRareAlertPulse:
-                                          _rareAlerts.isPulseVisible,
-                                      onVerdict: (DetectionVerdict verdict) =>
-                                          _applyVerdict(item, verdict),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          // Tablo Açıklama Notu (Küçük Fontlu)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, bottom: 4),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
+                          isRareAlertActive: (int index) =>
+                              _rareAlerts.isUnresolved(
+                                _detectedSpeciesList[index]
+                                    .prediction
+                                    .scientificName,
                               ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest
-                                    .withValues(alpha: 0.35),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: theme.colorScheme.outlineVariant
-                                      .withValues(alpha: 0.5),
-                                ),
-                              ),
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                spacing: 12,
-                                runSpacing: 6,
-                                children: [
-                                  _buildLegendNoteItem(
-                                    Colors.green,
-                                    'Yerel / Göçmen',
-                                  ),
-                                  _buildLegendNoteItem(
-                                    Colors.grey,
-                                    'Bölge Dışı / Zor',
-                                  ),
-                                  _buildLegendNoteItem(
-                                    Colors.blue,
-                                    'Yeni / aktif tespit',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                          isRareAlertPulse: _rareAlerts.isPulseVisible,
+                        ),
                       ),
                     ),
             ),
@@ -1844,32 +1948,6 @@ class _LiveAudioRecordingScreenState
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildLegendNoteItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.25),
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 2),
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

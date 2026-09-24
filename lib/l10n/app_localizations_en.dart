@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'FirBird 3';
+  String get appName => 'firbird4';
 
   @override
   String get homeTagline => 'Listen to nature, identify birds.';

@@ -109,8 +109,44 @@ class PlaybackDetection {
       repetitionSupportPerHit: repetitionSupportPerHit,
       audioEvidence: audioEvidence,
       audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
+      regionalSupport: regionalSupport,
+      temporalContext: temporalContext,
     );
   }
+}
+
+List<PlaybackDetection> collapsePlaybackDetectionsBySpecies(
+  Iterable<PlaybackDetection> detections,
+) {
+  final Map<String, PlaybackDetection> unique = <String, PlaybackDetection>{};
+  for (final PlaybackDetection candidate in detections) {
+    final String key = candidate.scientificName.trim().toLowerCase();
+    final PlaybackDetection? current = unique[key];
+    if (current == null || _isBetterSpeciesEvidence(candidate, current)) {
+      unique[key] = candidate;
+    }
+  }
+  return unique.values.toList(growable: false);
+}
+
+bool _isBetterSpeciesEvidence(
+  PlaybackDetection candidate,
+  PlaybackDetection current,
+) {
+  if (candidate.audioReviewVerdict != null &&
+      current.audioReviewVerdict == null) {
+    return true;
+  }
+  if (candidate.audioReviewVerdict == null &&
+      current.audioReviewVerdict != null) {
+    return false;
+  }
+  final int candidatePriority = candidate.audioEvidence?.priority ?? -1;
+  final int currentPriority = current.audioEvidence?.priority ?? -1;
+  if (candidatePriority != currentPriority) {
+    return candidatePriority > currentPriority;
+  }
+  return candidate.modelConfidence > current.modelConfidence;
 }
 
 class PlaybackSession {
@@ -194,7 +230,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     final PlaybackSession activeSession = PlaybackSession(
       filePath: resolvedPath,
       displayName: session.displayName,
-      detections: session.detections,
+      detections: collapsePlaybackDetectionsBySpecies(session.detections),
       rareSpeciesCount: session.rareSpeciesCount,
       onAudioReview: session.onAudioReview,
     );
@@ -398,7 +434,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[XFile(wavPath, mimeType: 'audio/wav')],
-        text: 'FirBird 3 Kuş Sesi Klipi',
+        text: 'firbird4 Kuş Sesi Klipi',
       ),
     );
   }
@@ -436,10 +472,17 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
             _selectedDetectionIndex! < detections.length
         ? _selectedDetectionIndex
         : null;
-    final PlaybackDetection? selectedDetection = selectedIndex == null
-        ? null
-        : detections[selectedIndex];
-
+    final List<DetectionRecord> detectionRecords = detections
+        .map((PlaybackDetection item) {
+          final AudioReviewVerdict? reviewVerdict =
+              _audioReviews[_audioReviewKey(session!.filePath, item)] ??
+              item.audioReviewVerdict;
+          return item.toDetectionRecord(
+            session.filePath,
+            audioReviewVerdict: reviewVerdict,
+          );
+        })
+        .toList(growable: false);
     final Widget staticSpectrogram = ScrollableAudioSpectrogram(
       columns: _spectrogram,
       markers: markers,
@@ -448,7 +491,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
       onSeek: durationMs <= 0
           ? null
           : (double value) => _controller.seek((durationMs * value).round()),
-      height: 220,
+      height: 60,
       secondsPerScreen: 30.0,
     );
 
@@ -465,71 +508,27 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
             ),
           )
         : Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-              itemCount: detections.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 6),
-              itemBuilder: (BuildContext context, int index) {
-                final PlaybackDetection item = detections[index];
-                final String reviewKey = _audioReviewKey(
-                  session!.filePath,
-                  item,
-                );
-                final AudioReviewVerdict? reviewVerdict =
-                    _audioReviews[reviewKey] ?? item.audioReviewVerdict;
-                return BirdDetectionCard(
-                  record: item.toDetectionRecord(
-                    session.filePath,
-                    audioReviewVerdict: reviewVerdict,
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) =>
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: BirdDetectionDeck(
+                      records: detectionRecords,
+                      focusedIndex: selectedIndex ?? 0,
+                      height: constraints.maxHeight,
+                      onFocusChanged: (int index) =>
+                          setState(() => _selectedDetectionIndex = index),
+                      onSeek: _playDetection,
+                      onAudioReview: session!.onAudioReview == null
+                          ? null
+                          : (int index, AudioReviewVerdict verdict) =>
+                                _setAudioReview(
+                                  session,
+                                  detections[index],
+                                  verdict,
+                                ),
+                    ),
                   ),
-                  isHighlighted: selectedIndex == index,
-                  onSeek: () => _playDetection(index),
-                );
-              },
-            ),
-          );
-
-    final Widget fixedReviewPanel =
-        session?.onAudioReview == null || selectedDetection == null
-        ? const SizedBox.shrink()
-        : SafeArea(
-            top: false,
-            minimum: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      '${selectedDetection.turkishName} · 3 saniyeyi değerlendir',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    AudioEvidenceReviewControls(
-                      selected:
-                          _audioReviews[_audioReviewKey(
-                            session!.filePath,
-                            selectedDetection,
-                          )] ??
-                          selectedDetection.audioReviewVerdict,
-                      expanded: true,
-                      onChanged: (AudioReviewVerdict verdict) =>
-                          _setAudioReview(session, selectedDetection, verdict),
-                    ),
-                  ],
-                ),
-              ),
             ),
           );
 
@@ -542,7 +541,7 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
       body: Column(
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: theme.colorScheme.surfaceContainerHighest.withValues(
               alpha: 0.55,
             ),
@@ -716,7 +715,6 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                   ),
           ),
           detectionBody,
-          fixedReviewPanel,
           if (widget.onClose != null || widget.onSaveCopy != null)
             SafeArea(
               top: false,

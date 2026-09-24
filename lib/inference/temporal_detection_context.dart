@@ -189,6 +189,10 @@ TemporalDetectionContext temporalContextForSpecies({
 
 BirdActivityProfile _activityProfileFor(String scientificName) {
   final String name = scientificName.trim().toLowerCase();
+  // Cornell: generally nocturnal, with documented daylight hunting exceptions.
+  // https://www.allaboutbirds.org/guide/Boreal_Owl/overview
+  // https://academy.allaboutbirds.org/boreal-owl-hunting-in-daylight/
+  if (name == 'aegolius funereus') return BirdActivityProfile.nocturnal;
   const Set<String> nocturnalGenera = <String>{
     'tyto',
     'bubo',

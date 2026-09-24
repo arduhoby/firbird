@@ -28,6 +28,8 @@ class AudioEvidenceAssessment {
   final double clippedFraction;
 
   bool get isPotentiallyAudible => level != AudioEvidenceLevel.machineOnly;
+  // Reject only near-flat PCM; weak but real events still enter the review path.
+  bool get hasSignal => foregroundDbfs > -80 || peakDbfs > -65;
   int get priority => _levelRank(level);
 
   AudioEvidenceAssessment bestOf(AudioEvidenceAssessment other) {
@@ -96,7 +98,14 @@ abstract final class AudioEvidenceEvaluator {
     final int frameSamples = math.max(1, sampleRate ~/ 20);
     final List<double> frameLevels = <double>[];
     int clippedSamples = 0;
-    int peak = 0;
+    double peak = 0;
+    double sampleSum = 0;
+    for (int index = 0; index < sampleCount; index++) {
+      sampleSum += bytes.getInt16(index * 2, Endian.little);
+    }
+    // A microphone's DC bias is not audible sound. Measure AC amplitude without
+    // altering the original PCM that is saved as evidence.
+    final double dcOffset = sampleSum / sampleCount;
 
     for (
       int frameStart = 0;
@@ -107,10 +116,10 @@ abstract final class AudioEvidenceEvaluator {
       double sumSquares = 0;
       for (int index = frameStart; index < frameEnd; index++) {
         final int sample = bytes.getInt16(index * 2, Endian.little);
-        final int magnitude = sample.abs();
-        peak = math.max(peak, magnitude);
-        if (magnitude >= 32760) clippedSamples++;
-        sumSquares += sample * sample;
+        final double centered = sample - dcOffset;
+        peak = math.max(peak, centered.abs());
+        if (sample.abs() >= 32760) clippedSamples++;
+        sumSquares += centered * centered;
       }
       final int length = frameEnd - frameStart;
       final double rms = length == 0 ? 0 : math.sqrt(sumSquares / length);

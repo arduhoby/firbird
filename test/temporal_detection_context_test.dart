@@ -45,6 +45,19 @@ void main() {
     expect(woodpecker.confidenceMultiplier, greaterThan(0));
   });
 
+  test('marks Paçalı Baykuş as nocturnal in daylight', () {
+    final TemporalDetectionContext owl = temporalContextForSpecies(
+      scientificName: 'Aegolius funereus',
+      moment: DateTime.utc(2026, 9, 20, 12),
+      latitude: istanbulLatitude,
+      longitude: istanbulLongitude,
+    );
+
+    expect(owl.phase, SolarPhase.daylight);
+    expect(owl.profile, BirdActivityProfile.nocturnal);
+    expect(owl.confidenceMultiplier, 0.55);
+  });
+
   test('does not change confidence when GPS context is unavailable', () {
     final TemporalDetectionContext context = temporalContextForSpecies(
       scientificName: 'Dendrocopos major',

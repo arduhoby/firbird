@@ -1,4 +1,4 @@
-# FirBird v0.9.2 Yardım
+# FirBird v1.0.0 Yardım
 
 ## Ses delili rozetleri ne anlama geliyor?
 

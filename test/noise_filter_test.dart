@@ -94,6 +94,25 @@ void main() {
   group('NoiseFilter.apply', () {
     final NoiseFilter filter = NoiseFilter();
 
+    test('active filtering never mutates the raw recording bytes', () {
+      final Uint8List pcm = _sinePcm16(
+        frequency: 2500,
+        sampleRate: 48000,
+        amplitude: 0.2,
+        samples: 4096,
+      );
+      final Uint8List original = Uint8List.fromList(pcm);
+      for (final settings in [
+        NoiseFilterSettings.presetWind,
+        NoiseFilterSettings.presetWater,
+        NoiseFilterSettings.presetForest,
+      ]) {
+        filter.reset();
+        filter.apply(pcm, settings);
+        expect(pcm, orderedEquals(original));
+      }
+    });
+
     test('returns original bytes when filter is disabled', () {
       final Uint8List pcm = _sinePcm16(
         frequency: 1000,

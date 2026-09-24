@@ -9,7 +9,7 @@ class AppLocalizationsTr extends AppLocalizations {
   AppLocalizationsTr([String locale = 'tr']) : super(locale);
 
   @override
-  String get appName => 'FirBird 3';
+  String get appName => 'firbird4';
 
   @override
   String get homeTagline => 'Doğayı dinle, kuşları tanı.';

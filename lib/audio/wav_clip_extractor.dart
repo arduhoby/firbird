@@ -1,6 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:firbird/audio/noise_filter.dart';
+import 'package:firbird/audio/noise_filter_settings.dart';
+import 'package:firbird/audio/pcm16_wav.dart';
+
 /// Extracts a time-range clip from a WAV file and writes it to [outputPath].
 ///
 /// The WAV file must be PCM 16-bit (standard format produced by FirBird's
@@ -19,6 +23,8 @@ abstract final class WavClipExtractor {
     required int startMs,
     required int endMs,
     required String outputPath,
+    bool applyNoiseFilter = false,
+    double gainMultiplier = 1.0,
   }) async {
     assert(startMs >= 0, 'startMs must be non-negative');
     assert(endMs > startMs, 'endMs must be greater than startMs');
@@ -85,44 +91,32 @@ abstract final class WavClipExtractor {
       );
     }
 
-    // ── Build output WAV ────────────────────────────────────────────────────
-    final int totalOutputBytes = 44 + clipDataBytes;
-    final Uint8List out = Uint8List(totalOutputBytes);
-    final ByteData outHdr = ByteData.sublistView(out, 0, 44);
+    // ── Build output WAV with optional filtering and gain ───────────────────
+    Uint8List pcmSamples = Uint8List.fromList(
+      bytes.sublist(dataOffset + alignedStart, dataOffset + alignedEnd),
+    );
 
-    // ChunkID "RIFF"
-    out[0] = 0x52; out[1] = 0x49; out[2] = 0x46; out[3] = 0x46;
-    // ChunkSize
-    outHdr.setUint32(4, totalOutputBytes - 8, Endian.little);
-    // Format "WAVE"
-    out[8] = 0x57; out[9] = 0x41; out[10] = 0x56; out[11] = 0x45;
-    // Subchunk1ID "fmt "
-    out[12] = 0x66; out[13] = 0x6D; out[14] = 0x74; out[15] = 0x20;
-    // Subchunk1Size = 16 for PCM
-    outHdr.setUint32(16, 16, Endian.little);
-    // AudioFormat = 1 (PCM)
-    outHdr.setUint16(20, 1, Endian.little);
-    // NumChannels
-    outHdr.setUint16(22, numChannels, Endian.little);
-    // SampleRate
-    outHdr.setUint32(24, sampleRate, Endian.little);
-    // ByteRate = SampleRate × NumChannels × BitsPerSample/8
-    outHdr.setUint32(28, sampleRate * bytesPerFrame, Endian.little);
-    // BlockAlign = NumChannels × BitsPerSample/8
-    outHdr.setUint16(32, bytesPerFrame, Endian.little);
-    // BitsPerSample
-    outHdr.setUint16(34, bitsPerSample, Endian.little);
-    // Subchunk2ID "data"
-    out[36] = 0x64; out[37] = 0x61; out[38] = 0x74; out[39] = 0x61;
-    // Subchunk2Size
-    outHdr.setUint32(40, clipDataBytes, Endian.little);
+    if (applyNoiseFilter && numChannels == 1 && sampleRate == 48000) {
+      final NoiseFilter filter = NoiseFilter();
+      pcmSamples = filter.apply(
+        pcmSamples,
+        const NoiseFilterSettings(
+          enabled: true,
+          windCutoffHz: 300,
+          waterReduction: 0.5,
+          gainMultiplier: 1.0,
+        ),
+      );
+    }
 
-    // Copy PCM samples
-    out.setRange(
-      44,
-      44 + clipDataBytes,
-      bytes,
-      dataOffset + alignedStart,
+    if (gainMultiplier != 1.0) {
+      pcmSamples = applyPcm16Gain(pcmSamples, gainMultiplier);
+    }
+
+    final Uint8List out = buildPcm16Wav(
+      pcmSamples,
+      sampleRate: sampleRate,
+      channels: numChannels,
     );
 
     await File(outputPath).writeAsBytes(out, flush: true);

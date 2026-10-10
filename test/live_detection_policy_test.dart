@@ -94,4 +94,17 @@ void main() {
     expect(decision.temporalScore, 0.48);
     expect(decision.accepted, isTrue);
   });
+
+  test('configured threshold strictly suppresses lower scoring candidates', () {
+    final LiveDetectionDecision decision = evaluateLiveDetection(
+      score: 0.35,
+      hits: 5,
+      isRare: false,
+      regionalSupport: RegionalSupportLevel.strong,
+      configuredMinimum: 0.45,
+    );
+
+    expect(decision.accepted, isFalse);
+    expect(decision.minimumScore, 0.45);
+  });
 }

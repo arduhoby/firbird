@@ -7,9 +7,9 @@ import 'package:firbird/app/audio_spectrogram.dart';
 import 'package:firbird/app/app_bar_help_button.dart';
 import 'package:firbird/app/bird_detection_card.dart';
 import 'package:firbird/app/media_player_controller.dart';
+import 'package:firbird/audio/wav_clip_extractor.dart';
 import 'package:firbird/detection/detection_record.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
-import 'package:firbird/audio/wav_clip_extractor.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -195,6 +195,9 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
   String? _loadError;
   int _timelineDurationMs = 0;
   int? _selectedDetectionIndex;
+  bool _noiseReduction = false;
+  bool _isFilteringAudio = false;
+  String? _filteredAudioPath;
 
   @override
   void initState() {
@@ -211,6 +214,9 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
   }
 
   Future<void> _setSession(PlaybackSession? session) async {
+    _filteredAudioPath = null;
+    _noiseReduction = false;
+    _isFilteringAudio = false;
     if (session == null) {
       _session = null;
       _controller.attach(null);
@@ -358,6 +364,78 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
     );
   }
 
+  Future<String> _ensureFilteredAudio(String rawPath) async {
+    if (rawPath.isEmpty) return rawPath;
+    if (_filteredAudioPath != null && File(_filteredAudioPath!).existsSync()) {
+      return _filteredAudioPath!;
+    }
+    final String baseName = path.basenameWithoutExtension(rawPath);
+    final Directory tempDir = await getTemporaryDirectory();
+    final String filteredPath = path.join(
+      tempDir.path,
+      '${baseName}_filtered.wav',
+    );
+    if (File(filteredPath).existsSync()) {
+      _filteredAudioPath = filteredPath;
+      return filteredPath;
+    }
+
+    final int duration = _timelineDurationMs > 0
+        ? _timelineDurationMs
+        : WavClipExtractor.durationMsFromPath(rawPath);
+    if (duration <= 0) return rawPath;
+
+    setState(() => _isFilteringAudio = true);
+    try {
+      await WavClipExtractor.extract(
+        rawPath,
+        startMs: 0,
+        endMs: duration,
+        outputPath: filteredPath,
+        applyNoiseFilter: true,
+      );
+      _filteredAudioPath = filteredPath;
+      return filteredPath;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gürültü filtresi uygulanamadı: $e')),
+        );
+      }
+      return rawPath;
+    } finally {
+      if (mounted) {
+        setState(() => _isFilteringAudio = false);
+      }
+    }
+  }
+
+  Future<void> _toggleNoiseReduction(bool enabled) async {
+    final PlaybackSession? session = _session;
+    if (session == null || session.filePath.isEmpty) return;
+
+    if (!enabled) {
+      setState(() => _noiseReduction = false);
+      await _controller.switchSource(
+        session.filePath,
+        positionMs: _controller.positionMs,
+      );
+      return;
+    }
+
+    final String filteredPath = await _ensureFilteredAudio(session.filePath);
+    if (!mounted) return;
+    if (filteredPath == session.filePath) {
+      return;
+    }
+
+    setState(() => _noiseReduction = true);
+    await _controller.switchSource(
+      filteredPath,
+      positionMs: _controller.positionMs,
+    );
+  }
+
   Future<void> _saveClip() async {
     final PlaybackSession? session = _session;
     final ({int startMs, int endMs})? evidence = _selectedEvidenceWindow();
@@ -380,12 +458,18 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
         startMs: evidence.startMs,
         endMs: evidence.endMs,
         outputPath: outPath,
+        applyNoiseFilter: _noiseReduction,
+        gainMultiplier: _controller.gain,
       );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Klip kaydedildi: $fileName'),
+          content: Text(
+            _noiseReduction || _controller.gain != 1.0
+                ? 'Klip kaydedildi (${_noiseReduction ? "Filtreli, " : ""}%${(_controller.gain * 100).round()} ses): $fileName'
+                : 'Klip kaydedildi: $fileName',
+          ),
           action: SnackBarAction(
             label: 'Paylaş',
             onPressed: () => _shareWavPath(outPath),
@@ -419,6 +503,8 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
         startMs: evidence.startMs,
         endMs: evidence.endMs,
         outputPath: outPath,
+        applyNoiseFilter: _noiseReduction,
+        gainMultiplier: _controller.gain,
       );
 
       await _shareWavPath(outPath);
@@ -629,12 +715,44 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen>
                         ),
                       ),
                       SizedBox(
-                        width: 54,
+                        width: 44,
                         child: Text(
                           '%${(_controller.gain * 100).round()}',
                           textAlign: TextAlign.end,
                           style: theme.textTheme.labelSmall,
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        avatar: _isFilteringAudio
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _noiseReduction
+                                    ? Icons.noise_control_off_rounded
+                                    : Icons.noise_aware_rounded,
+                                size: 16,
+                              ),
+                        label: const Text(
+                          'Gürültü Filtresi',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        selected: _noiseReduction,
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 0,
+                        ),
+                        onSelected: _isFilteringAudio || session == null
+                            ? null
+                            : (bool selected) =>
+                                _toggleNoiseReduction(selected),
                       ),
                     ],
                   ),

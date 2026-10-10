@@ -1,3 +1,6 @@
+import 'package:firbird/ai/claude_api_key_dialog.dart';
+import 'package:firbird/ai/claude_api_service.dart';
+import 'package:firbird/ai/claude_evaluation_provider.dart';
 import 'package:firbird/app/app_config.dart';
 import 'package:firbird/app/app_drawer.dart';
 import 'package:firbird/app/app_bar_help_button.dart';
@@ -470,6 +473,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _observationRadiusKm = 20;
   bool _hasEbirdApiKey = false;
   DateTime? _eBirdApiKeyVerifiedAt;
+  EvaluationMode _evaluationMode = EvaluationMode.local;
+  bool _hasClaudeApiKey = false;
+  DateTime? _claudeApiKeyVerifiedAt;
+  final ClaudeApiService _claudeService = ClaudeApiService();
   AlgorithmSettings _algorithmSettings = AlgorithmSettings.defaults;
   final AlgorithmSettingsRepository _algorithmSettingsRepository =
       AlgorithmSettingsRepository();
@@ -492,6 +499,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final bool hasEbirdApiKey = await _ebirdLiveService.hasApiKey();
     final DateTime? eBirdApiKeyVerifiedAt = await database
         .eBirdApiKeyLastVerifiedAt();
+    final String evalModeStr = await database.evaluationMode();
+    final bool hasClaudeKey = await _claudeService.hasApiKey();
+    final DateTime? claudeKeyVerifiedAt = await database
+        .claudeApiKeyLastVerifiedAt();
     final AlgorithmSettings algorithmSettings =
         await _algorithmSettingsRepository.load();
     if (mounted) {
@@ -503,7 +514,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _observationRadiusKm = observationRadius;
         _hasEbirdApiKey = hasEbirdApiKey;
         _eBirdApiKeyVerifiedAt = eBirdApiKeyVerifiedAt;
+        _evaluationMode =
+            evalModeStr == 'claude'
+                ? EvaluationMode.claude
+                : EvaluationMode.local;
+        _hasClaudeApiKey = hasClaudeKey;
+        _claudeApiKeyVerifiedAt = claudeKeyVerifiedAt;
         _algorithmSettings = algorithmSettings;
+      });
+    }
+  }
+
+  Future<void> _checkClaudeKeyStatus() async {
+    final bool hasKey = await _claudeService.hasApiKey();
+    final DateTime? verifiedAt = await ref
+        .read(appDatabaseProvider)
+        .claudeApiKeyLastVerifiedAt();
+    if (mounted) {
+      setState(() {
+        _hasClaudeApiKey = hasKey;
+        _claudeApiKeyVerifiedAt = verifiedAt;
       });
     }
   }
@@ -723,10 +753,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 max: 0.80,
                 divisions: 15,
                 label: '%${(_candidateThreshold * 100).round()}',
-                onChanged: (double value) =>
-                    setState(() => _candidateThreshold = value),
-                onChangeEnd: (double value) =>
-                    ref.read(appDatabaseProvider).setCandidateThreshold(value),
+                onChanged: (double value) {
+                  setState(() => _candidateThreshold = value);
+                  ref.read(appDatabaseProvider).setCandidateThreshold(value);
+                },
+                onChangeEnd: (double value) async {
+                  await ref.read(appDatabaseProvider).setCandidateThreshold(value);
+                  ref.invalidate(candidateThresholdProvider);
+                },
               ),
               const Divider(height: 1),
               ListTile(
@@ -745,11 +779,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 label: _liveMinScore == 0
                     ? 'Hepsi'
                     : '%${(_liveMinScore * 100).round()}',
-                onChanged: (double value) =>
-                    setState(() => _liveMinScore = value),
-                onChangeEnd: (double value) => ref
-                    .read(appDatabaseProvider)
-                    .setLiveDetectionMinScore(value),
+                onChanged: (double value) {
+                  setState(() => _liveMinScore = value);
+                  ref.read(appDatabaseProvider).setLiveDetectionMinScore(value);
+                },
+                onChangeEnd: (double value) async {
+                  await ref
+                      .read(appDatabaseProvider)
+                      .setLiveDetectionMinScore(value);
+                  ref.invalidate(liveDetectionMinScoreProvider);
+                },
+              ),
+            ],
+          ),
+          _SettingsSection(
+            title: 'Yapay Zeka ve Değerlendirme Modu',
+            icon: Icons.auto_awesome,
+            children: <Widget>[
+              const ListTile(
+                title: Text('Canlı Sonuç Değerlendirme Modu'),
+                subtitle: Text(
+                  'Kuş seslerinin canlı dinlemede nasıl analiz edilip doğrulanacağını seçin.',
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: SegmentedButton<EvaluationMode>(
+                  segments: const <ButtonSegment<EvaluationMode>>[
+                    ButtonSegment<EvaluationMode>(
+                      value: EvaluationMode.local,
+                      icon: Icon(Icons.phonelink_ring_outlined),
+                      label: Text('Lokal (Cihaz İçi)'),
+                    ),
+                    ButtonSegment<EvaluationMode>(
+                      value: EvaluationMode.claude,
+                      icon: Icon(Icons.auto_awesome),
+                      label: Text('Claude AI'),
+                    ),
+                  ],
+                  selected: <EvaluationMode>{_evaluationMode},
+                  onSelectionChanged: (Set<EvaluationMode> selection) async {
+                    final EvaluationMode chosen = selection.first;
+                    if (chosen == EvaluationMode.claude) {
+                      final bool hasKey = await _claudeService.hasApiKey();
+                      if (!hasKey) {
+                        if (!context.mounted) return;
+                        final bool? saved = await showClaudeApiKeyDialog(
+                          context,
+                          service: _claudeService,
+                          database: ref.read(appDatabaseProvider),
+                        );
+                        if (saved != true) return;
+                        await _checkClaudeKeyStatus();
+                      }
+                    }
+                    await ref
+                        .read(evaluationModeProvider.notifier)
+                        .setMode(chosen);
+                    if (mounted) setState(() => _evaluationMode = chosen);
+                  },
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  _hasClaudeApiKey
+                      ? Icons.verified_rounded
+                      : Icons.key_outlined,
+                  color: _hasClaudeApiKey ? Colors.deepPurple : null,
+                ),
+                title: const Text('Claude API Anahtarı'),
+                subtitle: Text(
+                  _hasClaudeApiKey
+                      ? 'Doğrulandı · ${_claudeApiKeyVerifiedAt == null ? 'şimdi' : '${_claudeApiKeyVerifiedAt!.day.toString().padLeft(2, '0')}.${_claudeApiKeyVerifiedAt!.month.toString().padLeft(2, '0')}.${_claudeApiKeyVerifiedAt!.year}'}\nDüzenlemek için dokunun.'
+                      : 'Canlı tespitleri ornitolojik olarak doğrulamak için Anthropic API anahtarınızı ekleyin.',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  final bool? saved = await showClaudeApiKeyDialog(
+                    context,
+                    service: _claudeService,
+                    database: ref.read(appDatabaseProvider),
+                  );
+                  if (saved != null) {
+                    await _checkClaudeKeyStatus();
+                    if (saved == false &&
+                        _evaluationMode == EvaluationMode.claude) {
+                      await ref
+                          .read(evaluationModeProvider.notifier)
+                          .setMode(EvaluationMode.local);
+                      if (mounted) {
+                        setState(() => _evaluationMode = EvaluationMode.local);
+                      }
+                    }
+                  }
+                },
               ),
             ],
           ),

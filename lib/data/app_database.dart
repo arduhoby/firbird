@@ -390,6 +390,14 @@ class AppDatabase extends _$AppDatabase {
     return double.tryParse(setting?.value ?? '') ?? 0.20;
   }
 
+  Stream<double> watchCandidateThreshold() {
+    return (select(appSettings)..where(
+      (AppSettings table) => table.key.equals('candidateThreshold'),
+    )).watchSingleOrNull().map(
+      (AppSetting? setting) => double.tryParse(setting?.value ?? '') ?? 0.20,
+    );
+  }
+
   Future<void> setCandidateThreshold(double threshold) {
     return into(appSettings).insertOnConflictUpdate(
       AppSettingsCompanion.insert(
@@ -406,6 +414,14 @@ class AppDatabase extends _$AppDatabase {
             ))
             .getSingleOrNull();
     return double.tryParse(setting?.value ?? '') ?? 0.0;
+  }
+
+  Stream<double> watchLiveDetectionMinScore() {
+    return (select(appSettings)..where(
+      (AppSettings table) => table.key.equals('liveDetectionMinScore'),
+    )).watchSingleOrNull().map(
+      (AppSetting? setting) => double.tryParse(setting?.value ?? '') ?? 0.0,
+    );
   }
 
   Future<void> setLiveDetectionMinScore(double score) {
@@ -460,6 +476,46 @@ class AppDatabase extends _$AppDatabase {
   Future<void> clearEBirdApiKeyLastVerifiedAt() {
     return (delete(appSettings)..where(
           (AppSettings table) => table.key.equals('eBirdApiKeyLastVerifiedAt'),
+        ))
+        .go();
+  }
+
+  Future<String> evaluationMode() async {
+    final AppSetting? setting =
+        await (select(appSettings)
+              ..where((AppSettings table) => table.key.equals('evaluationMode')))
+            .getSingleOrNull();
+    return setting?.value ?? 'local'; // 'local' or 'claude'
+  }
+
+  Future<void> setEvaluationMode(String mode) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(key: 'evaluationMode', value: mode),
+    );
+  }
+
+  Future<DateTime?> claudeApiKeyLastVerifiedAt() async {
+    final AppSetting? setting =
+        await (select(appSettings)..where(
+              (AppSettings table) =>
+                  table.key.equals('claudeApiKeyLastVerifiedAt'),
+            ))
+            .getSingleOrNull();
+    return DateTime.tryParse(setting?.value ?? '');
+  }
+
+  Future<void> setClaudeApiKeyLastVerifiedAt(DateTime value) {
+    return into(appSettings).insertOnConflictUpdate(
+      AppSettingsCompanion.insert(
+        key: 'claudeApiKeyLastVerifiedAt',
+        value: value.toUtc().toIso8601String(),
+      ),
+    );
+  }
+
+  Future<void> clearClaudeApiKeyLastVerifiedAt() {
+    return (delete(appSettings)..where(
+          (AppSettings table) => table.key.equals('claudeApiKeyLastVerifiedAt'),
         ))
         .go();
   }
@@ -534,3 +590,11 @@ final Provider<AppDatabase> appDatabaseProvider = Provider<AppDatabase>((
   ref.onDispose(database.close);
   return database;
 });
+
+final candidateThresholdProvider = StreamProvider<double>(
+  (Ref ref) => ref.watch(appDatabaseProvider).watchCandidateThreshold(),
+);
+
+final liveDetectionMinScoreProvider = StreamProvider<double>(
+  (Ref ref) => ref.watch(appDatabaseProvider).watchLiveDetectionMinScore(),
+);

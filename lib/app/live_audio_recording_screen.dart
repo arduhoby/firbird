@@ -13,6 +13,9 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'package:firbird/ai/claude_api_key_dialog.dart';
+import 'package:firbird/ai/claude_api_service.dart';
+import 'package:firbird/ai/claude_evaluation_provider.dart';
 import 'package:firbird/audio/audio_evidence_assessment.dart';
 import 'package:firbird/audio/pcm16_wav.dart';
 import 'package:firbird/audio/noise_filter.dart';
@@ -47,6 +50,8 @@ class LiveDetectionEntry {
     this.regionalContext,
     this.temporalContext,
     this.isProvisional = false,
+    this.claudeEvaluation,
+    this.isClaudeEvaluating = false,
   });
 
   final SpeciesPrediction prediction;
@@ -58,6 +63,8 @@ class LiveDetectionEntry {
   RegionalSpeciesContext? regionalContext;
   TemporalDetectionContext? temporalContext;
   bool isProvisional;
+  ClaudeEvaluationResult? claudeEvaluation;
+  bool isClaudeEvaluating;
 }
 
 class _DetectionMoment {
@@ -156,15 +163,119 @@ class _LiveAudioRecordingScreenState
 
   /// Loaded from settings — minimum confidence to show in live table (0.0 = all)
   double _liveMinScore = 0.0;
+  double _candidateThreshold = 0.20;
+  StreamSubscription<double>? _liveMinScoreSubscription;
+  StreamSubscription<double>? _candidateThresholdSubscription;
   AlgorithmSettings _algorithmSettings = AlgorithmSettings.defaults;
 
   /// Real-time noise filter applied to every PCM analysis window before BirdNET.
   final NoiseFilter _noiseFilter = NoiseFilter();
+  final ClaudeApiService _claudeService = ClaudeApiService();
+  final Set<String> _pendingOrEvaluatedClaudeSpecies = <String>{};
+
+  void _triggerClaudeEvaluationIfNeeded(
+    LiveDetectionEntry entry, {
+    required double peakDbfs,
+    required double foregroundDbfs,
+    required double contrastDb,
+    required DateTime now,
+    List<String>? alternatives,
+  }) {
+    final EvaluationMode mode = ref.read(evaluationModeProvider);
+    if (mode != EvaluationMode.claude) return;
+
+    final String speciesKey = entry.prediction.scientificName.toLowerCase();
+    if (_pendingOrEvaluatedClaudeSpecies.contains(speciesKey)) return;
+    _pendingOrEvaluatedClaudeSpecies.add(speciesKey);
+    entry.isClaudeEvaluating = true;
+
+    unawaited(() async {
+      try {
+        final ClaudeEvaluationResult evaluation =
+            await _claudeService.evaluateLiveDetection(
+          speciesTurkishName: entry.prediction.turkishName,
+          speciesScientificName: entry.prediction.scientificName,
+          modelConfidence: entry.scoreAggregate.averageConfidence,
+          peakDbfs: peakDbfs,
+          foregroundDbfs: foregroundDbfs,
+          contrastDb: contrastDb,
+          moment: now,
+          latitude: _sessionPosition?.latitude,
+          longitude: _sessionPosition?.longitude,
+          regionalSupport: entry.regionalContext?.supportLevel.name,
+          temporalContext: entry.temporalContext?.displayLabel,
+          candidateAlternatives: alternatives,
+        );
+
+        entry.claudeEvaluation = evaluation;
+        entry.isClaudeEvaluating = false;
+        if (mounted) setState(() {});
+      } catch (e) {
+        entry.isClaudeEvaluating = false;
+        debugPrint('Claude live evaluation failed for $speciesKey: $e');
+      }
+    }());
+  }
+
+  Future<void> _toggleEvaluationMode(BuildContext context) async {
+    final EvaluationMode currentMode = ref.read(evaluationModeProvider);
+    if (currentMode == EvaluationMode.local) {
+      final bool hasKey = await _claudeService.hasApiKey();
+      if (!hasKey) {
+        if (!context.mounted) return;
+        final bool? saved = await showClaudeApiKeyDialog(
+          context,
+          service: _claudeService,
+          database: ref.read(appDatabaseProvider),
+        );
+        if (saved != true) return;
+      }
+      await ref
+          .read(evaluationModeProvider.notifier)
+          .setMode(EvaluationMode.claude);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Claude AI Değerlendirme Modu Aktif'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      await ref
+          .read(evaluationModeProvider.notifier)
+          .setMode(EvaluationMode.local);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lokal (Cihaz İçi) Değerlendirme Modu Aktif'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _rareAlerts.addListener(_onRareAlertChanged);
+    _liveMinScoreSubscription = ref
+        .read(appDatabaseProvider)
+        .watchLiveDetectionMinScore()
+        .listen((double minScore) {
+      if (mounted && _liveMinScore != minScore) {
+        setState(() => _liveMinScore = minScore);
+      }
+    });
+    _candidateThresholdSubscription = ref
+        .read(appDatabaseProvider)
+        .watchCandidateThreshold()
+        .listen((double threshold) {
+      if (mounted && _candidateThreshold != threshold) {
+        setState(() => _candidateThreshold = threshold);
+      }
+    });
     _prepareSession();
   }
 
@@ -180,6 +291,8 @@ class _LiveAudioRecordingScreenState
     _clockTimer?.cancel();
     _amplitudeSubscription?.cancel();
     _audioStreamSubscription?.cancel();
+    _liveMinScoreSubscription?.cancel();
+    _candidateThresholdSubscription?.cancel();
     _sessionPcmSink?.close();
     _audioRecorder.dispose();
     _highlightTimer?.cancel();
@@ -317,13 +430,17 @@ class _LiveAudioRecordingScreenState
 
   Future<void> _prepareSession() async {
     try {
+      _pendingOrEvaluatedClaudeSpecies.clear();
       // Load occurrences for status categorization
       await SpeciesStatusHelper.loadOccurrences();
 
-      // Load live detection min score from settings
+      // Load live detection min score and candidate threshold from settings
       _liveMinScore = await ref
           .read(appDatabaseProvider)
           .liveDetectionMinScore();
+      _candidateThreshold = await ref
+          .read(appDatabaseProvider)
+          .candidateThreshold();
       _observationRadiusKm = await ref
           .read(appDatabaseProvider)
           .observationContextRadiusKm();
@@ -807,8 +924,9 @@ class _LiveAudioRecordingScreenState
         );
       }
 
+      final Uint8List modelPcm = normalizePcm16Gain(filteredPcm);
       final InferenceResult result = await _audioEngine!.identifyPcm16(
-        filteredPcm,
+        modelPcm,
         IdentificationContext(
           countryCode: 'TR',
           observationDate: DateTime.now(),
@@ -842,6 +960,7 @@ class _LiveAudioRecordingScreenState
               .toList()
             ..sort((a, b) => b.score.compareTo(a.score));
 
+      final double effectiveMin = math.max(_liveMinScore, _candidateThreshold);
       final List<SpeciesPrediction> candidates = regional
           .take(8)
           .where((pred) => pred.score >= 0.03)
@@ -882,7 +1001,7 @@ class _LiveAudioRecordingScreenState
           hits: hits,
           isRare: isRare,
           regionalSupport: regionalContext?.supportLevel,
-          configuredMinimum: _liveMinScore,
+          configuredMinimum: effectiveMin,
           temporalMultiplier: temporalContext.confidenceMultiplier,
         );
         if (kDebugMode) {
@@ -931,24 +1050,44 @@ class _LiveAudioRecordingScreenState
           existing.temporalContext = temporalContext;
           existing.isProvisional = decision.isProvisional;
           _detectedSpeciesList.insert(0, existing);
+          _triggerClaudeEvaluationIfNeeded(
+            existing,
+            peakDbfs: audioEvidence.peakDbfs,
+            foregroundDbfs: audioEvidence.foregroundDbfs,
+            contrastDb: audioEvidence.contrastDb,
+            now: now,
+            alternatives: candidates
+                .where((c) => c.scientificName != pred.scientificName)
+                .map((c) => '${c.turkishName} (%${(c.score * 100).round()})')
+                .toList(),
+          );
           if (!sameAcousticEvent) {
             _markDetectionFeedback(pred, now, audioEvidence);
           }
           listChanged = true;
         } else {
           // New species — insert at top
-          _detectedSpeciesList.insert(
-            0,
-            LiveDetectionEntry(
-              prediction: pred,
-              scoreAggregate: DetectionScoreAggregate.first(pred.score),
-              firstDetectedAt: now,
-              lastDetectedAt: now,
-              audioEvidence: audioEvidence,
-              regionalContext: regionalContext,
-              temporalContext: temporalContext,
-              isProvisional: decision.isProvisional,
-            ),
+          final LiveDetectionEntry newEntry = LiveDetectionEntry(
+            prediction: pred,
+            scoreAggregate: DetectionScoreAggregate.first(pred.score),
+            firstDetectedAt: now,
+            lastDetectedAt: now,
+            audioEvidence: audioEvidence,
+            regionalContext: regionalContext,
+            temporalContext: temporalContext,
+            isProvisional: decision.isProvisional,
+          );
+          _detectedSpeciesList.insert(0, newEntry);
+          _triggerClaudeEvaluationIfNeeded(
+            newEntry,
+            peakDbfs: audioEvidence.peakDbfs,
+            foregroundDbfs: audioEvidence.foregroundDbfs,
+            contrastDb: audioEvidence.contrastDb,
+            now: now,
+            alternatives: candidates
+                .where((c) => c.scientificName != pred.scientificName)
+                .map((c) => '${c.turkishName} (%${(c.score * 100).round()})')
+                .toList(),
           );
           _focusedSpeciesKey ??= candidateKey;
           _markDetectionFeedback(pred, now, audioEvidence);
@@ -1433,6 +1572,7 @@ class _LiveAudioRecordingScreenState
       ),
       regionalSupport: entry.regionalContext?.supportLevel.name,
       temporalContext: entry.temporalContext?.displayLabel,
+      claudeEvaluation: entry.claudeEvaluation,
       verdict:
           _rejectedSpecies.contains(
             entry.prediction.scientificName.toLowerCase(),
@@ -1539,12 +1679,19 @@ class _LiveAudioRecordingScreenState
       );
     }
     final theme = Theme.of(context);
-    final List<DetectionRecord> detectionRecords = _detectedSpeciesList
+    final double effectiveMin = math.max(_liveMinScore, _candidateThreshold);
+    final List<LiveDetectionEntry> visibleEntries = _detectedSpeciesList
+        .where(
+          (LiveDetectionEntry entry) =>
+              effectiveMin == 0.0 || entry.prediction.score >= effectiveMin,
+        )
+        .toList(growable: false);
+    final List<DetectionRecord> detectionRecords = visibleEntries
         .map(_detectionRecordFor)
         .toList(growable: false);
     final int focusedIndex = math.max(
       0,
-      _detectedSpeciesList.indexWhere(
+      visibleEntries.indexWhere(
         (LiveDetectionEntry entry) =>
             entry.prediction.scientificName.toLowerCase() == _focusedSpeciesKey,
       ),
@@ -1564,6 +1711,35 @@ class _LiveAudioRecordingScreenState
             ),
           ),
           actions: [
+            ActionChip(
+              avatar: Icon(
+                ref.watch(evaluationModeProvider) == EvaluationMode.claude
+                    ? Icons.auto_awesome
+                    : Icons.phonelink_ring_outlined,
+                size: 16,
+                color:
+                    ref.watch(evaluationModeProvider) == EvaluationMode.claude
+                        ? Colors.deepPurple
+                        : null,
+              ),
+              label: Text(
+                ref.watch(evaluationModeProvider) == EvaluationMode.claude
+                    ? 'Claude AI'
+                    : 'Lokal',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color:
+                      ref.watch(evaluationModeProvider) == EvaluationMode.claude
+                          ? Colors.deepPurple
+                          : null,
+                ),
+              ),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              tooltip: 'Değerlendirme Modunu Değiştir (Lokal / Claude AI)',
+              onPressed: () => _toggleEvaluationMode(context),
+            ),
             const AppBarHelpButton(),
             IconButton(
               tooltip: _isRecording
@@ -1726,7 +1902,7 @@ class _LiveAudioRecordingScreenState
                     flex: 3,
                     child: Text(
                       _isRecording
-                          ? '${_detectedSpeciesList.length} tür tespit edildi${_rareAlerts.detectedSpeciesCount > 0 ? ' · ${_rareAlerts.detectedSpeciesCount} nadir' : ''} · ${_formatDuration(_secondsRecorded)}'
+                          ? '${visibleEntries.length} tür tespit edildi${_rareAlerts.detectedSpeciesCount > 0 ? ' · ${_rareAlerts.detectedSpeciesCount} nadir' : ''} · ${_formatDuration(_secondsRecorded)}'
                           : _statusText,
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.bold,
@@ -1752,7 +1928,7 @@ class _LiveAudioRecordingScreenState
 
             // ── Detection Table ───────────────────────────────────────
             Expanded(
-              child: _detectedSpeciesList.isEmpty
+              child: visibleEntries.isEmpty
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32.0),
@@ -1850,25 +2026,25 @@ class _LiveAudioRecordingScreenState
                           height: constraints.maxHeight,
                           onFocusChanged: (int index) => setState(
                             () =>
-                                _focusedSpeciesKey = _detectedSpeciesList[index]
+                                _focusedSpeciesKey = visibleEntries[index]
                                     .prediction
                                     .scientificName
                                     .toLowerCase(),
                           ),
                           onVerdict: (int index, DetectionVerdict verdict) =>
                               _applyVerdict(
-                                _detectedSpeciesList[index],
+                                visibleEntries[index],
                                 verdict,
                               ),
                           onAudioReview:
                               (int index, AudioReviewVerdict verdict) =>
                                   _applyAudioReview(
-                                    _detectedSpeciesList[index],
+                                    visibleEntries[index],
                                     verdict,
                                   ),
                           isRareAlertActive: (int index) =>
                               _rareAlerts.isUnresolved(
-                                _detectedSpeciesList[index]
+                                visibleEntries[index]
                                     .prediction
                                     .scientificName,
                               ),

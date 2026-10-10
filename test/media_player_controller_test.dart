@@ -55,6 +55,23 @@ void main() {
     expect(controller.positionMs, 259000);
     expect(controller.isClipMode, isTrue);
   });
+
+  test('switchSource stops old source and seamlessly resumes new source at position', () async {
+    final _FakeGateway gateway = _FakeGateway();
+    final MediaPlayerController controller = MediaPlayerController(
+      gateway: gateway,
+    );
+    addTearDown(controller.dispose);
+
+    controller.attach('original.wav');
+    await controller.toggle();
+    expect(controller.isPlaying, isTrue);
+
+    await controller.switchSource('filtered.wav', positionMs: 3500);
+    expect(gateway.playedPath, 'filtered.wav');
+    expect(controller.isPlaying, isTrue);
+    expect(gateway.seekPositions.last, 3500);
+  });
 }
 
 class _FakeGateway implements MediaPlaybackGateway {

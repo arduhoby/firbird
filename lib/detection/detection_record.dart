@@ -1,3 +1,4 @@
+import 'package:firbird/ai/claude_api_service.dart';
 import 'package:firbird/inference/bird_inference_engine.dart';
 import 'package:firbird/audio/audio_evidence_assessment.dart';
 
@@ -73,6 +74,7 @@ class DetectionRecord {
     this.audioReviewVerdict,
     this.regionalSupport,
     this.temporalContext,
+    this.claudeEvaluation,
   });
 
   final String id;
@@ -98,12 +100,14 @@ class DetectionRecord {
   final AudioReviewVerdict? audioReviewVerdict;
   final String? regionalSupport;
   final String? temporalContext;
+  final ClaudeEvaluationResult? claudeEvaluation;
 
   DetectionRecord copyWith({
     DetectionEvidenceBundle? evidence,
     DetectionVerdict? verdict,
     AudioEvidenceAssessment? audioEvidence,
     AudioReviewVerdict? audioReviewVerdict,
+    ClaudeEvaluationResult? claudeEvaluation,
   }) => DetectionRecord(
     id: id,
     speciesId: speciesId,
@@ -128,5 +132,6 @@ class DetectionRecord {
     audioReviewVerdict: audioReviewVerdict ?? this.audioReviewVerdict,
     regionalSupport: regionalSupport,
     temporalContext: temporalContext,
+    claudeEvaluation: claudeEvaluation ?? this.claudeEvaluation,
   );
 }

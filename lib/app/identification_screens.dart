@@ -24,9 +24,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-final candidateThresholdProvider = FutureProvider<double>(
-  (Ref ref) => ref.read(appDatabaseProvider).candidateThreshold(),
-);
+
 
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({required this.request, super.key});
@@ -262,11 +260,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
         children: <Widget>[
           if (!hasReliableMatch) ...<Widget>[
             const SizedBox(height: 12),
-            const Card(
+            Card(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Guvenilir eslesme bulunamadi. Bu fotograf icin modelin tur listesi yetersiz olabilir; dusuk skorlu adaylari kesin sonuc olarak kullanmayin.',
+                  first.score < threshold
+                      ? 'Tespit eşiğinin (%${(threshold * 100).round()}) üzerinde eşleşme bulunamadı. En yakın aday gösteriliyor (%${(first.score * 100).round()}).'
+                      : 'Guvenilir eslesme bulunamadi. Bu fotograf icin modelin tur listesi yetersiz olabilir; dusuk skorlu adaylari kesin sonuc olarak kullanmayin.',
                 ),
               ),
             ),

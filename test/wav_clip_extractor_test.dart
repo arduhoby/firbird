@@ -177,5 +177,19 @@ void main() {
         } catch (_) {}
       }
     });
+
+    test('extracts with noise filter and gain multiplier', () async {
+      await WavClipExtractor.extract(
+        sourcePath,
+        startMs: 0,
+        endMs: 1000,
+        outputPath: outputPath,
+        applyNoiseFilter: true,
+        gainMultiplier: 2.0,
+      );
+      final int durationMs = WavClipExtractor.durationMsFromPath(outputPath);
+      expect(durationMs, closeTo(1000, 50));
+      expect(File(outputPath).existsSync(), isTrue);
+    });
   });
 }

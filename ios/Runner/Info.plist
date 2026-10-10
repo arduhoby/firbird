@@ -10,6 +10,10 @@
 	<string>FirBird, canlı ses tespiti sırasında konum bilgisini yerel olarak kaydetmek için konumuna ihtiyaç duyar. Konum bilgisi yalnızca cihazında kullanılır.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>FirBird, kuş seslerini gerçek zamanlı tespit etmek için mikrofona ihtiyaç duyar. Ses kaydı yalnızca cihazında işlenir, hiçbir sunucuya gönderilmez.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>FirBird, kuş fotoğraflarını çekerek görsel tür tespiti yapabilmeniz için kameraya erişim gerektirir. Fotoğraflar yalnızca cihazınızda işlenir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FirBird, galerinizdeki kuş fotoğraflarını seçerek görsel tür tespiti yapabilmeniz için fotoğraf arşivine erişim gerektirir. Fotoğraflar yalnızca cihazınızda işlenir.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

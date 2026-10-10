@@ -565,6 +565,12 @@ class BirdDetectionCard extends StatelessWidget {
                                               .colorScheme
                                               .onSurfaceVariant,
                                         ),
+                                      if (record.claudeEvaluation != null)
+                                        _DetectionBadge(
+                                          label:
+                                              '🤖 Claude: ${record.claudeEvaluation!.verdict}',
+                                          color: Colors.deepPurple,
+                                        ),
                                       if (isHighlighted)
                                         const _DetectionBadge(
                                           label: 'İncelenen',
@@ -612,6 +618,13 @@ class BirdDetectionCard extends StatelessWidget {
                           child: SingleChildScrollView(
                             child: Column(
                               children: [
+                                if (record.claudeEvaluation != null) ...<Widget>[
+                                  const SizedBox(height: 5),
+                                  _DetectionInfoLine(
+                                    icon: Icons.auto_awesome,
+                                    text: 'Claude AI: ${record.claudeEvaluation!.explanation}',
+                                  ),
+                                ],
                                 if (record.audioEvidence != null) ...<Widget>[
                                   const SizedBox(height: 5),
                                   _DetectionInfoLine(

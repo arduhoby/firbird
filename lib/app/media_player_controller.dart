@@ -110,6 +110,34 @@ class MediaPlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Seamlessly switches playback source to [filePath], restoring [positionMs]
+  /// and resuming playback if [autoPlay] is true or if audio was actively playing.
+  Future<void> switchSource(
+    String filePath, {
+    int positionMs = 0,
+    bool? autoPlay,
+  }) async {
+    if (_filePath == filePath) {
+      if (positionMs > 0) await seek(positionMs);
+      return;
+    }
+    final bool shouldPlay = autoPlay ?? (_isPlaying && !_isPaused);
+    if (_isPlaying) {
+      await stop();
+    }
+    attach(filePath);
+    if (shouldPlay) {
+      await toggle();
+      if (positionMs > 0) {
+        await seek(positionMs);
+      }
+    } else if (positionMs > 0) {
+      _positionMs = positionMs;
+      _syncPlaybackProgress();
+      _notify();
+    }
+  }
+
   Future<void> toggle() async {
     if (_filePath == null) return;
     try {

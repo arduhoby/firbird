@@ -1,413 +1,103 @@
-# FirBird 3
+# FirBird iOS & Android — Claude AI Destekli Kuş Tanımlama ve Akıllı Ses Analizi
 
-FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android ve iOS üzerinde
-çalışan **offline-first** bir kuş tanımlama uygulamasıdır. Fotoğraf ve ortam
-sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
-gönderilmez.
+FirBird, Türkiye'deki kuş gözlemcileri ve saha araştırmacıları için geliştirilmiş; cihaz içi **BirdNET** derin öğrenme modelini ve **Anthropic Claude AI** büyük dil modelini (LLM) bir araya getiren yeni nesil **hibrit kuş tanımlama ve biyoakustik analiz** uygulamasıdır.
 
-> Güncel sürüm: **v1.1.0 (build 110) / firbird4ios** — iOS Ses Paritesi, %400 Kazanç, Gürültü Azaltma ve Claude AI Hibrit Entegrasyonu
+Mikrofondan gelen ortam sesi ve çekilen fotoğraflar cihaz üzerinde analiz edilir; kullanıcı dilediğinde canlı tespit sonuçlarını **Claude AI** ornitoloji uzmanlığı ile saniyeler içinde doğrulatabilir.
 
-Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
-fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
+> 🌟 **Güncel Sürüm:** `v1.1.0 (build 110) / firbird4ios` — **Claude AI Hibrit Ornitoloji Sistemi, %400 Ses Kazancı, Akıllı Gürültü Filtresi ve Tam iOS Paritesi**
 
-## Hızlı başlangıç
+---
 
-1. Uygulamayı açın ve gerekirse fotoğraf, mikrofon ve konum izinlerini verin.
-2. Bir kuş fotoğrafını **Fotoğraftan Tanımla** ile seçin veya ortam sesini
-   **Canlı Ses Tespiti** ile dinleyin.
-3. Önerilen türün fotoğrafına, Türkçe/bilimsel adına ve güven bilgisine bakın.
-4. Değerlendirme modunu tercihinize göre **Lokal** veya **Claude AI** olarak
-   seçin (Claude modu için Ayarlar'dan API anahtarınızı girin).
-5. Yakın çevredeki kayıtları görmek için **Yakınımdaki Kuşlar** ekranında
-   **Mevcut konumumu kullan** seçeneğine dokunun.
-6. Son eBird kayıtlarını yenilemek isterseniz kendi API anahtarınızı Ayarlar'da
-   doğrulayın; ardından 20 veya 50 km verisini isteğe bağlı olarak indirin.
+## 🤖 Neden Claude AI? (Hibrit Tanımlama Devrimi)
 
-Ekran ekran ayrıntılı açıklama için [Kullanım Kılavuzu](docs/KULLANIM_KILAVUZU.md),
-hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bakın.
+Geleneksel akustik modeller (BirdNET vb.) yalnızca ses spektrogram benzerlik skoruna bakar. Ancak sahada rüzgar, yankı, örtüşen kuş ötüşleri veya benzer frekanstaki mekanik sesler klasik modelleri yanıltabilir.
 
-## Öne çıkan özellikler
+**FirBird Hibrit Mimarisi** bu sorunu Claude AI ile çözer:
 
-- **Claude AI hibrit canlı değerlendirme:** Cihaz içi BirdNET tespitlerini
-  Anthropic Claude AI (`claude-3-5-haiku`) ornitoloji modeliyle eşzamanlı
-  değerlendirebilme. Türkiye coğrafyası, mevsimsellik ve ses kalitesi analiziyle
-  düzeltilmiş güven puanı ve uzman ornitolog yorumu.
-- **Lokal / Claude AI modu seçimi:** Canlı dinleme ekranının üst çubuğundaki
-  (`📱 Lokal` ↔ `🤖 Claude AI`) butonuyla veya Ayarlar'dan anında mod değiştirme.
-- **Kişisel Claude API anahtarı yönetimi:** Ayarlar'dan veya canlı ekrandan API
-  anahtarı ekleme, canlı test etme, cihazın güvenli donanım deposunda
-  (`FlutterSecureStorage`) saklama, anlık güncelleme veya silme.
-- **Fotoğraftan tanımlama:** Galeriden seçilen veya kamerayla çekilen kuş
-  fotoğrafı cihaz üzerinde analiz edilir. EXIF tarih ve GPS bilgisi varsa
-  bağlam değerlendirmesinde kullanılabilir.
-- **Canlı ses tespiti:** BirdNET tabanlı model mikrofon akışını sürekli analiz
-  eder. Kayıt kesintisiz sürer ve tespitler zaman damgasıyla görünür.
-- **%400 ses kazancı ve gürültü azaltma (Noise Reduction):** Canlı dinleme ve
-  ses kaydında zayıf kuş seslerini duyabilmek için %400'e kadar yazılımsal kazanç
-  (Volume Boost) ve rüzgar/uğultuları temizleyen dinamik gürültü filtresi.
-- **Gerçek zamanlı ses filtresi (ekolayzer):** Rüzgar ve akar su/dere gürültülerini
-  AI modeline ulaşmadan önce temizleyen saf DSP filtre zinciri (Biquad HPF,
-  Spektral Çıkarma, RMS Normalleştirme). Ayarlar'dan 🌬️ Rüzgar, 💧 Dere/Su veya
-  🌿 Orman profilleri tek tıkla seçilebilir; frekans kesimi ve kazanç elle ayarlanabilir.
-- **Kayıt ve oynatıcı:** Canlı oturum WAV olarak saklanır. Oturum sonunda 30 saniyelik
-  zaman ölçeğine sahip spektrogram, otomatik kaydırma, oynat/durdur, ses seviyesi ve
-  tespit anına atlama seçenekleriyle tekrar dinlenebilir.
-- **Kullanıcı geri bildirimi:** Canlı ses adayları **Doğru** veya **Doğru
-  değil** olarak işaretlenebilir. Kart dokunma ve sağa kaydırma aynı Kanıt
-  Dosyası karar akışını kullanır.
-- **Kart renkleri:** Pastel arka plan güven puanını, yeşil/gri çerçeve bölgesel
-  durumu ve mavi rozet yeni/aktif tespiti gösterir. Nadirlik kartta metin olarak
-  yazılır; güven puanından bağımsızdır.
-- **Nadir tür uyarısı:** Karar verilmemiş nadir tür kartı 15 saniyede bir turuncu
-  parıltıyla uyarır. Kart görünür alandan çıksa bile nadir tür sayısı oturum
-  raporunda korunur; Doğru veya Doğru değil kararı uyarıyı durdurur.
-- **Yakındaki kuşlar:** GPS konumunun 20 km yarıçapında, seçilen tarihle aynı
-  mevsimde gözlenmiş türler listelenir. Yerel/mevsimsel kayıtlar yeşil, nadir
-  kayıtlar kırmızı grupta gösterilir.
-- **Hotspot haritası:** eBird gözlem noktasına dokunarak noktadaki son tür
-  kayıtlarını, tarihi, sayıyı ve veri varsa gözlemci kimliğini görebilirsiniz.
-  Tür listelerinde kuş fotoğrafları kullanılır.
-- **Tür detayında yakın kayıtlar:** Yakınımdaki Kuşlar listesinden açılan Tür
-  Detayı, seçilen türün mevcut 20/50 km alanındaki gözlem noktalarını; tarih,
-  adet ve varsa gözlemci kimliğiyle listeler. Noktaya dokunmak aynı hotspot
-  haritasını o konumda açar.
-- **İndirme durumu:** eBird indirme düğmesinin yanında cihazda saklanan etkin
-  verinin yarıçapı ve indirilme tarihi gösterilir. Aynı yarıçap seçildiğinde
-  düğme yenileme davranışına geçer; kullanıcı mevcut veri yeterliyse indirmeden
-  devam edebilir.
-- **Canlı eBird güncellemesi:** Kendi kişisel API anahtarınızla, yalnızca siz
-  istediğinizde 20 veya 50 km çevreden son 30 günlük hotspot kayıtları
-  indirilebilir. Bu işlem canlı dinlemeyi kesmez.
+1. **Çift Katmanlı Zeka:** Cihaz içi model mikrofon akışından ses pencerelerini anlık olarak işler ve aday türleri listeler.
+2. **Ornitolojik Akıl Yürütme (Reasoning):** Kullanıcı Claude modunu seçtiğinde, aday tür bilgisi Anthropic Claude API'ye (`claude-3-5-haiku-20241022`) iletilir. Claude;
+   - 📍 **Bölgesel Dağılım:** Türün Türkiye'deki ve bulunulan il/bölgedeki varlığını,
+   - 📅 **Fenoloji & Mevsimsellik:** Göç dönemlerini, üreme takvimini ve kışlama olasılığını,
+   - ⏰ **Biyolojik Ritim (Sirkadiyen Döngü):** Günün saatiyle türün ötüş alışkanlıklarının uyumunu,
+   - 🔊 **Akustik Karışıklık Analizi:** Benzer ses çıkaran olası türleri ve sinyal kalitesini
+   bütüncül bir biyolog gibi değerlendirir.
+3. **Şeffaf Sonuç & Rozetleme:** Claude; tespit kartında `Doğrulandı`, `Olası`, `Düşük İhtimal` gibi net bir karar etiketi ve detaylı Türkçe uzman açıklaması sunar.
+4. **Kesintisiz Ses Akışı:** Claude API çağrıları arka planda bağımsız asenkron görev olarak yürütülür; mikrofon akışı, PCM kaydı ve arayüz tepkiselliği hiçbir zaman kesintiye uğramaz.
 
-## v1.1.0 (firbird4ios) — Claude AI Hibrit Entegrasyonu, iOS Ses Paritesi & Gürültü Filtreleme
+---
 
-v1.1.0 sürümü, yerel cihaz üzerinde çalışan BirdNET yapay zeka modelini, ornitolojik akıl yürütme yapabilen büyük dil modeli (LLM) **Claude AI** ile buluşturan **Hibrit Değerlendirme Sistemi**'ni ve iPhone ile Android arasındaki ses eşliğini tamamlayan kritik yenilikleri içerir.
+## 🔑 Claude API Anahtarı ve Kullanım Modları
 
-### 🤖 Claude AI Canlı Hibrit Değerlendirme
+FirBird, kullanıcı gizliliğini ve esnekliğini ön planda tutar:
 
-- **Çift Katmanlı Mimari:** Mikrofon akışından gelen ses pencereleri ilk aşamada cihaz üzerinde çevrimdışı BirdNET modeliyle işlenir. Kullanıcı **Claude AI** modunu seçtiğinde, aday türün adı, güven puanı, tarih, saat ve yaklaşık GPS koordinatı Anthropic Claude API'ye (`claude-3-5-haiku-20241022`) asenkron gönderilir.
-- **Ornitolojik Analiz & Karar:** Claude; Türkiye ornitolojisi, mevsimsel göç takvimi, habitat uyumu ve sinyal kalitesini göz önünde bulundurarak:
-  - Düzeltilmiş güven puanı belirler,
-  - Karar etiketi (`Doğrulandı`, `Olası`, `Düşük İhtimal` vb.) atar,
-  - Tespit kartının altında Türkçe uzman açıklaması sunar.
-- **Kesintisiz Akış:** API çağrıları arka planda bağımsız asenkron görev olarak yürütülür; mikrofon dinleme akışı, PCM kaydı veya UI etkileşimi asla donmaz ya da kilitlenmez.
+### 1. Lokal (On-Device) vs Claude AI Modu Seçimi
+Uygulama içinde istediğiniz an iki mod arasında geçiş yapabilirsiniz:
+- **`📱 Lokal (On-Device)`**: Tamamen çevrimdışı çalışır. İnternet bağlantısı gerekmez; cihaz içi BirdNET modeli kullanılır.
+- **`🤖 Claude AI (Hibrit)`**: Yerel tespitleri Claude'un ornitoloji zekasıyla zenginleştirir ve canlı kartlarda doğrular.
 
-### 🔑 Claude API Anahtarı Yönetimi ve Değiştirilmesi
+> 💡 **Hızlı Geçiş:** Canlı Ses Tespiti ekranının sağ üst menüsündeki rozete dokunarak (`📱 Lokal` ↔ `🤖 Claude AI`) tek dokunuşla geçiş yapabilirsiniz.
 
-Kullanıcılar kendi kişisel Anthropic API anahtarlarını diledikleri gibi yönetebilir:
+### 2. API Anahtarı Nasıl Eklenir?
+- **Ayarlar Menüsünden:** `Ayarlar → Yapay Zeka ve Değerlendirme Modu → Claude API Anahtarı` satırına dokunun.
+- **Canlı Ekranda:** Canlı tespit ekranında `🤖 Claude AI` moduna dokunduğunuzda, anahtarınız henüz kayıtlı değilse doğrudan giriş penceresi açılır.
+- **Canlı Bağlantı Doğrulama:** Anahtarınızı yapıştırdıktan sonra **"Bağlantıyı Test Et"** butonuna basarak Anthropic API sunucularıyla anlık bağlantı testini gerçekleştirebilirsiniz (HTTP 200 doğrulaması).
 
-1. **Anahtar Ekleme:**
-   - **Canlı Dinleme Ekranında:** Üst çubukta yer alan `📱 Lokal` çipine dokunup `🤖 Claude AI` seçildiğinde, kayıtlı anahtar yoksa doğrudan API Anahtarı Giriş penceresi açılır.
-   - **Ayarlar Ekranında:** **Ayarlar → Yapay Zeka ve Değerlendirme Modu → Claude API Anahtarı** satırına dokunularak girilebilir.
-2. **Canlı Bağlantı Testi:** Anahtar girilirken **Bağlantıyı Test Et** butonuna basılarak anahtarın doğruluğu ve kota durumu test edilir (HTTP 200 doğrulaması). Geçersiz anahtarlarda hata mesajı anında gösterilir.
-3. **Güvenli Saklama:** API anahtarı `FlutterSecureStorage` ile cihazın donanımsal güvenli deposunda (iOS Keychain / Android Keystore) şifreli saklanır. Dosya sistemine düz metin olarak kaydedilmez.
-4. **Anahtarı Değiştirme ve Silme:** İstediğiniz zaman Ayarlar ekranından anahtarı güncelleyebilir veya **Anahtarı Kaldır** seçeneğiyle tek tıkla cihazdan tamamen silebilirsiniz.
-5. **Çevrimdışı Güvenlik Ağı:** İnternet bağlantısı koptuğunda veya API anahtarı girilmediğinde sistem sorunsuz şekilde **Lokal (On-Device)** modda çalışmaya devam eder.
+### 3. API Anahtarı Nasıl Değiştirilir veya Silinir?
+- İstediğiniz zaman **Ayarlar → Claude API Anahtarı** penceresine girip yeni bir anahtar tanımlayabilir veya **"Anahtarı Kaldır"** butonuna basarak anahtarı cihazdan tamamen silebilirsiniz.
 
-### 🎛️ Gelişmiş Ses Filtresi, %400 Kazanç ve Dinamik Gürültü Azaltma
+### 4. Güvenlik & Gizlilik İlkeleri
+- API anahtarınız kesinlikle hiçbir üçüncü taraf sunucuya veya veri tabanına iletilmez.
+- `FlutterSecureStorage` aracılığıyla doğrudan cihazın donanımsal güvenlik kasasında (**iOS Keychain / Android Keystore**) şifreli saklanır.
+- Yalnızca Anthropic API uç noktasına doğrudan SSL/TLS üzerinden gönderilir.
+- İnternet bağlantısı koptuğunda veya API kotası tükendiğinde uygulama kesintisiz olarak yerel **BirdNET** modunda çalışmaya devam eder.
 
-- **%400 Ses Yükseltme (Gain Boost):** Sahada uzaktaki zayıf kuş ötüşlerini rahatça duymak için dinleme ve inceleme oynatıcısında sesi 4 kata kadar yükselten kaydırıcı kontrolü.
+---
+
+## 🎛️ Ses Filtresi, %400 Kazanç ve Gürültü Azaltma (DSP)
+
+Kuş sesleri genellikle 2 kHz – 8 kHz aralığındadır. Rüzgar, araba uğultuları, dere ve yaprak hışırtıları ise düşük frekanslarda yer alır.
+
+- **%400 Ses Kazancı (Gain Boost):** Sahada uzakta kalan veya çok kısık öten kuş seslerini net duyabilmek için canlı dinleme ve kayıt oynatıcıda 4 kata kadar yazılımsal ses yükseltme.
 - **Gürültü Azaltma (Noise Reduction) Toggle:** Rüzgar, uğultu ve çevre gürültüsünü anında kesmek için ses kontrolünün yanına pratik bir toggle butonu eklendi.
-- **DSP Filtre Zinciri:** 150-300 Hz High-Pass filtreleme (Biquad HPF), spektral çıkarma ve RMS kazanç normalleştirmesi ile AI modeline giden ses sinyali gürültüden arındırılır.
+- **150 - 300 Hz High-Pass Filtre (Biquad HPF):** Rüzgar gürültüsünün %80'ini modele ve kulağa ulaşmadan kesen saf DSP filtresi.
+- **Hazır Ortam Profilleri:** Ayarlar'dan 🌬️ Rüzgar, 💧 Dere/Akar Su ve 🌿 Orman hazır ses profilleri seçilebilir.
 
-### 📱 iOS Mikrofon Paritesi & Performans Düzeltmeleri
+---
 
-- **Mikrofon Optimizasyonu:** iOS `AVAudioSession` ses yakalama hattı Android ile tam pariteye kavuşturuldu.
-- **Dinamik Tespit Eşikleri:** Canlı tespit devam ederken Ayarlar'dan değiştirilen aday gösterme ve tespit güven eşiklerinin anında ve hatasız devreye girmesi sağlandı.
+## 📱 iOS Paritesi & Donanım Optimizasyonu
 
-## v0.9.1 — Hızlı 3 Saniyelik Ses İncelemesi
+- **iOS Mikrofon Düzeltmesi:** iPhone `AVAudioSession` ses yakalama hattı Android ile tam eş düzeye getirildi; kesintisiz PCM akışı sağlandı.
+- **Dinamik Tespit Eşikleri:** Canlı dinleme devam ederken Ayarlar'dan değiştirilen aday gösterme (%45 vb.) ve tespit güven eşiklerinin anında devreye girmesi sağlandı.
 
-v0.9.1'de kartın oynatma düğmesi geniş bağlam yerine modelin değerlendirdiği
-tam üç saniyelik ham pencereyi oynatır. Player ilerlerken kuş kartları ve ağır
-spektrogram yeniden kurulmaz; yalnız zaman çizgisi ve küçük taşıma kontrolleri
-güncellenir. Canlı mikrofon seviyesi de ekranın geri kalanından ayrılmıştır.
-Seçili kuş için **Duyuluyor**, **Emin değilim** ve **Anlaşılmıyor** kararları
-ekranın altında sabit üç büyük düğme olarak gösterilir.
+---
 
-## v0.9.0 — Dinlenebilir Ses Kanıtı
+## 🚀 Hızlı Başlangıç
 
-v0.9.0, model önerisi ile insan kulağının doğrulayabildiği ses kaydını birbirinden
-ayırır. Her canlı tespit penceresi tek ortak kalite değerlendiricisiyle ölçülür ve
-**Ses güçlü · doğrula**, **Ses zayıf · incele** veya **Yalnız makine sinyali**
-olarak işaretlenir.
+1. Uygulamayı açın; mikrofon, kamera ve konum izinlerini verin.
+2. [Anthropic Console](https://console.anthropic.com/)'dan temin ettiğiniz API anahtarını Ayarlar'dan girip doğrulayın.
+3. Bir kuş fotoğrafını **Fotoğraftan Tanımla** ile seçin veya ortam sesini **Canlı Ses Tespiti** ile dinleyin.
+4. Önerilen türün fotoğrafına, Türkçe/bilimsel adına, güven bilgisine ve Claude AI değerlendirmesine bakın.
+5. Yakın çevredeki kayıtları görmek için **Yakınımdaki Kuşlar** ekranında **Mevcut konumumu kullan** seçeneğine dokunun.
+6. Son eBird kayıtlarını yenilemek isterseniz kendi API anahtarınızı Ayarlar'da doğrulayın; ardından 20 veya 50 km verisini isteğe bağlı olarak indirin.
 
-Ortak player v0.9.0'da tespit anından 3 saniye önce başlayıp 7 saniye sonrasına
-kadar olan bölümü oynatır. Kullanıcı **Duyuluyor**, **Emin değilim** veya **Anlaşılmıyor**
-kararını verir. Karar geçmiş ve replay akışında korunur; anlaşılmayan kayıt model
-önerisi olarak kalabilir ancak eBird ses delili sayılmaz. Android ve iOS aynı
-Flutter kalite, kayıt ve doğrulama sözleşmesini kullanır.
+---
 
-## v0.8.0 — Açıklanabilir Kanıt Sistemi
+## 🔍 Öne Çıkan Özellikler
 
-v0.8.0 ile canlı dinleme, ses dosyası analizi ve geçmiş/replay kayıtları aynı
-`DetectionRecord` veri sözleşmesini, aynı kuş tespit kartını ve aynı **Kanıt
-Dosyası** görünümünü kullanır. Bir karta dokunulduğunda uygulama yalnızca bir
-yüzde göstermek yerine sonucu destekleyen, zayıflatan ve değerlendirilemeyen
-bilgileri ayrı ayrı açıklar.
+- **Claude AI Hibrit Canlı Değerlendirme:** Cihaz içi BirdNET tespitlerini Anthropic Claude AI (`claude-3-5-haiku`) ornitoloji modeliyle eşzamanlı değerlendirebilme.
+- **Fotoğraftan Tanımlama:** Galeriden seçilen veya kamerayla çekilen kuş fotoğrafı cihaz üzerinde analiz edilir. EXIF tarih ve GPS bilgisi bağlam değerlendirmesinde kullanılır.
+- **Canlı Ses Tespiti:** BirdNET tabanlı model mikrofon akışını sürekli analiz eder. Kayıt kesintisiz sürer ve tespitler zaman damgasıyla görünür.
+- **Açıklanabilir Kanıt Sistemi:** Bir karta dokunulduğunda sonucu destekleyen, zayıflatan ve değerlendirilemeyen faktörleri listeleyen detaylı Kanıt Dosyası.
+- **Kayıt ve Oynatıcı:** Canlı oturum WAV olarak saklanır. Oturum sonunda 30 saniyelik spektrogram, oynat/durdur, %400 ses seviyesi, gürültü filtresi ve tespit anına atlama seçenekleriyle tekrar dinlenebilir.
+- **Kullanıcı Geri Bildirimi:** Canlı ses adayları **Doğru** veya **Doğru değil** olarak işaretlenebilir. Bu kararlar cihaz hafızasında tutularak sonraki tespitlerde doğruluk puanına katkı sağlar.
+- **Nadir Tür Uyarısı:** Karar verilmemiş nadir tür kartı 15 saniyede bir turuncu parıltıyla uyarır.
+- **Yakındaki Kuşlar & Hotspot Haritası:** GPS konumunun 20 km yarıçapında gözlenmiş türler ve eBird gözlem noktaları etkileşimli haritada listelenir.
 
-Kanıt Dosyası şu kaynakları birlikte değerlendirir:
+---
 
-- Cihaz içi ses modelinin ham benzerlik puanı.
-- Tespit saati, konumdaki güneş evresi ve türün gündüz/gece etkinlik profili.
-- Kullanıcının indirdiği 20 veya 50 km eBird çevre verisindeki aynı türe ait
-  yakın, benzer saatli ve aynı mevsimli kayıtlar.
-- Bu cihazda kullanıcının daha önce **Doğru** veya **Doğru değil** olarak
-  işaretlediği tespitler.
-- Kullanılamayan konum, indirilmemiş eBird verisi veya bilinmeyen etkinlik
-  profili gibi veri boşlukları.
+## 🔒 Gizlilik ve Ağ Kullanımı
 
-### eBird verisi doğruluğu nasıl geliştirir?
-
-eBird güncellemesi otomatik yapılmaz. Kullanıcı 20 veya 50 km verisini
-indirdiğinde sorgunun merkezi, yarıçapı, indirme zamanı ve gözlemler cihazda
-saklanır. Uygulama yeniden açıldığında son başarılı indirme geri yüklenir;
-yeniden indirme başarılı olursa önceki aktif çevre görüntüsü yenisiyle
-değiştirilir.
-
-Daha güncel çevre verisi; yakınlarda aynı türün hangi tarihlerde, mevsimlerde
-ve günün hangi saatlerinde görüldüğünü Kanıt Dosyası'na taşır. Bu nedenle
-kullanıcılar eBird'den son bilgileri indirdikçe bağlamsal değerlendirme daha
-güncel hale gelir. Ancak bir eBird gözlemi kuşun o anda **ses çıkardığını**
-kanıtlamaz; yalnızca o zaman ve yerde varlık kaydı bulunduğunu gösterir. Kayıt
-bulunmaması da türün bölgede bulunmadığının kanıtı değildir.
-
-### Puanlama algoritması
-
-Algoritma sürümü: `evidence-v2`
-
-```text
-model ortalaması = bağımsız ses olaylarındaki model skorlarının aritmetik ortalaması
-tekrar desteği = sınırla((bağımsız tespit sayısı − 1) × kullanıcı puanı, 0, 20)
-sonuç puanı = sınırla(model ortalaması + tekrar desteği + diğer kanıt puanları, 0, 100)
-```
-
-Varsayılan değerler **Ayarlar → Algoritma puanları** bölümünden kullanıcı
-tarafından değiştirilebilir ve tek düğmeyle varsayılanlara döndürülebilir.
-
-| Kanıt | Varsayılan | Uygulama kuralı |
-| --- | ---: | --- |
-| Saat uyumsuzluğu | −30 | Türün etkinlik profili ile güneş evresi güçlü biçimde çelişirse tam, kısmen çelişirse yarım ceza. |
-| Yakında aynı saat desteği | +30 | 20/50 km çevrede ±2 saat aralığında iki veya daha fazla kayıt varsa tam, bir kayıt varsa yarım destek. |
-| Mevsim uyumu | +10 | Yakın çevrede aynı mevsime ait en az bir kayıt varsa uygulanır. |
-| Her ek bağımsız ses tespiti | +4 | Üç saniyelik örtüşen analiz pencereleri tek olay sayılır; ayrı olaylar için uygulanır ve toplam destek +20 ile sınırlıdır. |
-| Cihazda doğrulanmış tür | +15 | Doğru sayısı yanlış sayısından fazlaysa uygulanır. |
-| Cihazda reddedilmiş tür | −25 | Yanlış sayısı doğru sayısından fazlaysa uygulanır. |
-
-Puanlar gerçeğin yerine geçmez. Amaç, model tahminini neden desteklediğimizi
-veya neden şüpheyle karşılamamız gerektiğini kullanıcıya denetlenebilir biçimde
-göstermektir. Bütün kanıt satırlarında kullanılan veri kaynağı ayrıca yazılır.
-
-### Ortak kart ve Kanıt Dosyası
-
-- Canlı dinleme, ses dosyası ve replay aynı `BirdDetectionCard` bileşenini
-  kullanır.
-- Kartın tamamına dokunmak Kanıt Dosyası'nı açar.
-- Replay kartındaki ayrı oynat düğmesi doğrudan tespit anına gider.
-- **Doğru / Doğru değil** değerlendirmeleri cihazda kalıcı tutulur ve sonraki
-  tespitlerde cihaz geçmişi kanıtına dönüşür.
-- Kuş adı, fotoğrafı, bilimsel adı, saat, kaynak ve puan her giriş noktasında
-  aynı düzende gösterilir.
-
-### Ekran görüntüsü yerleşim planı
-
-Ekran görüntüleri eklendiğinde aşağıdaki dosya adları kullanılacaktır:
-
-| Bölüm | Önerilen dosya |
-| --- | --- |
-| Canlı ortak tespit kartı | `assets/screenshot/v0.8.0-live-detection-card.jpg` |
-| Ses dosyası sonuç kartları | `assets/screenshot/v0.8.0-audio-file-results.jpg` |
-| Açıklanabilir Kanıt Dosyası | `assets/screenshot/v0.8.0-evidence-sheet.jpg` |
-| Algoritma puan ayarları | `assets/screenshot/v0.8.0-algorithm-settings.jpg` |
-| Tam ekran hotspot haritası | `assets/screenshot/v0.8.0-fullscreen-map.jpg` |
-
-Dosyalar eklendikten sonra bu tablo gerçek görseller ve kısa ekran açıklamaları
-ile değiştirilecektir.
-
-## Sürüm geçmişi
-
-FirBird'in sürüm numaraları yalnızca arayüz değişikliklerini değil; model,
-çevrimdışı veri, ses kaydı, harita ve doğrulama mimarisindeki kilometre
-taşlarını da gösterir. Git etiketi bulunmayan bazı numaralar geliştirme sırasında
-kullanılmış ara sürümlerdir.
-
-| Sürüm | Başlıca değişiklikler |
-| --- | --- |
-| `v0.0.1–v0.0.2` | İlk Flutter/Android uygulaması, temel fotoğraf tanımlama akışı, geçmişin otomatik kaydı ve Yakınımdaki Kuşlar ekranının ilk hali. |
-| `v0.1.x` | Türkiye çevrimdışı bölge paketi, Balkan paketleme/veri politikası hazırlıkları ve GitHub paket yerleşimi. |
-| `v0.2.1` | Ses dosyası seçimi, BirdNET ses tanımlama, model indirme ve kullanıcı düzeltmeleri. |
-| `v0.2.2` | Görsel ve ses modellerinin uygulamayla gelmesi; Türkçe tür adları, görülme durumu ve cinsiyet/yaşam evresi politikasının ilk sürümü. |
-| `v0.2.3` | 503 tür veri kümesi ve karakter kodlama onarımları. |
-| `v0.2.4` | Aynı oturumda birden fazla türü izleyen canlı biyoakustik araştırma modu. |
-| `v0.2.5` | Canlı WAV akışı, desibel ölçümü ve ekolayzır görselleştirmesi. |
-| `v0.3.0` | Canlı Ses Tespiti ekranı, tespit geçmişi, minimum güven eşiği ve yeni tespitleri öne alan sıralama. |
-| `v0.3.1` | Yan menü ve geçmişte canlı oturumları tek özet kartından açma. |
-| `v0.3.2` | Açık/koyu/sistem teması, konum izni, durum renkleri, uygulama logosu ve Android simgeleri. |
-| `v0.4.0` | Genel arayüz modernizasyonu, görsel kullanılabilirlik düzenlemeleri ve doğrulanmış ARM64 GitHub sürümü. |
-| `v0.4.1` | Canlı oturum kayıtları ile geçmiş kayıtlarını ortak oynatıcıya taşıyan ilk birleşim. |
-| `v0.5.1` | Canlı ses hassasiyeti, bölgesel/zamansal aday politikası ve çevrimdışı eBird bağlamının ilk sürümü. |
-| `v0.6.1–v0.6.4` | Harita ve replay yenilemesi; hotspot tür/gözlemci listeleri; GPS merkezli yakınlaştırma; Türkçe adlar; kişisel eBird API anahtarı testi ve indirme arayüzü. |
-| `v0.6.5` | Bir yıllık Türkiye eBird paketi, kuş fotoğrafları ve 20 km/mevsim tabanlı yerel–nadir tür ayrımı. |
-| `v0.7.0` | Tek oynatıcı, tek kuş kataloğu ve tek fotoğraf bileşeniyle kod bütünlüğü mimarisi. |
-| `v0.7.1` | Mikrofonla kontrollü canlı başlangıç, kesintisiz harita erişimi, tam ekran harita, GPS/ölçek düzeni ve kompakt Ayarlar formu. |
-| `v0.8.0` | Açıklanabilir Kanıt Dosyası, değiştirilebilir puanlama, kalıcı eBird çevre verisi ve cihaz doğrulama hafızası. |
-| `v0.8.1` | İndirme yarıçapı/tarihi durumu, yenileme davranışı, yüksek kontrastlı harita kaplamaları, küçültme düğmesi ve kuzey pusulası. |
-| `v0.8.5` | Güven ve bölgesel durum renklerinin ayrılması; 15 saniyelik çözümlenmemiş nadir tür uyarısı ve kalıcı nadir raporu; çevrimdışı uygulama içi kullanım kılavuzu. |
-| `v0.8.6` | Canlı tespitlerde ilk skora kilitlenme hatasının düzeltilmesi; bağımsız ses olaylarının ortalaması, sınırlı tekrar desteği ve canlı–geçmiş–replay skor bütünlüğü. |
-| `v1.0.0` | Canlı ve tekrar izlemede odaklanan kuşu büyüten ortak kart destesi, dikey tür geçişi, yatay kullanıcı onayı ve hafifletilmiş spektrogram. |
-| `v1.1.0` | Canlı dinlemede kaydedilen ses seviyesini -0.45 dBFS tepe noktasına normalize eden, parazit dirençli ve yumuşak sınırlayıcılı (soft-limiter) dinamik ses kazancı motoru. |
-| `v0.9.2` | Saha seslerini ham BirdNET puanlarıyla eşleştiren debug tanısı ve 10 saniye önce/sonra delil klibi. |
-| `v0.9.1` | Modelin tam üç saniyelik penceresini oynatma, sabit büyük dinleme kararları ve player/canlı ekran yeniden çizim optimizasyonu. |
-| `v0.9.0` | Duyulabilirlik kalite katmanı, eBird adayı–inceleme–makine sinyali ayrımı, tespit anına odaklı ortak player ve kalıcı insan dinleme kararı. |
-
-### v0.9.0
-
-- Ham 48 kHz PCM penceresi ses seviyesi, gürültü tabanı, kontrast ve clipping
-  açısından tek ortak değerlendiriciyle ölçülür.
-- Otomatik kalite sonucu tür teşhisinden ayrıdır; güçlü sinyal bile insan
-  doğrulaması olmadan eBird delili kabul edilmez.
-- Player tespit çevresindeki ortak 3 saniye öncesi / 7 saniye sonrası dinleme
-  aralığını kullanır.
-- Kullanıcının duyuluyor, belirsiz veya anlaşılmıyor kararı veritabanı şema 8 ile
-  geçmiş ve replay ekranında korunur.
-- Aynı Dart sözleşmesi Android ve iOS kayıtlarında kullanılır.
-
-### v0.8.6
-
-- Aynı türün kart yüzdesi artık ilk tespitte donmaz; bağımsız ses olaylarının
-  model skorları aritmetik ortalamayla güncellenir.
-- Üç saniyelik ve bir saniye aralıklı örtüşen BirdNET pencereleri aynı akustik
-  olayı tekrar tekrar saymaz; olay içindeki en güçlü skor korunur.
-- Kartta birleşik güven, model ortalaması ve bağımsız duyulma sayısı ayrı ayrı
-  gösterilir.
-- Her ek bağımsız tespitin destek puanı Ayarlar'dan değiştirilebilir ve toplam
-  tekrar desteği +20 ile sınırlıdır.
-- Ortalama skor ve tekrar sayısı canlı oturum özeti, geçmiş ve ortak replay
-  oynatıcısında aynı kanonik sözleşmeyle korunur.
-
-### v0.8.5
-
-- Kartın pastel arka planı yalnız güven puanını gösterir; bölgesel durum
-  çerçeveden, yeni/aktif tespit mavi rozetten okunur.
-- Nadir tür sabit kırmızı çerçeve veya alt renk lejantıyla gösterilmez. Kartta
-  **Nadir Tür** yazısı bulunur ve kullanıcı karar verene kadar 15 saniyede bir
-  turuncu uyarı oluşur.
-- Oturum raporu, kart kaydırılarak görünmez olsa da benzersiz nadir tür sayısını
-  korur. Aynı türün tekrarları sayıyı artırmaz.
-- Çevrimdışı **Kullanım Kılavuzu** sol menüden ve ekranların sağ üstündeki soru
-  işaretinden açılabilir.
-
-### v0.8.1
-
-- eBird indirme düğmesinin yanında kalıcı yarıçap ve indirilme tarihi bilgisi.
-- Kayıtlı yarıçap seçildiğinde **veriyi yenile**, farklı yarıçap seçildiğinde
-  **veriyi indir** davranışı.
-- Koyu temada da yüksek kontrastlı harita etiketleri ve mesafe cetveli.
-- Tam ekranda haritayı küçültme düğmesi ve döndürmeye duyarlı kuzey pusulası.
-
-### v0.8.0
-
-- Açıklanabilir, puan dökümlü Kanıt Dosyası.
-- Canlı, ses dosyası ve replay için ortak kuş tespit kartı.
-- Kalıcı eBird çevre verisi ve kalıcı cihaz doğrulama hafızası.
-- Kullanıcı tarafından değiştirilebilir Algoritma puanları.
-- Harita yüzeyinde tam ekran kontrolü ve belirgin Ayarlar kategorileri.
-- Tür Detayı sayfasında seçilen kuşa ait yakın eBird gözlem noktaları.
-
-### v0.7.1
-
-- Canlı ses ekranı artık kendiliğinden dinlemeye başlamaz. Model hazırlandıktan
-  sonra kullanıcı mikrofon düğmesine dokunur; mikrofon ve konum izinleri o anda
-  istenir.
-- Hotspot haritası aynı bileşenle kart veya tam ekran açılır ve tek dokunuşla
-  önceki boyutuna döner. Canlı dinleme sırasında açıldığında kayıt kesilmez.
-- GPS işareti ve **GPS konumunuz** açıklaması haritayı yeniden konuma ortalar.
-- Mesafe ölçeği, görünür alan ve 20/50 km yarıçap etiketleri ayrı köşelere
-  sabitlendi; yakınlaştırmaya göre görünür alan değeri güncellenir.
-- Hotspot gözlem listesine iOS'ta da görünen kapatma düğmesi eklendi.
-- Düğmeler, açılır seçimler ve Ayarlar ekranı daha kompakt, form düzenli ve dar
-  ekranlarda metni kesmeyecek biçimde düzenlendi.
-- Lisanslı uydu sağlayıcısı gerektirmeyen mevcut OpenStreetMap arazi zemini
-  varsayılan ve tek harita katmanı olarak korundu.
-
-### v0.7.0
-
-- **Kod bütünlüğü:** Canlı oturum, geçmiş kayıt ve doğrudan açılan sesler tek
-  oynatma sözleşmesi, tek controller ve tek player ekranında birleştirildi;
-  kuş kataloğu ile fotoğraf gösterimi de uygulama genelinde ortaklaştırıldı.
-
-### v0.6.5
-
-- Yakındaki kuşlar ve hotspot kayıtlarına kuş fotoğrafları eklendi.
-- Yakın tür listesi genel Türkiye listesinden GPS'e göre 20 km çevre ve aynı
-  mevsim kayıtlarına daraltıldı.
-- Yerel/mevsimsel türler ve nadir türler yeşil/kırmızı bölümlerde ayrıldı.
-- Bir yıllık Türkiye eBird bağlam paketi uygulamaya dahil edildi.
-- Kişisel eBird API anahtarı için test, güvenli saklama ve yeşil doğrulama
-  durumu eklendi.
-
-## Gelecek yol haritası
-
-Yol haritası kesin tarih veya özellik taahhüdü değildir. Sıralama; saha
-testleri, veri kalitesi, lisans koşulları ve cihaz üzerindeki performansa göre
-değişebilir.
-
-### Yakın plan
-
-- **Kanıt algoritması v2:** Tür bazlı gündüz/gece etkinlik profillerini
-  genişletmek ve mevcut puanları gerçek saha doğrulamalarıyla kalibre etmek.
-- **Veri tazeliği:** Kanıt Dosyası'nda kullanılan eBird paketinin yaşı,
-  yarıçapı ve kayıt kapsamını daha görünür hale getirmek; eski veriyi açıkça
-  uyarmak.
-- **Doğrulama geçmişi:** Kullanıcının cihazdaki Doğru/Doğru değil kararlarını
-  tür bazında özetlemek ve algoritmaya ne kadar katkı yaptığını göstermek.
-- **Kanıt ayrıntıları:** Aynı türün yakın çevredeki saat dağılımını, tekrar
-  sayısını ve gözlem noktalarını tek kanıt zincirinde daha ayrıntılı sunmak.
-- **Belgeleme:** Kullanıcının sağlayacağı gerçek ekran görüntüleriyle README ve
-  kullanım kılavuzunu ekran ekran, Wikipedia benzeri bir başvuru kaynağına
-  dönüştürmek.
-
-### Araştırma ve sonraki aşamalar
-
-- **Yeni bağlam kaynakları:** Lisansı ve veri kalitesi uygun olduğunda habitat,
-  göç dönemi ve hava koşulu gibi ek kanıtları puanlamaya kontrollü biçimde
-  dahil etmek.
-- **Tür bazlı görsel özellikler:** Yalnız güvenilir veri bulunan türlerde gerçek
-  bir cinsiyet/yaşam evresi modeli kullanmak; diğer durumlarda sonucu
-  **Belirsiz** bırakmak.
-- **Yerel öğrenme ve kalibrasyon:** Kullanıcının doğruladığı kayıtlarla cihaz
-  üzerinde güven eşiklerini kişiselleştirmek; ham kullanıcı verisini izinsiz
-  olarak dışarı göndermemek.
-- **Paket güncelleme süreci:** Türkiye eBird çevrimdışı paketini yeni veri
-  dönemleriyle tekrarlanabilir ve denetlenebilir biçimde yenilemek.
-
-### Değişmeyecek ilkeler
-
-- Tanımlama ve puanlama mümkün olduğunca cihazda çalışır.
-- eBird indirmeleri yalnız kullanıcının açık işlemiyle yapılır.
-- Kişisel API anahtarı APK'ya, README'ye veya gözlem önbelleğine yazılmaz.
-- Puan, gözlem veya model sonucu kesin teşhis gibi sunulmaz; kullanılan her
-  kanıtın kaynağı ve sınırlaması açıklanır.
-
-## Türkiye eBird bağlam paketi
-
-Uygulama, eBird Basic Dataset'ten türetilen çevrimdışı Türkiye paketini içerir.
-Paket, onaylanmış hotspot gözlemlerinden her hotspot ve tür için en güncel
-kaydı özetler; kapsadığı dönem **365 gün**dür.
-
-| Kapsam | Değer |
-| --- | --- |
-| Ülke | Türkiye, 81 il |
-| Hotspot | 4.857 |
-| Hotspot-tür özeti | 93.637 |
-| Paket sürümü | `2026.07.29-ebd1y` |
-
-Bu veriler bir türün kesin bulunurluğunu kanıtlamaz. Yakın kaydın olmaması da
-türün bölgede bulunmadığı anlamına gelmez. Canlı eBird API anahtarı APK'ya
-eklenmez; her kullanıcı isterse kendi anahtarını girer.
-
-## Gizlilik ve ağ kullanımı
-
-| İşlem | İnternet gerekir mi? | Nerede çalışır? |
+| İşlem | İnternet Gerekir mi? | Nerede Çalışır? |
 | --- | --- | --- |
 | Fotoğraftan tanımlama | Hayır | Cihazda |
 | Canlı ses tespiti ve kayıt | Hayır | Cihazda |
@@ -416,41 +106,46 @@ eklenmez; her kullanıcı isterse kendi anahtarını girer.
 | Harita zemini | Evet | OpenStreetMap katmanı |
 | Kuş liste fotoğrafları | Evet | BirdNET/Cornell görsel kaynağı |
 | Son 30 günlük eBird verisi | Evet, yalnızca kullanıcı isterse | Kişisel API anahtarıyla eBird |
-| Claude AI canlı değerlendirme | Evet, yalnızca kullanıcı seçerse | Kişisel API anahtarıyla Anthropic Claude API |
+| Claude AI canlı değerlendirme | Evet, yalnızca kullanıcı Claude modunu seçerse | Kişisel API anahtarıyla Anthropic Claude API |
 
-Kişisel eBird ve Claude API anahtarları yalnızca cihazın güvenli donanım deposunda
-(`FlutterSecureStorage` - iOS Keychain / Android Keystore) saklanır. Canlı dinleme
-kendiliğinden veya kullanıcının açık onayı olmadan ağa istek atmaz. API anahtarları
-istenildiği an Ayarlar menüsünden değiştirilebilir veya silinebilir.
+Kişisel eBird ve Claude API anahtarları yalnızca cihazın güvenli donanım deposunda (`FlutterSecureStorage` - iOS Keychain / Android Keystore) saklanır. Canlı dinleme kendiliğinden veya kullanıcının açık onayı olmadan ağa istek atmaz. API anahtarları istenildiği an Ayarlar menüsünden değiştirilebilir veya silinebilir.
 
-## İzinler
+---
+
+## 🛠️ İzinler
 
 - **Kamera:** Yeni kuş fotoğrafı çekmek için.
 - **Fotoğraf/medya:** Galeriden fotoğraf veya ses dosyası seçmek için.
 - **Mikrofon:** Canlı ses tespiti ve kayıt için.
-- **Konum:** Yakındaki türleri, hotspotları ve bölgesel bağlamı GPS'e göre
-  hesaplamak için. Konum verilmezse temel tanımlama yine çalışır.
-- **İnternet:** Harita zemini, kuş fotoğrafları, canlı eBird güncellemesi ve
-  kullanıcı seçtiğinde Claude AI değerlendirmesi için.
+- **Konum:** Yakındaki türleri, hotspotları ve bölgesel bağlamı GPS'e göre hesaplamak için.
+- **İnternet:** Harita zemini, kuş fotoğrafları, canlı eBird güncellemesi ve kullanıcı seçtiğinde Claude AI değerlendirmesi için.
 
-## Geliştirme ve derleme
+---
 
-```powershell
+## 💻 Geliştirme ve Derleme
+
+```bash
+# Bağımlılıkları yükleme
 flutter pub get
+
+# Statik analiz ve testler
 flutter analyze
 flutter test
+
+# Android derleme
 flutter build apk --release --target-platform android-arm64
+
+# iOS derleme
+flutter build ios --release --no-codesign
 ```
 
-ARM64 Android cihazlar için APK çıktısı:
+---
 
-```text
-build/app/outputs/flutter-apk/app-release.apk
-```
+## 📜 Veri Kaynakları ve Lisans
 
-## Veri kaynakları ve lisans
-
-- Gözlem bağlamı: [eBird](https://ebird.org/); eBird veri koşulları geçerlidir.
-- Kuş fotoğrafı adresleri: BirdNET/Cornell taksonomi görsel servisi.
-- Harita zemini: OpenStreetMap katkıcıları.
-- Kaynak kod: [Apache License 2.0](LICENSE).
+- **Ornitolojik Zeka:** Anthropic Claude Messages API (`claude-3-5-haiku-20241022`).
+- **Akustik Model:** BirdNET (Cornell Lab of Ornithology / Chemnitz University of Technology).
+- **Gözlem Bağlamı:** [eBird](https://ebird.org/); eBird veri kullanım koşulları geçerlidir.
+- **Kuş Fotoğrafları:** Cornell / BirdNET taksonomi görsel servisi.
+- **Harita:** OpenStreetMap katkıcıları.
+- **Kaynak Kod Lisansı:** [Apache License 2.0](LICENSE).

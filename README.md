@@ -5,7 +5,7 @@ FirBird 3, Türkiye'deki kuş gözlemcileri için geliştirilmiş, Android ve iO
 sesi cihazda analiz edilir; konum ve kayıtlar varsayılan olarak bir sunucuya
 gönderilmez.
 
-> Güncel sürüm: **v1.1.0 (build 110)**
+> Güncel sürüm: **v1.1.0 (build 110) / firbird4ios** — iOS Ses Paritesi, %400 Kazanç, Gürültü Azaltma ve Claude AI Hibrit Entegrasyonu
 
 Tanımlamalar birer öneridir. Özellikle nadir tür kayıtlarını saha notu,
 fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
@@ -16,9 +16,11 @@ fotoğraf/ses ve güvenilir gözlem kaynaklarıyla doğrulayın.
 2. Bir kuş fotoğrafını **Fotoğraftan Tanımla** ile seçin veya ortam sesini
    **Canlı Ses Tespiti** ile dinleyin.
 3. Önerilen türün fotoğrafına, Türkçe/bilimsel adına ve güven bilgisine bakın.
-4. Yakın çevredeki kayıtları görmek için **Yakınımdaki Kuşlar** ekranında
+4. Değerlendirme modunu tercihinize göre **Lokal** veya **Claude AI** olarak
+   seçin (Claude modu için Ayarlar'dan API anahtarınızı girin).
+5. Yakın çevredeki kayıtları görmek için **Yakınımdaki Kuşlar** ekranında
    **Mevcut konumumu kullan** seçeneğine dokunun.
-5. Son eBird kayıtlarını yenilemek isterseniz kendi API anahtarınızı Ayarlar'da
+6. Son eBird kayıtlarını yenilemek isterseniz kendi API anahtarınızı Ayarlar'da
    doğrulayın; ardından 20 veya 50 km verisini isteğe bağlı olarak indirin.
 
 Ekran ekran ayrıntılı açıklama için [Kullanım Kılavuzu](docs/KULLANIM_KILAVUZU.md),
@@ -26,11 +28,23 @@ hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bak�
 
 ## Öne çıkan özellikler
 
+- **Claude AI hibrit canlı değerlendirme:** Cihaz içi BirdNET tespitlerini
+  Anthropic Claude AI (`claude-3-5-haiku`) ornitoloji modeliyle eşzamanlı
+  değerlendirebilme. Türkiye coğrafyası, mevsimsellik ve ses kalitesi analiziyle
+  düzeltilmiş güven puanı ve uzman ornitolog yorumu.
+- **Lokal / Claude AI modu seçimi:** Canlı dinleme ekranının üst çubuğundaki
+  (`📱 Lokal` ↔ `🤖 Claude AI`) butonuyla veya Ayarlar'dan anında mod değiştirme.
+- **Kişisel Claude API anahtarı yönetimi:** Ayarlar'dan veya canlı ekrandan API
+  anahtarı ekleme, canlı test etme, cihazın güvenli donanım deposunda
+  (`FlutterSecureStorage`) saklama, anlık güncelleme veya silme.
 - **Fotoğraftan tanımlama:** Galeriden seçilen veya kamerayla çekilen kuş
   fotoğrafı cihaz üzerinde analiz edilir. EXIF tarih ve GPS bilgisi varsa
   bağlam değerlendirmesinde kullanılabilir.
 - **Canlı ses tespiti:** BirdNET tabanlı model mikrofon akışını sürekli analiz
   eder. Kayıt kesintisiz sürer ve tespitler zaman damgasıyla görünür.
+- **%400 ses kazancı ve gürültü azaltma (Noise Reduction):** Canlı dinleme ve
+  ses kaydında zayıf kuş seslerini duyabilmek için %400'e kadar yazılımsal kazanç
+  (Volume Boost) ve rüzgar/uğultuları temizleyen dinamik gürültü filtresi.
 - **Gerçek zamanlı ses filtresi (ekolayzer):** Rüzgar ve akar su/dere gürültülerini
   AI modeline ulaşmadan önce temizleyen saf DSP filtre zinciri (Biquad HPF,
   Spektral Çıkarma, RMS Normalleştirme). Ayarlar'dan 🌬️ Rüzgar, 💧 Dere/Su veya
@@ -64,6 +78,42 @@ hızlı anlam ve sorun çözümü için [Yardım](docs/YARDIM.md) belgesine bak�
 - **Canlı eBird güncellemesi:** Kendi kişisel API anahtarınızla, yalnızca siz
   istediğinizde 20 veya 50 km çevreden son 30 günlük hotspot kayıtları
   indirilebilir. Bu işlem canlı dinlemeyi kesmez.
+
+## v1.1.0 (firbird4ios) — Claude AI Hibrit Entegrasyonu, iOS Ses Paritesi & Gürültü Filtreleme
+
+v1.1.0 sürümü, yerel cihaz üzerinde çalışan BirdNET yapay zeka modelini, ornitolojik akıl yürütme yapabilen büyük dil modeli (LLM) **Claude AI** ile buluşturan **Hibrit Değerlendirme Sistemi**'ni ve iPhone ile Android arasındaki ses eşliğini tamamlayan kritik yenilikleri içerir.
+
+### 🤖 Claude AI Canlı Hibrit Değerlendirme
+
+- **Çift Katmanlı Mimari:** Mikrofon akışından gelen ses pencereleri ilk aşamada cihaz üzerinde çevrimdışı BirdNET modeliyle işlenir. Kullanıcı **Claude AI** modunu seçtiğinde, aday türün adı, güven puanı, tarih, saat ve yaklaşık GPS koordinatı Anthropic Claude API'ye (`claude-3-5-haiku-20241022`) asenkron gönderilir.
+- **Ornitolojik Analiz & Karar:** Claude; Türkiye ornitolojisi, mevsimsel göç takvimi, habitat uyumu ve sinyal kalitesini göz önünde bulundurarak:
+  - Düzeltilmiş güven puanı belirler,
+  - Karar etiketi (`Doğrulandı`, `Olası`, `Düşük İhtimal` vb.) atar,
+  - Tespit kartının altında Türkçe uzman açıklaması sunar.
+- **Kesintisiz Akış:** API çağrıları arka planda bağımsız asenkron görev olarak yürütülür; mikrofon dinleme akışı, PCM kaydı veya UI etkileşimi asla donmaz ya da kilitlenmez.
+
+### 🔑 Claude API Anahtarı Yönetimi ve Değiştirilmesi
+
+Kullanıcılar kendi kişisel Anthropic API anahtarlarını diledikleri gibi yönetebilir:
+
+1. **Anahtar Ekleme:**
+   - **Canlı Dinleme Ekranında:** Üst çubukta yer alan `📱 Lokal` çipine dokunup `🤖 Claude AI` seçildiğinde, kayıtlı anahtar yoksa doğrudan API Anahtarı Giriş penceresi açılır.
+   - **Ayarlar Ekranında:** **Ayarlar → Yapay Zeka ve Değerlendirme Modu → Claude API Anahtarı** satırına dokunularak girilebilir.
+2. **Canlı Bağlantı Testi:** Anahtar girilirken **Bağlantıyı Test Et** butonuna basılarak anahtarın doğruluğu ve kota durumu test edilir (HTTP 200 doğrulaması). Geçersiz anahtarlarda hata mesajı anında gösterilir.
+3. **Güvenli Saklama:** API anahtarı `FlutterSecureStorage` ile cihazın donanımsal güvenli deposunda (iOS Keychain / Android Keystore) şifreli saklanır. Dosya sistemine düz metin olarak kaydedilmez.
+4. **Anahtarı Değiştirme ve Silme:** İstediğiniz zaman Ayarlar ekranından anahtarı güncelleyebilir veya **Anahtarı Kaldır** seçeneğiyle tek tıkla cihazdan tamamen silebilirsiniz.
+5. **Çevrimdışı Güvenlik Ağı:** İnternet bağlantısı koptuğunda veya API anahtarı girilmediğinde sistem sorunsuz şekilde **Lokal (On-Device)** modda çalışmaya devam eder.
+
+### 🎛️ Gelişmiş Ses Filtresi, %400 Kazanç ve Dinamik Gürültü Azaltma
+
+- **%400 Ses Yükseltme (Gain Boost):** Sahada uzaktaki zayıf kuş ötüşlerini rahatça duymak için dinleme ve inceleme oynatıcısında sesi 4 kata kadar yükselten kaydırıcı kontrolü.
+- **Gürültü Azaltma (Noise Reduction) Toggle:** Rüzgar, uğultu ve çevre gürültüsünü anında kesmek için ses kontrolünün yanına pratik bir toggle butonu eklendi.
+- **DSP Filtre Zinciri:** 150-300 Hz High-Pass filtreleme (Biquad HPF), spektral çıkarma ve RMS kazanç normalleştirmesi ile AI modeline giden ses sinyali gürültüden arındırılır.
+
+### 📱 iOS Mikrofon Paritesi & Performans Düzeltmeleri
+
+- **Mikrofon Optimizasyonu:** iOS `AVAudioSession` ses yakalama hattı Android ile tam pariteye kavuşturuldu.
+- **Dinamik Tespit Eşikleri:** Canlı tespit devam ederken Ayarlar'dan değiştirilen aday gösterme ve tespit güven eşiklerinin anında ve hatasız devreye girmesi sağlandı.
 
 ## v0.9.1 — Hızlı 3 Saniyelik Ses İncelemesi
 
@@ -362,13 +412,16 @@ eklenmez; her kullanıcı isterse kendi anahtarını girer.
 | Fotoğraftan tanımlama | Hayır | Cihazda |
 | Canlı ses tespiti ve kayıt | Hayır | Cihazda |
 | Geçmiş kayıtların oynatılması | Hayır | Cihazda |
-| Bir yıllık eBird bağlamı | Hayır | APK içindeki paket |
+| Bir yıllık eBird bağlamı | Hayır | Uygulama içindeki çevrimdışı paket |
 | Harita zemini | Evet | OpenStreetMap katmanı |
 | Kuş liste fotoğrafları | Evet | BirdNET/Cornell görsel kaynağı |
 | Son 30 günlük eBird verisi | Evet, yalnızca kullanıcı isterse | Kişisel API anahtarıyla eBird |
+| Claude AI canlı değerlendirme | Evet, yalnızca kullanıcı seçerse | Kişisel API anahtarıyla Anthropic Claude API |
 
-Kişisel eBird API anahtarı yalnızca cihazın güvenli deposunda saklanır. Canlı
-dinleme kendiliğinden eBird'e istek atmaz.
+Kişisel eBird ve Claude API anahtarları yalnızca cihazın güvenli donanım deposunda
+(`FlutterSecureStorage` - iOS Keychain / Android Keystore) saklanır. Canlı dinleme
+kendiliğinden veya kullanıcının açık onayı olmadan ağa istek atmaz. API anahtarları
+istenildiği an Ayarlar menüsünden değiştirilebilir veya silinebilir.
 
 ## İzinler
 
@@ -377,8 +430,8 @@ dinleme kendiliğinden eBird'e istek atmaz.
 - **Mikrofon:** Canlı ses tespiti ve kayıt için.
 - **Konum:** Yakındaki türleri, hotspotları ve bölgesel bağlamı GPS'e göre
   hesaplamak için. Konum verilmezse temel tanımlama yine çalışır.
-- **İnternet:** Harita zemini, kuş fotoğrafları ve kullanıcı isteğiyle canlı
-  eBird güncellemesi için.
+- **İnternet:** Harita zemini, kuş fotoğrafları, canlı eBird güncellemesi ve
+  kullanıcı seçtiğinde Claude AI değerlendirmesi için.
 
 ## Geliştirme ve derleme
 

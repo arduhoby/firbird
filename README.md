@@ -8,6 +8,19 @@ Mikrofondan gelen ortam sesi ve çekilen fotoğraflar cihaz üzerinde analiz edi
 
 ---
 
+## 📱 Uygulama Ekran Görüntüleri
+
+<p align="center">
+  <img src="assets/screenshot/firbird-ios-main-screen.png" width="290" alt="FirBird iOS Ana Ekran" />
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot/firbird-ios-audio-playback.png" width="290" alt="Spektrogram, %400 Ses Kazancı ve Gürültü Filtresi" />
+</p>
+<p align="center">
+  <em><strong>Sol:</strong> FirBird iOS Ana Ekranı (Offline-First) &nbsp;|&nbsp; <strong>Sağ:</strong> Canlı Dinleme, Spektrogram, %400 Ses Kazancı, Gürültü Filtresi ve Tür Tespit Kartı</em>
+</p>
+
+---
+
 ## 🤖 Neden Claude AI? (Hibrit Tanımlama Devrimi)
 
 Geleneksel akustik modeller (BirdNET vb.) yalnızca ses spektrogram benzerlik skoruna bakar. Ancak sahada rüzgar, yankı, örtüşen kuş ötüşleri veya benzer frekanstaki mekanik sesler klasik modelleri yanıltabilir.
